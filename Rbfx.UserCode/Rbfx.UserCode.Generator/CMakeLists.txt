@@ -4,7 +4,7 @@ add_custom_command(
           "-DGENERATOR_DLL=${SHARPCPP_RBFX_USERCODE_GENERATOR_DLL}"
           "-DGENERATED_STAMP=${RBFX_USERCODE_GENERATED_STAMP}"
           "-DGENERATED_DIR=${RBFX_USERCODE_GENERATED_ROOT}"
-          -P "${SharpCpp_SOURCE_DIR}/cmake/SharpCppGeneratedStaleness.cmake"
+          -P "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${RBFX_USERCODE_GENERATED_ROOT}"
   COMMAND "${CMAKE_COMMAND}" -E env
           "SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY=${SHARPCPP_CLANG_RESOURCE_DIRECTORY}"
@@ -12,6 +12,8 @@ add_custom_command(
           --sdk-root "${RBFX_SDK_ROOT}"
           --flags-file "${RBFX_SDK_FLAGS_FILE}"
           --user-code-root "${CMAKE_CURRENT_SOURCE_DIR}/.."
+          --sharpcpp-include "${SHARPCPP_ROOT}/include"
+          --rbfx-include "${PROJECT_SOURCE_DIR}/include"
           --generated-root "${RBFX_USERCODE_GENERATED_ROOT}"
           --import-binding-metadata "${RBFX_METADATA_FILE}"
           --log-file "${RBFX_USERCODE_GENERATOR_LOG_FILE}"
@@ -23,7 +25,7 @@ add_custom_command(
     "${RBFX_USERCODE_NATIVE_SOURCE}"
     ${RBFX_USERCODE_INPUT_HEADERS}
     ${RBFX_SDK_INPUT_HEADERS}
-  WORKING_DIRECTORY "${SharpCpp_SOURCE_DIR}"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
   VERBATIM
   USES_TERMINAL)
 

@@ -116,11 +116,12 @@ internal static class Program
                 throw new InvalidOperationException($"rbfx SDK include directory was not found at '{urhoIncludeRoot}'.");
             }
 
-            var projectRoot = Path.GetFullPath(options.ProjectRoot);
+            var sharpCppIncludeRoot = Path.GetFullPath(options.SharpCppIncludeRoot);
+            var rbfxIncludeRoot = Path.GetFullPath(options.RbfxIncludeRoot);
             var marshallerConfigurationFiles = new List<string>
             {
-                Path.Combine(projectRoot, "include", "SharpCpp", "Marshaller.hpp"),
-                Path.Combine(projectRoot, "rbfx", "include", "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp")
+                Path.Combine(sharpCppIncludeRoot, "SharpCpp", "Marshaller.hpp"),
+                Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp")
             };
 
             Logger.LogInformation("rbfx SDK root: {SdkRoot}", sdkRoot);
@@ -131,13 +132,13 @@ internal static class Program
             var submodules = RbfxBindingSubmodules.Detect(sdkFlags);
             if (submodules.HasSystemUi)
             {
-                marshallerConfigurationFiles.Add(Path.Combine(projectRoot, "rbfx", "include", "SharpCpp", "detail", "RbfxImGuiValueMarshallers.hpp"));
+                marshallerConfigurationFiles.Add(Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxImGuiValueMarshallers.hpp"));
             }
 
             Logger.LogInformation("RmlUI bindings: {State}", submodules.HasRmlUi ? "enabled" : "disabled");
             Logger.LogInformation("Dear ImGui bindings: {State}", submodules.HasSystemUi ? "enabled" : "disabled");
 
-            var clangArguments = BuildClangArguments(projectRoot, includeRoot, sdkFlags);
+            var clangArguments = BuildClangArguments([sharpCppIncludeRoot, rbfxIncludeRoot], includeRoot, sdkFlags);
             var umbrellaHeaderPath = Path.Combine(urhoIncludeRoot, "Urho3DAll.h");
             if (!File.Exists(umbrellaHeaderPath))
             {
@@ -268,7 +269,7 @@ internal static class Program
 
     private static string FormatDuration(TimeSpan elapsed) => $"{elapsed.TotalSeconds:F1}s";
 
-    private static IReadOnlyList<string> BuildClangArguments(string projectRoot, string includeRoot, SdkParseFlags sdkFlags)
+    private static IReadOnlyList<string> BuildClangArguments(IReadOnlyList<string> projectIncludeRoots, string includeRoot, SdkParseFlags sdkFlags)
     {
         var arguments = new List<string>
         {
@@ -288,12 +289,14 @@ internal static class Program
             arguments.Add($"-I{includeDirectory}");
         }
 
-        // Add SharpCpp project include path so marshaller config headers can resolve
-        // <SharpCpp/Marshaller.hpp> and similar project-relative includes.
-        var projectInclude = Path.Combine(projectRoot, "include");
-        if (!arguments.Contains($"-I{projectInclude}", StringComparer.Ordinal))
+        // SharpCpp and rbfx marshaller include roots let configuration headers resolve
+        // <SharpCpp/Marshaller.hpp> and <SharpCpp/detail/Rbfx*.hpp>.
+        foreach (var projectInclude in projectIncludeRoots)
         {
-            arguments.Add($"-I{projectInclude}");
+            if (!arguments.Contains($"-I{projectInclude}", StringComparer.Ordinal))
+            {
+                arguments.Add($"-I{projectInclude}");
+            }
         }
 
         foreach (var define in sdkFlags.Defines)

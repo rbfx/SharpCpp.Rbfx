@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <AssemblyName>SharpCpp.Rbfx.Native.Build</AssemblyName>
+    <CopyBuildOutputToOutputDirectory>false</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../SharpCpp.Rbfx.Generator/SharpCpp.Rbfx.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      PrivateAssets="all" />
+    <ProjectReference Include="../../Rbfx.UserCode/Rbfx.UserCode.Generator/Rbfx.UserCode.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="RbfxBuildNative" AfterTargets="Build">
+    <Error Condition="'$(RbfxSdkRoot)' == ''"
+           Text="Set RbfxSdkRoot (or RBFX_SDK_ROOT) to an installed shared-library rbfx SDK." />
+    <MakeDir Directories="$(SharpCppBuildRoot);$(SharpCppOutputDir)" />
+    <Exec WorkingDirectory="$(SharpCppRbfxRoot)"
+          Command="&quot;$(RbfxCMakeCommand)&quot; -DRBFX_SOURCE_DIR=&quot;$(SharpCppRbfxRoot)&quot; -DRBFX_NATIVE_PRESET=&quot;$(RbfxNativePreset)&quot; -DRBFX_NATIVE_BUILD_DIR=&quot;$(RbfxNativeBuildDir)&quot; -DRBFX_CONFIGURATION=&quot;$(Configuration)&quot; -DRBFX_NATIVE_LOCK_FILE=&quot;$(RbfxNativeLockFile)&quot; -DSHARPCPP_ROOT=&quot;$(SharpCppRoot)&quot; -DRBFX_SDK_ROOT=&quot;$(RbfxSdkRoot)&quot; -DSHARPCPP_MANAGED_OUTPUT_ROOT=&quot;$(SharpCppManagedOutputRoot)&quot; -DSHARPCPP_NATIVE_OUTPUT_ROOT=&quot;$(SharpCppNativeOutputRoot)&quot; -DRBFX_NATIVE_CONFIGURE_ARGUMENTS=&quot;$(RbfxNativeConfigureArguments)&quot; -P &quot;$(MSBuildThisFileDirectory)BuildNative.cmake&quot;" />
+  </Target>
+</Project>

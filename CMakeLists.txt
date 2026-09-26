@@ -1,4 +1,39 @@
-set(_rbfx_default_sdk_root "${SharpCpp_SOURCE_DIR}/build/rbfx-sdk")
+cmake_minimum_required(VERSION 3.28)
+
+project(SharpCppRbfx LANGUAGES CXX)
+
+get_filename_component(_sharpcpp_default_root "${CMAKE_CURRENT_SOURCE_DIR}/../SharpCpp" ABSOLUTE)
+set(SHARPCPP_ROOT "${_sharpcpp_default_root}" CACHE PATH "Path to the SharpCpp checkout used to generate the bindings.")
+if(NOT EXISTS "${SHARPCPP_ROOT}/include/SharpCpp/Marshaller.hpp")
+  message(FATAL_ERROR "SharpCpp was not found at '${SHARPCPP_ROOT}'. Set SHARPCPP_ROOT to a SharpCpp checkout.")
+endif()
+
+set(
+  SHARPCPP_NATIVE_OUTPUT_ROOT
+  "${CMAKE_CURRENT_SOURCE_DIR}/build/bin"
+  CACHE PATH
+  "Root directory for native artifacts.")
+set(
+  SHARPCPP_MANAGED_OUTPUT_ROOT
+  "${CMAKE_CURRENT_SOURCE_DIR}/build/bin"
+  CACHE PATH
+  "Root directory containing the prebuilt managed generators.")
+set(
+  SHARPCPP_GENERATED_ROOT
+  "${CMAKE_BINARY_DIR}/generated"
+  CACHE PATH
+  "Root directory for generated binding sources.")
+
+# SharpCpp provides the SharpCpp::NativeSupport header target; its own E2E graph stays disabled.
+set(SHARPCPP_BUILD_E2E OFF CACHE BOOL "" FORCE)
+add_subdirectory("${SHARPCPP_ROOT}" sharpcpp EXCLUDE_FROM_ALL)
+
+list(APPEND CMAKE_MODULE_PATH "${SHARPCPP_ROOT}/cmake")
+include(SharpCppOutput)
+include(SharpCppClang)
+find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
+
+get_filename_component(_rbfx_default_sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../rbfx-sdk" ABSOLUTE)
 if(DEFINED ENV{RBFX_SDK_ROOT} AND EXISTS "$ENV{RBFX_SDK_ROOT}")
   set(_rbfx_default_sdk_root "$ENV{RBFX_SDK_ROOT}")
 endif()
@@ -11,7 +46,7 @@ set(
   "C++ standard used while parsing the installed rbfx SDK.")
 
 if(NOT EXISTS "${RBFX_SDK_ROOT}/share/Urho3D/CMake/Urho3DConfig.cmake")
-  message(FATAL_ERROR "Set RBFX_SDK_ROOT to an installed rbfx SDK before enabling SHARPCPP_BUILD_RBFX.")
+  message(FATAL_ERROR "Set RBFX_SDK_ROOT to an installed rbfx SDK before configuring SharpCpp.Rbfx.")
 endif()
 if(NOT EXISTS "${RBFX_SDK_ROOT}/include/Urho3D")
   message(FATAL_ERROR "rbfx SDK headers were not found at '${RBFX_SDK_ROOT}/include/Urho3D'.")
@@ -157,3 +192,5 @@ add_custom_target(
   DEPENDS
     sharpcpp-rbfx-runtime
     SharpCppRbfxUserCode_Native)
+
+add_custom_target(sharpcpp-rbfx-native-all ALL DEPENDS sharpcpp-rbfx-native)

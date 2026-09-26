@@ -1,0 +1,67 @@
+<Project>
+  <PropertyGroup>
+    <SharpCppRbfxRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</SharpCppRbfxRoot>
+    <!-- SharpCpp is consumed as a sibling checkout; override SharpCppRoot to use another one. -->
+    <SharpCppRoot Condition="'$(SharpCppRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../SharpCpp'))</SharpCppRoot>
+    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RBFX_SDK_ROOT)' != ''">$(RBFX_SDK_ROOT)</RbfxSdkRoot>
+    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and Exists('$(SharpCppRbfxRoot)/../../rbfx-sdk')">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../../rbfx-sdk'))</RbfxSdkRoot>
+
+    <!-- Same build-root rule as SharpCpp so referenced SharpCpp projects share the tree. -->
+    <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == '' and '$(SolutionDir)' != ''">$([System.IO.Path]::GetFullPath('$(SolutionDir)/build'))</SharpCppBuildRoot>
+    <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/build'))</SharpCppBuildRoot>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <SharpCppManagedOutputRoot Condition="'$(SharpCppManagedOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppManagedOutputRoot>
+    <SharpCppOutputDir Condition="'$(SharpCppOutputDir)' == ''">$(SharpCppManagedOutputRoot)/$(Configuration)</SharpCppOutputDir>
+    <SharpCppNativeOutputRoot Condition="'$(SharpCppNativeOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppNativeOutputRoot>
+    <SharpCppIntermediateRoot Condition="'$(SharpCppIntermediateRoot)' == ''">$(SharpCppBuildRoot)/obj/managed/$(Configuration)</SharpCppIntermediateRoot>
+
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == ''">dev</RbfxNativePreset>
+    <RbfxCMakeCommand Condition="'$(RbfxCMakeCommand)' == ''">cmake</RbfxCMakeCommand>
+    <RbfxNativeBuildDir Condition="'$(RbfxNativeBuildDir)' == ''">$(SharpCppBuildRoot)/native/$(RbfxNativePreset)</RbfxNativeBuildDir>
+    <RbfxNativeLockFile Condition="'$(RbfxNativeLockFile)' == ''">$(RbfxNativeBuildDir)/sharpcpp-rbfx-native.lock</RbfxNativeLockFile>
+    <RbfxGeneratedRoot>$(RbfxNativeBuildDir)/generated</RbfxGeneratedRoot>
+    <RbfxGeneratedDir>$(RbfxGeneratedRoot)/rbfx</RbfxGeneratedDir>
+    <RbfxUserCodeGeneratedDir>$(RbfxGeneratedRoot)/rbfx-usercode</RbfxUserCodeGeneratedDir>
+    <RbfxGeneratedStamp>$(RbfxGeneratedDir)/generate.stamp</RbfxGeneratedStamp>
+    <RbfxUserCodeGeneratedStamp>$(RbfxUserCodeGeneratedDir)/generate.stamp</RbfxUserCodeGeneratedStamp>
+
+    <RbfxSharedLibraryPrefix Condition="$([MSBuild]::IsOSPlatform(`Linux`)) or $([MSBuild]::IsOSPlatform(`OSX`))">lib</RbfxSharedLibraryPrefix>
+    <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`Linux`))">.so</RbfxSharedLibrarySuffix>
+    <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`OSX`))">.dylib</RbfxSharedLibrarySuffix>
+    <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`Windows`))">.dll</RbfxSharedLibrarySuffix>
+    <RbfxNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.Native$(RbfxSharedLibrarySuffix)</RbfxNativeLibraryPath>
+    <RbfxUserCodeNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.UserCode.Native$(RbfxSharedLibrarySuffix)</RbfxUserCodeNativeLibraryPath>
+    <RbfxRunSettingsPath>$(SharpCppOutputDir)/SharpCpp.Rbfx.Tests.runsettings</RbfxRunSettingsPath>
+
+    <SharpCppSdkVersion>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('$(MSBuildSDKsPath)'))))</SharpCppSdkVersion>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net$([System.Version]::Parse('$(SharpCppSdkVersion)').Major).0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Deterministic>true</Deterministic>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NuGetAudit>false</NuGetAudit>
+
+    <RbfxIsTestProject Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Tests.'))">true</RbfxIsTestProject>
+    <OutputPath Condition="'$(RbfxIsTestProject)' != 'true'">$(SharpCppOutputDir)/</OutputPath>
+    <OutputPath Condition="'$(RbfxIsTestProject)' == 'true'">$(SharpCppOutputDir)/SharpCpp.Tests/$(MSBuildProjectName)/</OutputPath>
+    <BaseIntermediateOutputPath>$(SharpCppIntermediateRoot)/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(SharpCppBuildRoot)/obj/restore/$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(SharpCppBuildRoot)/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpCpp.Rbfx.Bindings'">
+    <RbfxConsumedGeneratedDir>$(RbfxGeneratedDir)</RbfxConsumedGeneratedDir>
+    <RbfxConsumedGeneratedStamp>$(RbfxGeneratedStamp)</RbfxConsumedGeneratedStamp>
+    <RbfxConsumedNativeLibraryPath>$(RbfxNativeLibraryPath)</RbfxConsumedNativeLibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Rbfx.UserCode.Bindings'">
+    <RbfxConsumedGeneratedDir>$(RbfxUserCodeGeneratedDir)</RbfxConsumedGeneratedDir>
+    <RbfxConsumedGeneratedStamp>$(RbfxUserCodeGeneratedStamp)</RbfxConsumedGeneratedStamp>
+    <RbfxConsumedNativeLibraryPath>$(RbfxUserCodeNativeLibraryPath)</RbfxConsumedNativeLibraryPath>
+  </PropertyGroup>
+</Project>

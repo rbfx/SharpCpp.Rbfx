@@ -8,7 +8,9 @@ internal sealed class GeneratorOptions
 
     public required string GeneratedRoot { get; init; }
 
-    public required string ProjectRoot { get; init; }
+    public required string SharpCppIncludeRoot { get; init; }
+
+    public required string RbfxIncludeRoot { get; init; }
 
     public string? SdkLibraryPath { get; init; }
 
@@ -25,7 +27,8 @@ internal sealed class GeneratorOptions
         var sdkRoot = GetRequiredPathOption(args, "--sdk-root", isDirectory: true);
         var flagsFilePath = GetRequiredPathOption(args, "--flags-file", isDirectory: false);
         var generatedRoot = GetRequiredPathOption(args, "--generated-root", isDirectory: false, mustExist: false);
-        var projectRoot = GetRequiredPathOption(args, "--project-root", isDirectory: true);
+        var sharpCppIncludeRoot = GetRequiredPathOption(args, "--sharpcpp-include", isDirectory: true);
+        var rbfxIncludeRoot = GetRequiredPathOption(args, "--rbfx-include", isDirectory: true);
         var sdkLibraryPath = GetOptionalPathOption(args, "--sdk-library", isDirectory: false);
         var logFilePath = GetOptionalPathOption(args, "--log-file", isDirectory: false, mustExist: false);
 
@@ -34,7 +37,8 @@ internal sealed class GeneratorOptions
             ["--sdk-root"] = true,
             ["--flags-file"] = true,
             ["--generated-root"] = true,
-            ["--project-root"] = true,
+            ["--sharpcpp-include"] = true,
+            ["--rbfx-include"] = true,
             ["--sdk-library"] = true,
             ["--log-file"] = true
         });
@@ -44,7 +48,8 @@ internal sealed class GeneratorOptions
             SdkRoot = sdkRoot,
             FlagsFilePath = flagsFilePath,
             GeneratedRoot = generatedRoot,
-            ProjectRoot = projectRoot,
+            SharpCppIncludeRoot = sharpCppIncludeRoot,
+            RbfxIncludeRoot = rbfxIncludeRoot,
             SdkLibraryPath = sdkLibraryPath,
             LogFilePath = logFilePath
         };
@@ -53,7 +58,7 @@ internal sealed class GeneratorOptions
     public static void PrintUsage()
     {
         Console.WriteLine(
-            "Usage: dotnet SharpCpp.Rbfx.Generator.dll --sdk-root <path> --flags-file <path> --generated-root <path> --project-root <path> [--sdk-library <path>] [--log-file <path>]");
+            "Usage: dotnet SharpCpp.Rbfx.Generator.dll --sdk-root <path> --flags-file <path> --generated-root <path> --sharpcpp-include <path> --rbfx-include <path> [--sdk-library <path>] [--log-file <path>]");
     }
 
     private static void ValidateKnownOptions(IReadOnlyList<string> args, IReadOnlyDictionary<string, bool> knownOptions)

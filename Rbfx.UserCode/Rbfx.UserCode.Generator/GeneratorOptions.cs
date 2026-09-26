@@ -8,6 +8,10 @@ internal sealed class GeneratorOptions
 
     public required string UserCodeRoot { get; init; }
 
+    public required string SharpCppIncludeRoot { get; init; }
+
+    public required string RbfxIncludeRoot { get; init; }
+
     public required string GeneratedRoot { get; init; }
 
     public IReadOnlyList<string> ImportedBindingMetadataFiles { get; init; } = Array.Empty<string>();
@@ -25,6 +29,8 @@ internal sealed class GeneratorOptions
         var sdkRoot = GetRequiredOption(args, "--sdk-root");
         var flagsFilePath = GetRequiredOption(args, "--flags-file");
         var userCodeRoot = GetRequiredOption(args, "--user-code-root");
+        var sharpCppIncludeRoot = GetRequiredOption(args, "--sharpcpp-include");
+        var rbfxIncludeRoot = GetRequiredOption(args, "--rbfx-include");
         var generatedRoot = GetRequiredOption(args, "--generated-root");
         var importedBindingMetadataFiles = GetRepeatedPathOption(args, "--import-binding-metadata");
         var logFilePath = GetOptionalPathOption(args, "--log-file");
@@ -32,6 +38,8 @@ internal sealed class GeneratorOptions
         ValidatePath(sdkRoot, isDirectory: true, "--sdk-root");
         ValidatePath(flagsFilePath, isDirectory: false, "--flags-file");
         ValidatePath(userCodeRoot, isDirectory: true, "--user-code-root");
+        ValidatePath(sharpCppIncludeRoot, isDirectory: true, "--sharpcpp-include");
+        ValidatePath(rbfxIncludeRoot, isDirectory: true, "--rbfx-include");
 
         foreach (var metadataFile in importedBindingMetadataFiles)
         {
@@ -43,6 +51,8 @@ internal sealed class GeneratorOptions
             SdkRoot = sdkRoot,
             FlagsFilePath = flagsFilePath,
             UserCodeRoot = userCodeRoot,
+            SharpCppIncludeRoot = sharpCppIncludeRoot,
+            RbfxIncludeRoot = rbfxIncludeRoot,
             GeneratedRoot = generatedRoot,
             ImportedBindingMetadataFiles = importedBindingMetadataFiles,
             LogFilePath = logFilePath
@@ -54,7 +64,7 @@ internal sealed class GeneratorOptions
         Console.WriteLine(
             """
             Usage:
-              dotnet Rbfx.UserCode.Generator.dll --sdk-root <path> --flags-file <path> --user-code-root <path> --generated-root <path> [--import-binding-metadata <path> ...] [--log-file <path>]
+              dotnet Rbfx.UserCode.Generator.dll --sdk-root <path> --flags-file <path> --user-code-root <path> --sharpcpp-include <path> --rbfx-include <path> --generated-root <path> [--import-binding-metadata <path> ...] [--log-file <path>]
             """);
     }
 

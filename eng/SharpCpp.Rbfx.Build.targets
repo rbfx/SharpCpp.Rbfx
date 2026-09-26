@@ -1,0 +1,69 @@
+<Project>
+  <PropertyGroup>
+    <!-- Libraries are loaded through their host's dependency file; executables need their own
+         so NuGet native runtime assets (libClangSharp) resolve. -->
+    <GenerateDependencyFile Condition="'$(RbfxIsTestProject)' != 'true' and '$(OutputType)' != 'Exe'">false</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(RbfxConsumedGeneratedDir)' != ''">
+    <Compile Include="$(RbfxConsumedGeneratedDir)/**/*.g.cs"
+             LinkBase="Generated"
+             Visible="false"
+             RbfxGeneratedSource="true"
+             Condition="Exists('$(RbfxConsumedGeneratedDir)')" />
+    <ProjectReference Include="$(SharpCppRbfxRoot)/native/SharpCpp.Rbfx.Native/SharpCpp.Rbfx.Native.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <Target Name="RbfxSetProjectReferenceProperties"
+          AfterTargets="_SplitProjectReferencesByFileExistence"
+          BeforeTargets="_GetProjectReferenceTargetFrameworkProperties;ResolveProjectReferences">
+    <ItemGroup>
+      <_MSBuildProjectReferenceExistent Update="@(_MSBuildProjectReferenceExistent)">
+        <SetConfiguration>%(_MSBuildProjectReferenceExistent.SetConfiguration);Configuration=$(Configuration)</SetConfiguration>
+        <GlobalPropertiesToRemove>TargetFramework;RuntimeIdentifier;SelfContained</GlobalPropertiesToRemove>
+      </_MSBuildProjectReferenceExistent>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RbfxIncludeGeneratedSources"
+          BeforeTargets="CoreCompile"
+          Condition="'$(RbfxConsumedGeneratedDir)' != ''">
+    <ItemGroup>
+      <Compile Remove="@(Compile)"
+               Condition="'%(Compile.RbfxGeneratedSource)' == 'true' and !Exists('%(Compile.FullPath)')" />
+      <RbfxRequiredGeneratedSources Include="$(RbfxConsumedGeneratedDir)/**/*.g.cs"
+                                    Condition="Exists('$(RbfxConsumedGeneratedDir)')" />
+      <Compile Include="@(RbfxRequiredGeneratedSources)"
+               Exclude="@(Compile)"
+               LinkBase="Generated"
+               Visible="false"
+               RbfxGeneratedSource="true" />
+    </ItemGroup>
+
+    <Error Condition="'@(RbfxRequiredGeneratedSources)' == ''"
+           Text="Generated sources are missing for $(MSBuildProjectName) at '$(RbfxConsumedGeneratedDir)'." />
+    <Error Condition="!Exists('$(RbfxConsumedGeneratedStamp)')"
+           Text="Generation did not produce '$(RbfxConsumedGeneratedStamp)'." />
+    <Error Condition="!Exists('$(RbfxConsumedNativeLibraryPath)')"
+           Text="The native build did not produce '$(RbfxConsumedNativeLibraryPath)'." />
+  </Target>
+
+  <Target Name="RbfxStageNativeTestRuntime"
+          AfterTargets="Build"
+          Condition="'$(RbfxIsTestProject)' == 'true'">
+    <ItemGroup>
+      <RbfxNativeTestRuntime Include="$(SharpCppOutputDir)/*.so;$(SharpCppOutputDir)/*.so.*"
+                             Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+      <RbfxNativeTestRuntime Include="$(SharpCppOutputDir)/*.dylib"
+                             Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+      <RbfxNativeTestRuntime Include="$(SharpCppOutputDir)/*.dll"
+                             Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RbfxNativeTestRuntime)"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

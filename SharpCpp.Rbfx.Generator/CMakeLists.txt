@@ -1,12 +1,12 @@
 file(GLOB_RECURSE RBFX_GENERATOR_INPUTS CONFIGURE_DEPENDS
-  "${SharpCpp_SOURCE_DIR}/src/SharpCpp.Model/*.cs"
-  "${SharpCpp_SOURCE_DIR}/src/SharpCpp.Metadata/*.cs"
-  "${SharpCpp_SOURCE_DIR}/src/SharpCpp.Parsing/*.cs"
-  "${SharpCpp_SOURCE_DIR}/src/SharpCpp.Pipeline/*.cs"
-  "${SharpCpp_SOURCE_DIR}/src/SharpCpp.Rendering/*.cs"
+  "${SHARPCPP_ROOT}/src/SharpCpp.Model/*.cs"
+  "${SHARPCPP_ROOT}/src/SharpCpp.Metadata/*.cs"
+  "${SHARPCPP_ROOT}/src/SharpCpp.Parsing/*.cs"
+  "${SHARPCPP_ROOT}/src/SharpCpp.Pipeline/*.cs"
+  "${SHARPCPP_ROOT}/src/SharpCpp.Rendering/*.cs"
   "${CMAKE_CURRENT_SOURCE_DIR}/*.cs"
-  "${SharpCpp_SOURCE_DIR}/include/SharpCpp/*.hpp"
-  "${SharpCpp_SOURCE_DIR}/include/SharpCpp/*.h"
+  "${SHARPCPP_ROOT}/include/SharpCpp/*.hpp"
+  "${SHARPCPP_ROOT}/include/SharpCpp/*.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/../include/SharpCpp/*.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/../include/SharpCpp/*.h")
 
@@ -16,7 +16,7 @@ add_custom_command(
           "-DGENERATOR_DLL=${SHARPCPP_RBFX_GENERATOR_DLL}"
           "-DGENERATED_STAMP=${RBFX_GENERATED_STAMP}"
           "-DGENERATED_DIR=${RBFX_GENERATED_ROOT}"
-          -P "${SharpCpp_SOURCE_DIR}/cmake/SharpCppGeneratedStaleness.cmake"
+          -P "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${RBFX_GENERATED_ROOT}"
   COMMAND "${CMAKE_COMMAND}" -E env
           "SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY=${SHARPCPP_CLANG_RESOURCE_DIRECTORY}"
@@ -24,7 +24,8 @@ add_custom_command(
           --sdk-root "${RBFX_SDK_ROOT}"
           --flags-file "${RBFX_SDK_FLAGS_FILE}"
           --generated-root "${RBFX_GENERATED_ROOT}"
-          --project-root "${SharpCpp_SOURCE_DIR}"
+          --sharpcpp-include "${SHARPCPP_ROOT}/include"
+          --rbfx-include "${PROJECT_SOURCE_DIR}/include"
           --sdk-library "$<TARGET_FILE:${RBFX_URHO3D_TARGET}>"
           --log-file "${RBFX_GENERATOR_LOG_FILE}"
   COMMAND "${CMAKE_COMMAND}" -E touch "${RBFX_GENERATED_STAMP}"
@@ -33,7 +34,7 @@ add_custom_command(
     "${RBFX_SDK_FLAGS_FILE}"
     ${RBFX_SDK_INPUT_HEADERS}
     ${RBFX_GENERATOR_INPUTS}
-  WORKING_DIRECTORY "${SharpCpp_SOURCE_DIR}"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
   VERBATIM
   USES_TERMINAL)
 

@@ -1,4 +1,4 @@
-# rbfx/
+# SharpCpp.Rbfx
 
 ## Responsibility
 
@@ -16,15 +16,15 @@ The integration implements a **phase-1 / phase-2** generation model:
 
 ### Build-Time Code Generation
 
-`SharpCpp.slnx` is the primary build graph. The `SharpCpp.Native` SDK-style
-orchestration project references both rbfx generators, then invokes one
-`sharpcpp-native` CMake aggregate after those ordinary managed dependencies have
-built. CMake runs the prebuilt generator DLLs and compiles generated C++ thunks;
-the binding projects discover generated C# immediately before `CoreCompile`.
+`SharpCpp.Rbfx.slnx` is the primary build graph. The `SharpCpp.Rbfx.Native`
+orchestration project references both rbfx generators, then invokes the
+`sharpcpp-rbfx-native` CMake target after those managed dependencies have built.
+CMake runs the prebuilt generator DLLs and compiles generated C++ thunks; the
+binding projects discover generated C# immediately before `CoreCompile`.
 
 ### Staleness Management
 
-The shared `cmake/SharpCppGeneratedStaleness.cmake` helper compares each
+SharpCpp's `cmake/SharpCppGeneratedStaleness.cmake` helper compares each
 generator DLL timestamp against its generation stamp. If the tool changed, the
 corresponding generated directory is cleared before regeneration.
 

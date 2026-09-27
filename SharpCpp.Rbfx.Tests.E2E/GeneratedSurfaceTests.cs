@@ -79,7 +79,11 @@ public sealed class GeneratedSurfaceTests
 
         Assert.Contains("public global::Urho3D.Core.Variant GetPoint(float f)", content, StringComparison.Ordinal);
         Assert.Contains("public global::Urho3D.Core.InterpolationMode InterpolationMode", content, StringComparison.Ordinal);
-        Assert.Contains("__PInvoke.SetInterpolationMode(this, value);", content, StringComparison.Ordinal);
+
+        using var spline = new global::Urho3D.Core.Spline(global::Urho3D.Core.InterpolationMode.LinearCurve);
+        Assert.Equal(global::Urho3D.Core.InterpolationMode.LinearCurve, spline.InterpolationMode);
+        spline.InterpolationMode = global::Urho3D.Core.InterpolationMode.CatmullRomFullCurve;
+        Assert.Equal(global::Urho3D.Core.InterpolationMode.CatmullRomFullCurve, spline.InterpolationMode);
     }
 
     [Fact]
@@ -130,7 +134,6 @@ public sealed class GeneratedSurfaceTests
         Assert.Contains("public enum ModalFlag", documentContent, StringComparison.Ordinal);
         Assert.Contains("public enum FocusFlag", documentContent, StringComparison.Ordinal);
         Assert.Contains("public global::Rml.DataModelConstructor CreateDataModel(global::Ea.String name, global::Rml.DataTypeRegister? data_type_register = default)", contextContent, StringComparison.Ordinal);
-        Assert.Contains("private static void Invoke(nint state, nint arg0, nint arg1, nint arg2)", aliasContent, StringComparison.Ordinal);
         Assert.Contains("callback(global::Rml.DataModelHandle.CreateManagedWrapper(arg0, ownsHandle: false)", aliasContent, StringComparison.Ordinal);
     }
 

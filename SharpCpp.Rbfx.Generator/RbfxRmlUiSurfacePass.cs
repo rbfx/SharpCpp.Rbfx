@@ -155,8 +155,13 @@ public static class RbfxRmlUiSurfacePass
         }
 
         var changed = 0;
-        var stringType = CreateRmlStringType("Rml::String");
-        var stringConstRefType = CreateRmlStringType("const Rml::String&", cppIsReference: true);
+        var stringType = CreateRmlStringType(compilation, "Rml::String");
+        var stringConstRefType = CreateRmlStringType(compilation, "const Rml::String&", cppIsReference: true);
+        if (stringType is null || stringConstRefType is null)
+        {
+            return 0;
+        }
+
         var get = variant.Members.OfType<FunctionBinding>().FirstOrDefault(static function =>
             string.Equals(function.NativeName, "Get", StringComparison.Ordinal) && function.IsGeneric);
         if (get is not null)
@@ -197,13 +202,17 @@ public static class RbfxRmlUiSurfacePass
         return changed;
     }
 
-    private static BindingType CreateRmlStringType(string cppTypeName, bool cppIsReference = false)
-        => BindingType.CreateConfigured(
-            cppTypeName,
-            "global::Ea.String",
-            marshallerTypeName: null,
-            managedMarshaller: "global::Ea.__StringMarshaller<global::SharpCpp.Support.BorrowedNativeHandle>",
-            cppIsReference: cppIsReference);
+    // Reference the Ea.String wrapper record so SharpCpp resolves its marshaller like any
+    // parsed parameter; helper names are the renderer's business.
+    private static BindingType? CreateRmlStringType(BindingCompilation compilation, string cppTypeName, bool cppIsReference = false)
+    {
+        var eaString = compilation.Records.FirstOrDefault(static record =>
+            record.SymbolId == "record:eastl::basic_string" && record.HasMetadata(MetadataKeys.ManagedWrapperAssembly));
+        return eaString is null
+            ? null
+            : BindingType.CreateHandle(cppTypeName, "global::Ea.String", eaString.SymbolId, cppIsRecordValue: !cppIsReference)
+                .WithCppIsReference(cppIsReference);
+    }
 
     private static int AddInstantiation(IList<RecordGenericInstantiationBinding> instantiations, BindingType type)
     {

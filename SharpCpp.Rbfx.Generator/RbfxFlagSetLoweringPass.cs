@@ -48,6 +48,7 @@ public static class RbfxFlagSetLoweringPass
                 field.Type = fieldType;
                 if (!field.IsSilentlyExcluded() &&
                     field.Parent?.IsSilentlyExcluded() != true &&
+                    (field.Parent as RecordBinding)?.IsGeneric != true &&
                     !ContainsOpenGenericParameter(field.Type))
                 {
                     field.ClearIgnoreReason();

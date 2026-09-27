@@ -33,11 +33,19 @@ inline Urho3D::SharedPtr<TCpp, TRefCounted> MakeSharedPtrFromAbi(TCpp* value) no
 }
 
 template <class TCpp, class TRefCounted>
+inline Urho3D::WeakPtr<TCpp, TRefCounted> MakeWeakPtrFromRefCounted(TCpp* value, TRefCounted* refCounted) noexcept
+{
+    return refCounted == nullptr
+        ? Urho3D::WeakPtr<TCpp, TRefCounted>{}
+        : Urho3D::WeakPtr<TCpp, TRefCounted>(refCounted->RefCountPtr(), value, refCounted);
+}
+
+template <class TCpp, class TRefCounted>
 inline Urho3D::WeakPtr<TCpp, TRefCounted> MakeWeakPtrFromAbi(TCpp* value) noexcept
 {
     return value == nullptr
         ? Urho3D::WeakPtr<TCpp, TRefCounted>{}
-        : Urho3D::WeakPtr<TCpp, TRefCounted>(value, ResolveRefCountedPointer<TCpp, TRefCounted>(value));
+        : MakeWeakPtrFromRefCounted<TCpp, TRefCounted>(value, ResolveRefCountedPointer<TCpp, TRefCounted>(value));
 }
 }
 

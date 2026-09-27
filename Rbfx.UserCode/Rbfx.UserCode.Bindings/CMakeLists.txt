@@ -30,6 +30,7 @@ target_include_directories(
   SharpCppRbfxUserCode_Native
   PRIVATE
     "${RBFX_USERCODE_GENERATED_ROOT}"
+    "${RBFX_GENERATED_ROOT}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(
   SharpCppRbfxUserCode_Native

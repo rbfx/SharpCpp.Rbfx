@@ -20,7 +20,7 @@ This is a **staged pipeline** pattern — each stage mutates the compilation mod
 
 `CompilerToolchainDiscovery` implements a **probe-and-fallback** pattern for obtaining correct Clang invocation flags. Given a compiler path from the SDK flags file (which may be `g++`), it:
 
-1. Checks for a `SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY` environment override
+1. Passes `SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY` to `SharpCpp.Toolchain` as the resource directory override
 2. Falls back to probing the compiler (or `clang++`/`clang` on PATH) with `-print-resource-dir`
 3. Discovers the target triple via `-dumpmachine`
 4. Extracts the system include search path from `-E -x c++ - -v` stderr parsing

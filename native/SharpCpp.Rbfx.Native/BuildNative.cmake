@@ -65,6 +65,17 @@ if(_configure_native)
   file(WRITE "${_configure_signature_file}" "${_configure_signature}\n")
 endif()
 
+# Generate first: the binding libraries glob generated sources at configure time, and
+# only a separate build invocation re-checks those globs after generation. Building the
+# native target directly on a clean tree would compile only the placeholder source.
+execute_process(
+  COMMAND
+    "${CMAKE_COMMAND}" --build "${RBFX_NATIVE_BUILD_DIR}"
+    --config "${RBFX_CONFIGURATION}"
+    --target sharpcpp-generate-rbfx-usercode
+  WORKING_DIRECTORY "${RBFX_SOURCE_DIR}"
+  COMMAND_ERROR_IS_FATAL ANY)
+
 execute_process(
   COMMAND
     "${CMAKE_COMMAND}" --build "${RBFX_NATIVE_BUILD_DIR}"

@@ -1,3 +1,4 @@
+using SharpCpp.Toolchain;
 using Microsoft.Extensions.Logging;
 using SharpCpp.Metadata.Export;
 using SharpCpp.Metadata.Import;
@@ -197,23 +198,10 @@ internal static class Program
         arguments.AddRange(sdkFlags.AdditionalArguments);
         arguments.AddRange(ParseSimdDisableArguments);
 
-        var toolchainInfo = CompilerToolchainDiscovery.Discover(sdkFlags.CompilerPath);
-        if (!string.IsNullOrWhiteSpace(toolchainInfo.TargetTriple) &&
-            !arguments.Any(static argument => argument.StartsWith("--target=", StringComparison.Ordinal) || argument == "-target"))
-        {
-            arguments.Add($"--target={toolchainInfo.TargetTriple}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(toolchainInfo.ClangResourceDirectory) &&
-            !arguments.Any(static argument => argument.StartsWith("-resource-dir=", StringComparison.Ordinal) || argument == "-resource-dir"))
-        {
-            arguments.Add($"-resource-dir={toolchainInfo.ClangResourceDirectory}");
-        }
-
-        foreach (var systemIncludeDirectory in toolchainInfo.IncludeDirectories)
-        {
-            arguments.Add($"-isystem{systemIncludeDirectory}");
-        }
+        var toolchainInfo = CompilerToolchainDiscovery.Discover(
+            sdkFlags.CompilerPath,
+            clangResourceDirectoryOverride: Environment.GetEnvironmentVariable("SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY"));
+        arguments.AddRange(toolchainInfo.GetClangArguments(arguments));
 
         return arguments.Distinct(StringComparer.Ordinal).ToArray();
     }

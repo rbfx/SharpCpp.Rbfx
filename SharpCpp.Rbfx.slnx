@@ -7,6 +7,7 @@
     <Project Path="../SharpCpp/src/SharpCpp.Rendering/SharpCpp.Rendering.csproj" />
     <Project Path="../SharpCpp/src/SharpCpp.Std/SharpCpp.Std.csproj" />
     <Project Path="../SharpCpp/src/SharpCpp.Support/SharpCpp.Support.csproj" />
+    <Project Path="../SharpCpp/src/SharpCpp.Toolchain/SharpCpp.Toolchain.csproj" />
   </Folder>
   <Project Path="SharpCpp.Ea/SharpCpp.Ea.csproj" />
   <Project Path="SharpCpp.Rbfx.Generator/SharpCpp.Rbfx.Generator.csproj" />

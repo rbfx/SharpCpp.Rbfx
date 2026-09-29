@@ -1,9 +1,13 @@
+using Microsoft.Extensions.Logging;
 using SharpCpp.Model.Ast;
+using SharpCpp.Model.Logging;
 
 namespace SharpCpp.Rbfx.Generator;
 
 public static class RbfxImGuiSurfacePass
 {
+    private static readonly ILogger Logger = SharpCppLog.For(nameof(RbfxImGuiSurfacePass));
+
     private static readonly HashSet<string> PublicGlobalRecordNames = new(StringComparer.Ordinal)
     {
         "ImDrawCmd",
@@ -92,11 +96,23 @@ public static class RbfxImGuiSurfacePass
             .ToDictionary(static group => group.Key, static group => group.Last(), StringComparer.Ordinal);
         foreach (var function in compilation.Functions.Where(static function => !function.IsIgnored()))
         {
-            if (FunctionUsesUnsupportedImGuiType(function, recordsBySymbolId))
+            if (!FunctionUsesUnsupportedImGuiType(function, recordsBySymbolId))
+                continue;
+
+            if (IsDearImGuiCallable(function))
             {
                 function.SetSilentExclusionReason("Dear ImGui callable references a type outside the conservative bootstrap surface");
-                changed++;
             }
+            else
+            {
+                // Non-ImGui callables are only excluded here when they reference a Dear ImGui type the
+                // bootstrap surface cannot bind; that drop must stay visible in the generator log.
+                var reason = $"type '{FindUnsupportedTypeName(function, recordsBySymbolId)}' matches the Dear ImGui unsupported-type filter";
+                function.SetSilentExclusionReason(reason);
+                Logger.LogWarning("Excluded {Function}: {Reason}.", function.CppQualifiedName, reason);
+            }
+
+            changed++;
         }
 
         foreach (var field in compilation.Records.SelectMany(static record => record.Members.OfType<FieldBinding>()).Where(static field => !field.IsIgnored()))
@@ -157,9 +173,24 @@ public static class RbfxImGuiSurfacePass
         FunctionBinding function,
         IReadOnlyDictionary<string, RecordBinding> recordsBySymbolId)
     {
-        return (IsDearImGuiCallable(function) && IsUnsupportedImGuiFunction(function)) ||
-            TypeUsesUnsupportedImGuiType(function.ReturnType, function.CppReturnTypeName, recordsBySymbolId) ||
-            function.Parameters.Any(parameter => TypeUsesUnsupportedImGuiType(parameter.Type, parameter.CppTypeName, recordsBySymbolId));
+        // Fixed-size arrays are only outside the bootstrap surface for Dear ImGui callables; every
+        // other callable relies on the generic SharpCpp fixed-array marshalling.
+        var isDearImGuiCallable = IsDearImGuiCallable(function);
+        return (isDearImGuiCallable && IsUnsupportedImGuiFunction(function)) ||
+            TypeUsesUnsupportedImGuiType(function.ReturnType, function.CppReturnTypeName, recordsBySymbolId, isDearImGuiCallable) ||
+            function.Parameters.Any(parameter => TypeUsesUnsupportedImGuiType(parameter.Type, parameter.CppTypeName, recordsBySymbolId, isDearImGuiCallable));
+    }
+
+    private static string FindUnsupportedTypeName(
+        FunctionBinding function,
+        IReadOnlyDictionary<string, RecordBinding> recordsBySymbolId)
+    {
+        if (TypeUsesUnsupportedImGuiType(function.ReturnType, function.CppReturnTypeName, recordsBySymbolId, rejectFixedArrays: false))
+            return function.CppReturnTypeName;
+
+        return function.Parameters
+            .FirstOrDefault(parameter => TypeUsesUnsupportedImGuiType(parameter.Type, parameter.CppTypeName, recordsBySymbolId, rejectFixedArrays: false))
+            ?.CppTypeName ?? "<unknown>";
     }
 
     private static bool IsDearImGuiCallable(FunctionBinding function)
@@ -179,9 +210,10 @@ public static class RbfxImGuiSurfacePass
     private static bool TypeUsesUnsupportedImGuiType(
         BindingType type,
         string cppTypeName,
-        IReadOnlyDictionary<string, RecordBinding> recordsBySymbolId)
+        IReadOnlyDictionary<string, RecordBinding> recordsBySymbolId,
+        bool rejectFixedArrays = true)
     {
-        if (type.IsFixedArray || ContainsUnsupportedImGuiType(cppTypeName) || ContainsUnsupportedImGuiType(type.CppTypeName))
+        if ((rejectFixedArrays && type.IsFixedArray) || ContainsUnsupportedImGuiType(cppTypeName) || ContainsUnsupportedImGuiType(type.CppTypeName))
         {
             return true;
         }
@@ -195,11 +227,11 @@ public static class RbfxImGuiSurfacePass
             return true;
         }
 
-        return type.GenericArguments.Any(argument => TypeUsesUnsupportedImGuiType(argument, argument.CppTypeName, recordsBySymbolId)) ||
-            (type.FixedArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.FixedArrayElementType, type.FixedArrayElementType.CppTypeName, recordsBySymbolId)) ||
-            (type.DynamicArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.DynamicArrayElementType, type.DynamicArrayElementType.CppTypeName, recordsBySymbolId)) ||
-            (type.CallbackReturnType is not null && TypeUsesUnsupportedImGuiType(type.CallbackReturnType, type.CallbackReturnType.CppTypeName, recordsBySymbolId)) ||
-            type.CallbackParameterTypes.Any(parameter => TypeUsesUnsupportedImGuiType(parameter, parameter.CppTypeName, recordsBySymbolId));
+        return type.GenericArguments.Any(argument => TypeUsesUnsupportedImGuiType(argument, argument.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
+            (type.FixedArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.FixedArrayElementType, type.FixedArrayElementType.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
+            (type.DynamicArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.DynamicArrayElementType, type.DynamicArrayElementType.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
+            (type.CallbackReturnType is not null && TypeUsesUnsupportedImGuiType(type.CallbackReturnType, type.CallbackReturnType.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
+            type.CallbackParameterTypes.Any(parameter => TypeUsesUnsupportedImGuiType(parameter, parameter.CppTypeName, recordsBySymbolId, rejectFixedArrays));
     }
 
     private static int RemoveUnsupportedGenericInstantiations(

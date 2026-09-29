@@ -173,6 +173,37 @@ public sealed class GeneratedSurfaceTests
     }
 
     [Fact]
+    public void Non_imgui_function_with_fixed_array_parameter_is_bound_and_callable()
+    {
+        // Urho3D::PeekResourceFormat takes BinaryMagic (ea::array<unsigned char, BinaryMagicSize>). The Dear ImGui
+        // surface pass must not drop non-ImGui callables just because they use a fixed-size array.
+        Assert.Equal(global::Urho3D.Resource.InternalResourceFormat.Json, PeekResourceFormat("  {\"a\": 1}"u8, binaryMagic: null));
+        Assert.Equal(global::Urho3D.Resource.InternalResourceFormat.Xml, PeekResourceFormat("<?xml version=\"1.0\"?><root/>"u8, binaryMagic: null));
+
+        byte[] magic = "RBTS"u8.ToArray();
+        Assert.Equal(global::Urho3D.Resource.InternalResourceFormat.Binary, PeekResourceFormat("RBTS\u0001\u0002"u8, magic));
+        Assert.Equal(global::Urho3D.Resource.InternalResourceFormat.Json, PeekResourceFormat("{}"u8, magic));
+    }
+
+    private static global::Urho3D.Resource.InternalResourceFormat PeekResourceFormat(ReadOnlySpan<byte> content, byte[]? binaryMagic)
+    {
+        var bytes = content.ToArray();
+        var pin = global::System.Runtime.InteropServices.GCHandle.Alloc(bytes, global::System.Runtime.InteropServices.GCHandleType.Pinned);
+        try
+        {
+            using var source = new global::Urho3D.IO.VectorBuffer(pin.AddrOfPinnedObject(), (uint)bytes.Length);
+            using var magic = binaryMagic is null ? null : new global::Ea.Array<byte>(binaryMagic);
+            var format = global::Urho3D.Bindings.PeekResourceFormat(source, magic);
+            Assert.Equal(0u, source.Tell());
+            return format;
+        }
+        finally
+        {
+            pin.Free();
+        }
+    }
+
+    [Fact]
     public void Handwritten_helpers_keep_ported_core_surface_available()
     {
         Assert.NotNull(typeof(global::Ea.String).GetConstructor([typeof(string)]));

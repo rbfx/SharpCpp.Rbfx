@@ -25,8 +25,28 @@ public static class RbfxUnsupportedApisPass
                 function.SetIgnoreReason("SharpCpp generates a nullable-to-non-nullable forwarding overload (CS8604) for the optional container-pointer parameter");
                 suppressedCount++;
             }
+            else if (function.CppQualifiedName.EndsWith("::TestDrawables", StringComparison.Ordinal) &&
+                function.Parameters.Any(static parameter => NormalizeTypeName(parameter.CppTypeName).EndsWith("Drawable**", StringComparison.Ordinal)))
+            {
+                // OctreeQuery::TestDrawables(Drawable** start, Drawable** end) takes an input pointer range
+                // [start, end); SharpCpp binds T** parameters as 'out T', which would hand native code
+                // uninitialised pointers.
+                function.SetIgnoreReason("Drawable** range parameters are input arrays; SharpCpp maps T** parameters to out T");
+                suppressedCount++;
+            }
+            else if (function.CppQualifiedName == "Urho3D::ParseArguments" &&
+                function.Parameters.Any(static parameter => NormalizeTypeName(parameter.CppTypeName).EndsWith("char**", StringComparison.Ordinal)))
+            {
+                // ParseArguments(int argc, char** argv) takes a string array; SharpCpp marshals it as a
+                // single 'in string', which does not match the native ABI.
+                function.SetIgnoreReason("char** is a string array; SharpCpp marshals it as a single string");
+                suppressedCount++;
+            }
         }
 
         return suppressedCount;
     }
+
+    private static string NormalizeTypeName(string cppTypeName)
+        => cppTypeName.Replace(" ", string.Empty, StringComparison.Ordinal);
 }

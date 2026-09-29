@@ -87,6 +87,23 @@ public sealed class GeneratedSurfaceTests
     }
 
     [Fact]
+    public void Tetrahedron_binds_fixed_size_array_reference_parameter()
+    {
+        var content = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Math", "SharpCpp.Rbfx.TetrahedralMesh.g.cs"));
+
+        Assert.Contains("public void GetTriangleFaceIndices(uint faceIndex, global::SharpCpp.NativeArray<uint> indices)", content, StringComparison.Ordinal);
+
+        using var tetrahedron = new global::Urho3D.Math.Tetrahedron();
+        using var indices = new global::SharpCpp.NativeArray<uint>(3);
+        tetrahedron.GetTriangleFaceIndices(0, indices);
+        Assert.Equal(3, indices.Length);
+
+        using var wrongLength = new global::SharpCpp.NativeArray<uint>(2);
+        Assert.Throws<ArgumentException>(() => tetrahedron.GetTriangleFaceIndices(0, wrongLength));
+        Assert.Throws<ArgumentNullException>(() => tetrahedron.GetTriangleFaceIndices(0, null!));
+    }
+
+    [Fact]
     public void Context_generates_default_constructor_surface()
     {
         var managedContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Context.g.cs"));

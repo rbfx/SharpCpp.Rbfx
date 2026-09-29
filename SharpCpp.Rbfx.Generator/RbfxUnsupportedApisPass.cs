@@ -17,18 +17,6 @@ public static class RbfxUnsupportedApisPass
                 function.SetIgnoreReason("rbfx SDK declares this member but the linked library does not define/export it");
                 suppressedCount++;
             }
-
-            if (function.CppQualifiedName == "Urho3D::Tetrahedron::GetTriangleFaceIndices")
-            {
-                // Takes `unsigned (&indices)[3]`, a reference to a fixed-size C array. SharpCpp's
-                // generic Marshaller<T&> fallback reinterpret_casts the array's address as
-                // Marshaller<unsigned[3]>::abi_type* (NativeArrayAbi, a pointer+length struct),
-                // which does not match the raw array's layout -- SharpCpp.Marshaller.hpp's
-                // layout-compatibility static_assert correctly rejects it. There is no
-                // fixed-array-by-reference marshaller for this shape yet, so skip the member.
-                function.SetIgnoreReason("fixed-size array reference parameter has no layout-safe marshaller yet");
-                suppressedCount++;
-            }
         }
 
         return suppressedCount;

@@ -185,11 +185,11 @@ public static class RbfxImGuiSurfacePass
         FunctionBinding function,
         IReadOnlyDictionary<string, RecordBinding> recordsBySymbolId)
     {
-        if (TypeUsesUnsupportedImGuiType(function.ReturnType, function.CppReturnTypeName, recordsBySymbolId, rejectFixedArrays: false))
+        if (TypeUsesUnsupportedImGuiType(function.ReturnType, function.CppReturnTypeName, recordsBySymbolId, applyGenericRules: false))
             return function.CppReturnTypeName;
 
         return function.Parameters
-            .FirstOrDefault(parameter => TypeUsesUnsupportedImGuiType(parameter.Type, parameter.CppTypeName, recordsBySymbolId, rejectFixedArrays: false))
+            .FirstOrDefault(parameter => TypeUsesUnsupportedImGuiType(parameter.Type, parameter.CppTypeName, recordsBySymbolId, applyGenericRules: false))
             ?.CppTypeName ?? "<unknown>";
     }
 
@@ -211,9 +211,11 @@ public static class RbfxImGuiSurfacePass
         BindingType type,
         string cppTypeName,
         IReadOnlyDictionary<string, RecordBinding> recordsBySymbolId,
-        bool rejectFixedArrays = true)
+        bool applyGenericRules = true)
     {
-        if ((rejectFixedArrays && type.IsFixedArray) || ContainsUnsupportedImGuiType(cppTypeName) || ContainsUnsupportedImGuiType(type.CppTypeName))
+        if ((applyGenericRules && type.IsFixedArray) ||
+            ContainsUnsupportedImGuiType(cppTypeName, applyGenericRules) ||
+            ContainsUnsupportedImGuiType(type.CppTypeName, applyGenericRules))
         {
             return true;
         }
@@ -227,11 +229,11 @@ public static class RbfxImGuiSurfacePass
             return true;
         }
 
-        return type.GenericArguments.Any(argument => TypeUsesUnsupportedImGuiType(argument, argument.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
-            (type.FixedArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.FixedArrayElementType, type.FixedArrayElementType.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
-            (type.DynamicArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.DynamicArrayElementType, type.DynamicArrayElementType.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
-            (type.CallbackReturnType is not null && TypeUsesUnsupportedImGuiType(type.CallbackReturnType, type.CallbackReturnType.CppTypeName, recordsBySymbolId, rejectFixedArrays)) ||
-            type.CallbackParameterTypes.Any(parameter => TypeUsesUnsupportedImGuiType(parameter, parameter.CppTypeName, recordsBySymbolId, rejectFixedArrays));
+        return type.GenericArguments.Any(argument => TypeUsesUnsupportedImGuiType(argument, argument.CppTypeName, recordsBySymbolId, applyGenericRules)) ||
+            (type.FixedArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.FixedArrayElementType, type.FixedArrayElementType.CppTypeName, recordsBySymbolId, applyGenericRules)) ||
+            (type.DynamicArrayElementType is not null && TypeUsesUnsupportedImGuiType(type.DynamicArrayElementType, type.DynamicArrayElementType.CppTypeName, recordsBySymbolId, applyGenericRules)) ||
+            (type.CallbackReturnType is not null && TypeUsesUnsupportedImGuiType(type.CallbackReturnType, type.CallbackReturnType.CppTypeName, recordsBySymbolId, applyGenericRules)) ||
+            type.CallbackParameterTypes.Any(parameter => TypeUsesUnsupportedImGuiType(parameter, parameter.CppTypeName, recordsBySymbolId, applyGenericRules));
     }
 
     private static int RemoveUnsupportedGenericInstantiations(
@@ -273,20 +275,23 @@ public static class RbfxImGuiSurfacePass
         return removed;
     }
 
-    private static bool ContainsUnsupportedImGuiType(string cppTypeName)
+    private static bool ContainsUnsupportedImGuiType(string cppTypeName, bool applyGenericRules)
         => cppTypeName.Contains("ImTextureID", StringComparison.Ordinal) ||
             cppTypeName.Contains("ImVector<void", StringComparison.Ordinal) ||
             cppTypeName.Contains("const ImVec4*", StringComparison.Ordinal) ||
-            cppTypeName.Contains("__va_list_tag", StringComparison.Ordinal) ||
-            cppTypeName.Contains("va_list", StringComparison.Ordinal) ||
             cppTypeName.Contains("ImGuiInputTextCallback", StringComparison.Ordinal) ||
             cppTypeName.Contains("ImGuiSizeCallback", StringComparison.Ordinal) ||
             cppTypeName.Contains("ImGuiErrorLogCallback", StringComparison.Ordinal) ||
             cppTypeName.Contains("ImGuiMemAllocFunc", StringComparison.Ordinal) ||
             cppTypeName.Contains("ImGuiMemFreeFunc", StringComparison.Ordinal) ||
-            cppTypeName.Contains("[]", StringComparison.Ordinal) ||
-            cppTypeName.Contains("**", StringComparison.Ordinal) ||
-            IsConfiguredValueFixedArrayType(cppTypeName);
+            // The substring rules below are generic C++ spellings, not Dear ImGui types. They only describe
+            // what the Dear ImGui bootstrap surface cannot bind; other callables go through normal SharpCpp binding.
+            (applyGenericRules &&
+                (cppTypeName.Contains("__va_list_tag", StringComparison.Ordinal) ||
+                 cppTypeName.Contains("va_list", StringComparison.Ordinal) ||
+                 cppTypeName.Contains("[]", StringComparison.Ordinal) ||
+                 cppTypeName.Contains("**", StringComparison.Ordinal) ||
+                 IsConfiguredValueFixedArrayType(cppTypeName)));
 
     private static bool IsDearImGuiRecord(RecordBinding record)
         => IsDearImGuiHeader(record.HeaderIncludePath);

@@ -190,6 +190,16 @@ public sealed class GeneratedSurfaceTests
     }
 
     [Fact]
+    public void Non_imgui_callables_with_pointer_and_container_pointer_types_are_bound()
+    {
+        // The Dear ImGui surface pass must not drop non-ImGui callables because of generic type spellings
+        // such as "**" or container pointers.
+        Assert.NotNull(typeof(global::Urho3D.Core.Variant).GetProperty("VariantMapPtr"));
+        Assert.NotNull(typeof(global::Urho3D.Core.Variant).GetProperty("StringVectorPtr"));
+        Assert.NotNull(typeof(global::Urho3D.Graphics.BillboardSet).GetMethod("GetFaceCameraModeNames"));
+    }
+
+    [Fact]
     public void Non_imgui_function_with_fixed_array_parameter_is_bound_and_callable()
     {
         // Urho3D::PeekResourceFormat takes BinaryMagic (ea::array<unsigned char, BinaryMagicSize>). The Dear ImGui

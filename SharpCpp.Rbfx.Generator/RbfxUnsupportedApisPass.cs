@@ -17,29 +17,13 @@ public static class RbfxUnsupportedApisPass
                 function.SetIgnoreReason("rbfx SDK declares this member but the linked library does not define/export it");
                 suppressedCount++;
             }
-            else if (function.CppQualifiedName == "Urho3D::NavigationMesh::BuildTilesAsync")
-            {
-                // SharpCpp emits the trailing-default overload forwarding a nullable
-                // NavigationGeometryInfoVector? into the non-nullable overload, which fails the
-                // generated build with CS8604 (SharpCpp optional-argument overload bug).
-                function.SetIgnoreReason("SharpCpp generates a nullable-to-non-nullable forwarding overload (CS8604) for the optional container-pointer parameter");
-                suppressedCount++;
-            }
             else if (function.CppQualifiedName.EndsWith("::TestDrawables", StringComparison.Ordinal) &&
                 function.Parameters.Any(static parameter => NormalizeTypeName(parameter.CppTypeName).EndsWith("Drawable**", StringComparison.Ordinal)))
             {
                 // OctreeQuery::TestDrawables(Drawable** start, Drawable** end) takes an input pointer range
-                // [start, end); SharpCpp binds T** parameters as 'out T', which would hand native code
-                // uninitialised pointers.
-                function.SetIgnoreReason("Drawable** range parameters are input arrays; SharpCpp maps T** parameters to out T");
-                suppressedCount++;
-            }
-            else if (function.CppQualifiedName == "Urho3D::ParseArguments" &&
-                function.Parameters.Any(static parameter => NormalizeTypeName(parameter.CppTypeName).EndsWith("char**", StringComparison.Ordinal)))
-            {
-                // ParseArguments(int argc, char** argv) takes a string array; SharpCpp marshals it as a
-                // single 'in string', which does not match the native ABI.
-                function.SetIgnoreReason("char** is a string array; SharpCpp marshals it as a single string");
+                // [start, end) with no count; SharpCpp's T** shapes (counted array or single out value)
+                // cannot express a begin/end pair, and the default would bind both as 'out'.
+                function.SetIgnoreReason("Drawable** begin/end range has no count; SharpCpp has no pointer-range projection");
                 suppressedCount++;
             }
         }

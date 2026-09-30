@@ -185,7 +185,11 @@ internal static class Program
 
             Logger.LogInformation("Applying pipeline passes...");
             var pipelineSw = Stopwatch.StartNew();
-            BindingCompilationBootstrapPipeline.Apply(compilation, marshallerConfigurationFiles, clangArguments);
+            BindingCompilationBootstrapPipeline.Apply(
+                compilation,
+                marshallerConfigurationFiles,
+                clangArguments,
+                configureBeforeValidation: c => RbfxPointerRangesPass.Apply(c));
             Logger.LogInformation("Pipeline complete: {Retained}/{Total} records retained.", compilation.Records.Count(r => !r.IsIgnored()), compilation.Records.Count);
             Logger.LogInformation("Pipeline completed in {Duration}", FormatDuration(pipelineSw.Elapsed));
 

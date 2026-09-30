@@ -190,6 +190,21 @@ public sealed class GeneratedSurfaceTests
     }
 
     [Fact]
+    public void Octree_query_test_drawables_binds_the_drawable_pointer_range_as_a_span()
+    {
+        // TestDrawables(Drawable** start, Drawable** end, bool inside) is an input range [start, end).
+        var expected = new[] { typeof(ReadOnlySpan<global::Urho3D.Graphics.Drawable?>), typeof(bool) };
+        foreach (var type in new[] { typeof(global::Urho3D.Graphics.OctreeQuery), typeof(global::Urho3D.Graphics.PointOctreeQuery) })
+        {
+            var method = type.GetMethod("TestDrawables", expected);
+            Assert.NotNull(method);
+            Assert.Equal(new[] { "start", "inside" }, method.GetParameters().Select(static parameter => parameter.Name));
+        }
+
+        Assert.False(GeneratorLogContains("Urho3D::OctreeQuery::TestDrawables\t"));
+    }
+
+    [Fact]
     public void Non_imgui_callables_with_pointer_and_container_pointer_types_are_bound()
     {
         // The Dear ImGui surface pass must not drop non-ImGui callables because of generic type spellings

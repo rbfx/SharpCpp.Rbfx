@@ -3,8 +3,8 @@ using SharpCpp.Model.Ast;
 namespace SharpCpp.Rbfx.Generator;
 
 /// <summary>
-/// Explicit managed names for members that would otherwise be renamed to <c>Native{Name}</c> because they collide
-/// with the SafeHandle/NativeObject surface. Every entry sets <c>ManagedName</c> and
+/// Explicit managed names for members that would otherwise get the default <c>{Name}{ClassName}</c> rename because
+/// they collide with the SafeHandle/NativeObject surface. Every entry sets <c>ManagedName</c> and
 /// <see cref="MetadataKeys.ExplicitManagedRename"/>, so the pipeline leaves the function alone. Runs before
 /// pipeline validation, like the pointer-range tagging.
 /// </summary>
@@ -24,6 +24,12 @@ public static class RbfxManagedNamesPass
         new("Urho3D::File", "Close", 0, "CloseFile"),
         new("Urho3D::NamedPipe", "Close", 0, "CloseFile"),
         new("Urho3D::ScriptRuntimeApi", "Dispose", 1, "DisposeInstance"),
+        new("Urho3D::BinaryInputArchiveBlock", "Close", 1, "CloseBlock"),
+        new("Urho3D::BinaryOutputArchiveBlock", "Close", 1, "CloseBlock"),
+        new("Urho3D::JSONInputArchiveBlock", "Close", 1, "CloseBlock"),
+        new("Urho3D::JSONOutputArchiveBlock", "Close", 1, "CloseBlock"),
+        new("Urho3D::XMLInputArchiveBlock", "Close", 1, "CloseBlock"),
+        new("Urho3D::XMLOutputArchiveBlock", "Close", 1, "CloseBlock"),
     ];
 
     /// <summary>Applies the explicit names and returns the number of functions renamed.</summary>

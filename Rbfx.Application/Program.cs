@@ -226,7 +226,7 @@ partial class DemoApplication : Application
     {
         if (disposing)
         {
-            _document?.Close();
+            _document?.CloseDocument();
             _document?.Dispose();
             _dataModelHandle?.Dispose();
             _dataModelConstructor?.Dispose();

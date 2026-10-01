@@ -186,11 +186,17 @@ internal static class Program
             Logger.LogInformation("Applying pipeline passes...");
             var pipelineSw = Stopwatch.StartNew();
             var taggedPointerRangeCount = 0;
+            var explicitManagedNameCount = 0;
             BindingCompilationBootstrapPipeline.Apply(
                 compilation,
                 marshallerConfigurationFiles,
                 clangArguments,
-                configureBeforeValidation: c => taggedPointerRangeCount = RbfxPointerRangesPass.Apply(c));
+                configureBeforeValidation: c =>
+                {
+                    taggedPointerRangeCount = RbfxPointerRangesPass.Apply(c);
+                    explicitManagedNameCount = RbfxManagedNamesPass.Apply(c);
+                });
+            Logger.LogInformation("Applied {Count} explicit rbfx managed member name(s).", explicitManagedNameCount);
             Logger.LogInformation("Tagged {Count} rbfx pointer range(s).", taggedPointerRangeCount);
             Logger.LogInformation("Pipeline complete: {Retained}/{Total} records retained.", compilation.Records.Count(r => !r.IsIgnored()), compilation.Records.Count);
             Logger.LogInformation("Pipeline completed in {Duration}", FormatDuration(pipelineSw.Elapsed));

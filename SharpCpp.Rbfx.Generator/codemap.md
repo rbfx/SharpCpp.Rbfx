@@ -67,7 +67,7 @@ Program.Main(args)
   │     ├── Adds -Wno-* warning suppression arguments
   │     ├── Collects -I directives from SDK flags + include root
   │     ├── Adds -D defines from SDK flags + compatibility defines (SDL_DISABLE_*, IMGUI_DISABLE_*)
-  │     ├── Adds SDK additional clang arguments + SIMD disable flags (-mno-sse*, -mno-avx*)
+  │     ├── Adds SDK additional clang arguments + SIMD disable flags (-mno-sse*, -mno-avx*; x86 targets only)
   │     ├── CompilerToolchainDiscovery.Discover(sdkFlags.CompilerPath)
   │     │     ├── Resolves toolchain compiler (prefers clang if available)
   │     │     ├── Discovers target triple via compiler -dumpmachine
@@ -140,6 +140,6 @@ MSBuild builds the generator DLL through a `ProjectReference` before invoking th
 ### Associated Configuration
 
 - `ParseCompatibilityDefines`: SDL and ImGui header-compatibility macros that suppress platform-specific SIMD detection at parse time.
-- `ParseSimdDisableArguments`: `-mno-sse*`, `-mno-avx*` flags that prevent libclang from implicitly enabling SIMD intrinsics based on host CPU detection.
+- `ParseSimdDisableArguments`: `-mno-sse*`, `-mno-avx*` flags that prevent libclang from implicitly enabling SIMD intrinsics based on host CPU detection. Added only for x86 targets (or an unknown target); other targets such as arm64 reject them.
 - `ParseWarningDisableArguments`: `-Wno-deprecated-literal-operator` and `-Wno-pragma-once-outside-header` to suppress noisy libclang diagnostics.
 - `EntryPointPrefix = "scrbfx"`: Unique prefix for native entry point symbols generated in the C++ glue.

@@ -327,14 +327,30 @@ internal static class Program
         }
 
         arguments.AddRange(sdkFlags.AdditionalArguments);
-        arguments.AddRange(ParseSimdDisableArguments);
 
         var toolchainInfo = CompilerToolchainDiscovery.Discover(
             sdkFlags.CompilerPath,
             clangResourceDirectoryOverride: Environment.GetEnvironmentVariable("SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY"));
+        if (IsX86Target(toolchainInfo.TargetTriple))
+            arguments.AddRange(ParseSimdDisableArguments);
+
         arguments.AddRange(toolchainInfo.GetClangArguments(arguments));
 
         return arguments.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static bool IsX86Target(string? targetTriple)
+    {
+        if (string.IsNullOrEmpty(targetTriple))
+            return true;
+
+        foreach (var prefix in new[] { "x86_64", "amd64", "i386", "i486", "i586", "i686" })
+        {
+            if (targetTriple.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static void ApplySdkExportFilter(BindingCompilation compilation, string? sdkLibraryPath)

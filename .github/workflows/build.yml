@@ -1,0 +1,121 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  PACKAGE_VERSION: 0.1.0-alpha.${{ github.run_number }}
+  RELEASE_TAG: latest
+
+jobs:
+  Package:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry for each runtime package. SharpCpp references libclang only for linux-x64,
+        # so other RIDs from packaging/nuget/package.sh cannot generate wrappers yet.
+        include:
+          - rid: linux-x64
+            runs_on: ubuntu-latest
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+
+      # SharpCpp is consumed as a sibling checkout (SharpCppRoot defaults to ../SharpCpp).
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          token: ${{ secrets.SHARPCPP_TOKEN }}
+          path: SharpCpp
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build p7zip-full \
+            libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev \
+            libxrandr-dev libxrender-dev libxss-dev libasound2-dev \
+            libpulse-dev libibus-1.0-dev libdbus-1-dev libreadline6-dev \
+            libudev-dev uuid-dev libtbb-dev
+
+      # Downloads the rbfx SDK from the rbfx/rbfx `latest` release, generates and builds
+      # the wrappers, then packs them.
+      - name: Build Packages
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: |
+          ./packaging/nuget/package.sh create \
+            --version "$PACKAGE_VERSION" \
+            --rid '${{ matrix.rid }}' \
+            --configuration Release
+
+      - name: Upload Packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/package/nuget/out/*.nupkg
+          if-no-files-found: error
+
+  Release-Latest:
+    name: Release Latest
+    needs: Package
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Download Packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: nuget-*
+          path: packages
+          merge-multiple: true
+
+      - name: Create and Push Tag
+        run: |
+          git tag -f "$RELEASE_TAG"
+          git push -f origin "$RELEASE_TAG"
+
+      - name: Release Packages
+        shell: bash
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --prerelease --title "Latest Build" \
+              --notes "Rolling build of the latest commit on master."
+          fi
+          # Package file names contain the version, so remove the packages of the previous build.
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | while read -r asset; do
+            gh release delete-asset "$RELEASE_TAG" "$asset" --yes
+          done
+          gh release upload "$RELEASE_TAG" packages/*.nupkg --clobber

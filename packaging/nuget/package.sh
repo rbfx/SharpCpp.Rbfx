@@ -218,6 +218,22 @@ copy_native_glob() {
   return "$matched"
 }
 
+# The native build copies the rbfx runtime dependencies next to SharpCpp.Rbfx.Native.
+copy_built_runtime_dependencies() {
+  local pattern="$1"
+  local destination="$2"
+  local file
+
+  shopt -s nullglob
+  for file in $pattern; do
+    case "$(basename "$file")" in
+      *SharpCpp.Rbfx.Native.*|*SharpCpp.Rbfx.UserCode.Native.*) ;;
+      *) cp -a "$file" "$destination/" ;;
+    esac
+  done
+  shopt -u nullglob
+}
+
 detect_target_framework() {
   local package_project="$SCRIPT_DIR/packages/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.Package.csproj"
   local target_framework
@@ -276,11 +292,15 @@ stage_packages() {
       cp -a "$bin_dir/libSharpCpp.Rbfx.Native.so" "$STAGE_DIR/runtime/$rid/native/"
       copy_native_glob "$sdk_root/bin/*.so" "$STAGE_DIR/runtime/$rid/native" || true
       copy_native_glob "$sdk_root/bin/*.so.*" "$STAGE_DIR/runtime/$rid/native" || true
+      copy_built_runtime_dependencies "$bin_dir/*.so" "$STAGE_DIR/runtime/$rid/native"
+      copy_built_runtime_dependencies "$bin_dir/*.so.*" "$STAGE_DIR/runtime/$rid/native"
+      require_file "$STAGE_DIR/runtime/$rid/native/libUrho3D.so"
       ;;
     osx-*)
       require_file "$bin_dir/libSharpCpp.Rbfx.Native.dylib"
       cp -a "$bin_dir/libSharpCpp.Rbfx.Native.dylib" "$STAGE_DIR/runtime/$rid/native/"
       copy_native_glob "$sdk_root/bin/*.dylib" "$STAGE_DIR/runtime/$rid/native" || true
+      copy_built_runtime_dependencies "$bin_dir/*.dylib" "$STAGE_DIR/runtime/$rid/native"
       ;;
     win-*|uap-*)
       require_file "$bin_dir/SharpCpp.Rbfx.Native.dll"

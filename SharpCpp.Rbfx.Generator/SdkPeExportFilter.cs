@@ -91,8 +91,11 @@ public static class SdkPeExportFilter
         }
 
         // The constructors (also the implicit ones), the clone and the destroy thunk of a record
-        // are compiled into the wrapper library. They reference the destructor of the record and,
-        // for a record whose virtual table the library does not export, each virtual function.
+        // are compiled into the wrapper library. They reference the destructor of the record and
+        // each virtual function. The check runs also when the library exports the virtual table:
+        // the link reports the functions that such a record inherits from a base without export
+        // (LNK2001 for ActionState::Update). The wrapper object seems to emit a copy of the virtual
+        // table; no object file confirms this.
         var unlinkableRecords = new HashSet<string>(StringComparer.Ordinal);
         foreach (var record in compilation.Records)
         {
@@ -102,11 +105,10 @@ public static class SdkPeExportFilter
             }
 
             var destructorDependency = FindMissingDependency(record, MetadataKeys.DestructorLinkDependencies, exports);
-            var virtualTableDependency = exports.ContainsVirtualTable(record.CppQualifiedName)
-                ? null
-                : FindMissingDependency(record, MetadataKeys.VirtualTableLinkDependencies, exports);
+            var virtualTableDependency = FindMissingDependency(record, MetadataKeys.VirtualTableLinkDependencies, exports);
             if (destructorDependency is null && virtualTableDependency is null)
             {
+                IgnoreImplicitDefaultConstructor(record, exports, ref result);
                 continue;
             }
 
@@ -185,6 +187,30 @@ public static class SdkPeExportFilter
         }
 
         return parameterTypeNames;
+    }
+
+    // The synthetic or defaulted default constructor calls the default constructor of each base
+    // and each by-value field. Another constructor of the record does not call it.
+    private static void IgnoreImplicitDefaultConstructor(RecordBinding record, SdkPeExportTable exports, ref Result result)
+    {
+        var dependency = FindMissingDependency(record, MetadataKeys.DefaultConstructorLinkDependencies, exports);
+        if (dependency is null)
+        {
+            return;
+        }
+
+        var reason = $"record '{record.CppQualifiedName}' needs default constructor '{dependency}', which the linked rbfx SDK library does not export";
+        foreach (var constructor in record.Members.OfType<FunctionBinding>())
+        {
+            if (constructor.IsConstructor &&
+                !constructor.IsIgnored() &&
+                constructor.Parameters.Count == 0 &&
+                !(constructor.TryGetMetadata<bool>(MetadataKeys.DeclaredOnly, out var declaredOnly) && declaredOnly))
+            {
+                constructor.SetIgnoreReason(reason);
+                result = result with { RecordConstructors = result.RecordConstructors + 1 };
+            }
+        }
     }
 
     private static string? FindMissingDependency(RecordBinding record, string metadataKey, SdkPeExportTable exports)

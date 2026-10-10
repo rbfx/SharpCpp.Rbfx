@@ -39,10 +39,11 @@ jobs:
             runs_on: macos-latest
             experimental: true
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
-          - rid: win-x64
-            runs_on: windows-latest
-            experimental: true
-            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          # The win-x64 entry is disabled, because the native build does not complete on the runner.
+          # - rid: win-x64
+          #   runs_on: windows-latest
+          #   experimental: true
+          #   packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5

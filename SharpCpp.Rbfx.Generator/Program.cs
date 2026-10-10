@@ -418,6 +418,7 @@ internal static class Program
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "nm",
+                RedirectStandardInput = true,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false
@@ -434,9 +435,18 @@ internal static class Program
                 return Array.Empty<string>();
             }
 
-            var output = process.StandardOutput.ReadToEnd();
-            var error = process.StandardError.ReadToEnd();
-            process.WaitForExit();
+            process.StandardInput.Close();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(TimeSpan.FromSeconds(120)))
+            {
+                process.Kill(entireProcessTree: true);
+                Logger.LogWarning("Could not read the exported symbols of '{LibraryPath}': nm timed out.", sdkLibraryPath);
+                return Array.Empty<string>();
+            }
+
+            var output = outputTask.GetAwaiter().GetResult();
+            var error = errorTask.GetAwaiter().GetResult();
             if (process.ExitCode != 0)
             {
                 Logger.LogWarning("Could not read the exported symbols of '{LibraryPath}': {Error}", sdkLibraryPath, error.Trim());

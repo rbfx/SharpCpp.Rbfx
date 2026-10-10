@@ -422,7 +422,8 @@ internal static class Program
                 RedirectStandardOutput = true,
                 UseShellExecute = false
             };
-            startInfo.ArgumentList.Add("-D");
+            // A Mach-O library has no dynamic symbol table, so nm rejects -D for it.
+            startInfo.ArgumentList.Add(OperatingSystem.IsMacOS() ? "--extern-only" : "-D");
             startInfo.ArgumentList.Add("--defined-only");
             startInfo.ArgumentList.Add("--demangle");
             startInfo.ArgumentList.Add(sdkLibraryPath);
@@ -434,10 +435,11 @@ internal static class Program
             }
 
             var output = process.StandardOutput.ReadToEnd();
-            _ = process.StandardError.ReadToEnd();
+            var error = process.StandardError.ReadToEnd();
             process.WaitForExit();
             if (process.ExitCode != 0)
             {
+                Logger.LogWarning("Could not read the exported symbols of '{LibraryPath}': {Error}", sdkLibraryPath, error.Trim());
                 return Array.Empty<string>();
             }
 

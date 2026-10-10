@@ -44,6 +44,14 @@ internal static class Program
         "-mno-avx512vl"
     ];
 
+    // The pinned Clang builtin headers have no arm_neon.h, because the LLVM build generates it.
+    private static readonly string[] ParseNeonDisableArguments =
+    [
+        "-U__ARM_NEON",
+        "-U__ARM_NEON__",
+        "-DSDL_DISABLE_ARM_NEON_H=1"
+    ];
+
     private static readonly string[] ParseWarningDisableArguments =
     [
         "-Wno-deprecated-literal-operator",
@@ -333,10 +341,19 @@ internal static class Program
             clangResourceDirectoryOverride: Environment.GetEnvironmentVariable("SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY"));
         if (IsX86Target(toolchainInfo.TargetTriple))
             arguments.AddRange(ParseSimdDisableArguments);
+        else if (IsArmTarget(toolchainInfo.TargetTriple))
+            arguments.AddRange(ParseNeonDisableArguments);
 
         arguments.AddRange(toolchainInfo.GetClangArguments(arguments));
 
         return arguments.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static bool IsArmTarget(string? targetTriple)
+    {
+        return targetTriple is not null &&
+            (targetTriple.StartsWith("arm", StringComparison.OrdinalIgnoreCase) ||
+             targetTriple.StartsWith("aarch64", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsX86Target(string? targetTriple)

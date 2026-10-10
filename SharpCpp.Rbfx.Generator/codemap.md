@@ -141,5 +141,6 @@ MSBuild builds the generator DLL through a `ProjectReference` before invoking th
 
 - `ParseCompatibilityDefines`: SDL and ImGui header-compatibility macros that suppress platform-specific SIMD detection at parse time.
 - `ParseSimdDisableArguments`: `-mno-sse*`, `-mno-avx*` flags that prevent libclang from implicitly enabling SIMD intrinsics based on host CPU detection. Added only for x86 targets (or an unknown target); other targets such as arm64 reject them.
+- `ParseNeonDisableArguments`: `-U__ARM_NEON*` and `SDL_DISABLE_ARM_NEON_H` for arm targets. The pinned Clang builtin headers have no `arm_neon.h`.
 - `ParseWarningDisableArguments`: `-Wno-deprecated-literal-operator` and `-Wno-pragma-once-outside-header` to suppress noisy libclang diagnostics.
 - `EntryPointPrefix = "scrbfx"`: Unique prefix for native entry point symbols generated in the C++ glue.

@@ -1,5 +1,10 @@
 set(sdk_root "@RBFX_SDK_ROOT@")
 
+# The caller passes native paths. The prefix tests below need the CMake path form.
+foreach(path_variable IN ITEMS target_file output_dir urho_dir urho_library_file)
+  cmake_path(SET ${path_variable} "${${path_variable}}")
+endforeach()
+
 set(search_directories
   "${urho_dir}"
   "${sdk_root}/bin/${config}"
@@ -41,7 +46,14 @@ file(GET_RUNTIME_DEPENDENCIES
   LIBRARIES "${target_file}"
   RESOLVED_DEPENDENCIES_VAR resolved_dependencies
   UNRESOLVED_DEPENDENCIES_VAR unresolved_dependencies
+  CONFLICTING_DEPENDENCIES_PREFIX conflicting_dependencies
   DIRECTORIES ${search_directories})
+
+# A library that the SDK and the system both supply (MSVCP140.dll on Windows) is a conflict.
+# resolve_sdk_runtime_source keeps only the path in the SDK.
+foreach(conflicting_dependency_name IN LISTS conflicting_dependencies_FILENAMES)
+  list(APPEND resolved_dependencies ${conflicting_dependencies_${conflicting_dependency_name}})
+endforeach()
 
 resolve_sdk_runtime_source("${urho_library_file}" urho_library_source)
 if(NOT urho_library_source STREQUAL "")

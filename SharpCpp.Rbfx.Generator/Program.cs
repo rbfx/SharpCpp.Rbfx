@@ -233,6 +233,7 @@ internal static class Program
             }
 
             RbfxFlagSetLoweringPass.Apply(compilation);
+            ApplyPeSdkExportFilter(compilation, options.SdkLibraryPath);
             var managedProjection = RbfxManagedNamespaceProjectionPass.Apply(compilation);
             Logger.LogInformation("Managed namespace projection complete: {NamespaceCount} namespace node(s).", managedProjection.Namespaces.Count);
 
@@ -377,6 +378,12 @@ internal static class Program
             return;
         }
 
+        // The filter for a Windows library runs after the passes that clear an ignore reason.
+        if (IsPortableExecutable(sdkLibraryPath))
+        {
+            return;
+        }
+
         var exportedSymbols = LoadExportedSymbols(sdkLibraryPath);
         if (exportedSymbols.Count == 0)
         {
@@ -408,6 +415,71 @@ internal static class Program
         if (removedCount > 0)
         {
             Logger.LogInformation("Ignored {Count} function(s) that are not exported by '{LibraryPath}'.", removedCount, sdkLibraryPath);
+        }
+    }
+
+    private static bool IsPortableExecutable(string sdkLibraryPath)
+    {
+        try
+        {
+            return SdkPeExportTable.IsPortableExecutable(sdkLibraryPath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    // nm cannot read a Windows DLL on a Windows host, and a DLL exports only the declarations
+    // with URHO3D_API. The filter reads the export table in process and has a wider scope.
+    private static void ApplyPeSdkExportFilter(BindingCompilation compilation, string? sdkLibraryPath)
+    {
+        if (string.IsNullOrWhiteSpace(sdkLibraryPath) || !File.Exists(sdkLibraryPath) || !IsPortableExecutable(sdkLibraryPath))
+        {
+            return;
+        }
+
+        SdkPeExportTable exports;
+        try
+        {
+            exports = SdkPeExportTable.Load(sdkLibraryPath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or BadImageFormatException)
+        {
+            Logger.LogWarning("Could not read the exported symbols of '{LibraryPath}': {Error}", sdkLibraryPath, exception.Message);
+            return;
+        }
+
+        if (exports.QualifiedNameCount == 0)
+        {
+            Logger.LogWarning("Could not read the exported symbols of '{LibraryPath}': the export table has no C++ name.", sdkLibraryPath);
+            return;
+        }
+
+        Logger.LogInformation(
+            "Read {ExportCount} export(s) from '{LibraryPath}': {NameCount} C++ name(s), {VirtualTableCount} virtual table(s).",
+            exports.ExportCount,
+            sdkLibraryPath,
+            exports.QualifiedNameCount,
+            exports.VirtualTableCount);
+
+        var result = SdkPeExportFilter.Apply(compilation, exports);
+        if (result.Total > 0)
+        {
+            Logger.LogInformation(
+                "Ignored {FreeFunctions} free function(s), {StaticMethods} static method(s), {InstanceMethods} instance method(s), {Constructors} constructor(s) and {StaticFields} static field(s) that are not exported by '{LibraryPath}'. " +
+                "Removed the constructors ({RecordConstructors}), the clone and the destroy thunk of {DestructorRecords} record(s) with a destructor dependency and {VirtualTableRecords} record(s) with a virtual table dependency that is not exported. " +
+                "Ignored {ByValueFunctions} function(s) that pass such a record by value.",
+                result.FreeFunctions,
+                result.StaticMethods,
+                result.InstanceMethods,
+                result.Constructors,
+                result.StaticFields,
+                sdkLibraryPath,
+                result.RecordConstructors,
+                result.DestructorRecords,
+                result.VirtualTableRecords,
+                result.ByValueFunctions);
         }
     }
 
@@ -455,8 +527,9 @@ internal static class Program
 
             return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
-        catch
+        catch (Exception exception)
         {
+            Logger.LogWarning("Could not read the exported symbols of '{LibraryPath}': {Error}", sdkLibraryPath, exception.Message);
             return Array.Empty<string>();
         }
     }

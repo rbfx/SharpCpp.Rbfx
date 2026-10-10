@@ -31,7 +31,21 @@ This ensures libclang sees a consistent set of built-in headers even when the SD
 
 ### SDK Export Gating
 
-`ApplySdkExportFilter` implements a **dynamic symbol-based filtering** strategy. It invokes `nm -D --defined-only --demangle` on the linked SDK shared library, then cross-references the demangled symbol list against free functions and member functions parsed from headers. Functions declared in headers but absent from the exported symbol table are marked as ignored. This prevents bindings from being emitted for functions that would fail to link at runtime, which is common in SDKs that use visibility attributes or selective symbol export.
+`ApplySdkExportFilter` implements a **dynamic symbol-based filtering** strategy. Declarations that the headers declare but the linked SDK library does not export are marked as ignored, so no wrapper code references a symbol that fails to link. The library format selects the symbol source and the scope.
+
+**ELF and Mach-O library** (`Program.LoadExportedSymbols`): runs `nm -D --defined-only --demangle` (`--extern-only` on macOS) and matches the demangled text by name. The scope is free functions and static methods that have no inline definition (`HasNativeDefinition`). A failure to start or run `nm` logs a warning and disables the filter.
+
+**PE library** (a Windows DLL, found by its `MZ` signature; `SdkPeExportTable.cs` and `SdkPeExportFilter.cs`): `nm` is not available on a Windows host and a DLL exports only the declarations with `URHO3D_API`, so the scope is wider.
+
+- `SdkPeExportTable` reads the export name table in process (`System.Reflection.PortableExecutable`, `PEReader.GetSectionData` maps each RVA to a file position). `TryDecodeQualifiedName` decodes the qualified name at the start of each MSVC decorated name (`?Bar@Foo@Urho3D@@...` to `Urho3D::Foo::Bar`, `??0`/`??1` to a constructor/destructor, `??_7` to a virtual table, operator codes). It uses no native undecorate function, so the same code runs and is tested on each host system. It does not decode a name with a template, an anonymous namespace or a local scope; the filter does not examine a declaration whose name contains `<`.
+- `SdkPeExportFilter.Apply` uses these rules. The match is by qualified name, as for the other formats.
+  - A free function, a static method, an instance method or a declared constructor with no inline definition and no export: `SetIgnoreReason`. A pure virtual function and a synthetic default constructor are not examined.
+  - An exported name with an overload that is not exported: `SdkPeExportTable.ContainsOverload` looks for the name of each record and each enum of the parameter types in the encoded type of the exported overloads. This is not a full match of the signature: it does not tell apart overloads that differ only in a built-in type, a type alias or a template.
+  - A static field with no definition in the header (`DeclaredOnly`, which the parser sets from the initializer and the definition state) and no export: `SetIgnoreReason`.
+  - A record with a name in `MetadataKeys.DestructorLinkDependencies` that is not exported: the wrapper cannot destroy it. The parser puts in this list the destructors without a definition that the destructor of the record references (the record, its bases, its by-value fields, and the type arguments of a template field together with their `operator()`).
+  - A record whose virtual table is not exported and that has a name in `MetadataKeys.VirtualTableLinkDependencies` that is not exported: a constructor compiled into the wrapper emits the virtual table, which references each virtual function. The parser puts in this list the final overriders (of any access) without a definition.
+  - Such a record gets `MetadataKeys.NonPublicDestructor` (no `destroy` thunk), `HasCopyConstructor = false` (no clone) and all its constructors are ignored. The record stays usable through a pointer. A function that passes such a record by value is ignored.
+- `Program.ApplyPeSdkExportFilter` runs after `RbfxFlagSetLoweringPass`, because the surface passes before it clear ignore reasons. It logs the export counts and one summary line with the count for each kind.
 
 ### Namespace Flattening
 
@@ -89,9 +103,16 @@ Program.Main(args)
   │     └── Runs pipeline passes (marshaller attribute resolution, type rewriting, etc.)
   │
   ├── ApplySdkExportFilter(compilation, sdkLibraryPath)
-  │     ├── Runs nm -D --defined-only --demangle on SDK shared library
-  │     ├── Cross-references parsed function signatures against exported symbols
-  │     └── Marks unexported free functions and member functions as ignored
+  │     ├── PE library (Windows DLL): no action here, see ApplyPeSdkExportFilter
+  │     ├── Other library: runs nm -D --defined-only --demangle on the SDK shared library
+  │     ├── Cross-references parsed function names against exported symbols
+  │     └── Marks unexported free functions and static methods as ignored
+  │
+  ├── ApplyPeSdkExportFilter(compilation, sdkLibraryPath)   (after RbfxFlagSetLoweringPass)
+  │     ├── SdkPeExportTable.Load reads and decodes the export name table of a Windows DLL
+  │     └── SdkPeExportFilter.Apply ignores unexported functions, methods, constructors and static
+  │           fields, and removes the constructors, the clone and the destroy thunk of records
+  │           that need a symbol that is not exported
   │
   ├── BindingOutputRenderer.Render(compilation, stem, groupStemFunc)
   │     └── Returns RenderedOutput collection (files grouped by header origin)

@@ -95,24 +95,6 @@ jobs:
             --rid '${{ matrix.rid }}' \
             --configuration Release
 
-      # Shows which section of each wrapper object references a virtual function of ActionState.
-      - name: Diagnose Link Failure
-        if: failure() && runner.os == 'Windows'
-        shell: bash
-        run: |
-          pattern='[?](Update|Stop)@ActionState@Actions'
-          find SharpCpp.Rbfx -name 'unity_*.obj' | while read -r obj; do
-            echo "== $obj"
-            dumpbin -symbols "$obj" > symbols.txt
-            grep -E "$pattern|[?][?]_7.*ActionState" symbols.txt | head -40 || true
-            dumpbin -relocations "$obj" \
-              | awk -v p="$pattern" '/^RELOCATIONS #/ { s = substr($2, 2) } $0 ~ p { print s }' \
-              | sort -u | head -20 | while read -r section; do
-                echo "-- section $section"
-                grep -E "SECT$section " symbols.txt | head -5 || true
-              done || true
-          done
-
       - name: Upload Packages
         uses: actions/upload-artifact@v7
         with:

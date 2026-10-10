@@ -23,14 +23,26 @@ jobs:
   Package:
     name: ${{ matrix.rid }}
     runs-on: ${{ matrix.runs_on }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        # One entry for each runtime package. SharpCpp references libclang only for linux-x64,
-        # so other RIDs from packaging/nuget/package.sh cannot generate wrappers yet.
+        # One entry for each runtime package. An experimental entry does not stop the release.
+        # Only linux-x64 publishes the managed packages, so entries do not overwrite each other.
+        # There is no osx-x64 entry, because libclang has no runtime package for that RID.
         include:
           - rid: linux-x64
             runs_on: ubuntu-latest
+            experimental: false
+            packages: '*.nupkg'
+          - rid: osx-arm64
+            runs_on: macos-latest
+            experimental: true
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          - rid: win-x64
+            runs_on: windows-latest
+            experimental: true
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -43,7 +55,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: rokups/SharpCpp
-          token: ${{ secrets.SHARPCPP_TOKEN }}
           path: SharpCpp
           persist-credentials: false
 
@@ -63,6 +74,15 @@ jobs:
             libpulse-dev libibus-1.0-dev libdbus-1-dev libreadline6-dev \
             libudev-dev uuid-dev libtbb-dev
 
+      # package.sh needs bash 4 or later.
+      - name: Install Dependencies
+        if: runner.os == 'macOS'
+        run: brew install bash ninja
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       # Downloads the rbfx SDK from the rbfx/rbfx `latest` release, generates and builds
       # the wrappers, then packs them.
       - name: Build Packages
@@ -78,7 +98,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nuget-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/package/nuget/out/*.nupkg
+          path: SharpCpp.Rbfx/build/package/nuget/out/${{ matrix.packages }}
           if-no-files-found: error
 
   Release-Latest:

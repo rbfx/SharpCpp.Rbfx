@@ -56,6 +56,8 @@ function(sharpcpp_find_rbfx_sdk)
   set(BUILD_SHARED_LIBS ON)
   set(CMAKE_DISABLE_FIND_PACKAGE_TBB TRUE)
   set(CMAKE_DISABLE_FIND_PACKAGE_Vulkan TRUE)
+  # Urho3DConfig.cmake finds the Urho3DThirdParty package of the same SDK with the default search.
+  list(PREPEND CMAKE_PREFIX_PATH "${RBFX_SDK_ROOT}")
   find_package(
     Urho3D 0.0.0 CONFIG REQUIRED
     PATHS

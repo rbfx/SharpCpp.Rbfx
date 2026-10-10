@@ -305,7 +305,18 @@ stage_packages() {
     win-*|uap-*)
       require_file "$bin_dir/SharpCpp.Rbfx.Native.dll"
       cp -a "$bin_dir/SharpCpp.Rbfx.Native.dll" "$STAGE_DIR/runtime/$rid/native/"
-      copy_native_glob "$sdk_root/bin/*.dll" "$STAGE_DIR/runtime/$rid/native" || true
+      # The output directory also contains managed assemblies, so the native libraries of the
+      # SDK are copied by name. The SDK keeps them in a directory for each configuration.
+      local native_name native_directory
+      for native_name in Urho3D.dll D3DCOMPILER_47.dll; do
+        for native_directory in "$bin_dir" "$sdk_root/bin/RelWithDebInfo" "$sdk_root/bin/Release" "$sdk_root/bin"; do
+          if [ -f "$native_directory/$native_name" ]; then
+            cp -a "$native_directory/$native_name" "$STAGE_DIR/runtime/$rid/native/"
+            break
+          fi
+        done
+      done
+      require_file "$STAGE_DIR/runtime/$rid/native/Urho3D.dll"
       ;;
     *)
       echo "Error: unsupported runtime identifier '$rid'." >&2

@@ -17,6 +17,10 @@ add_dependencies(
   sharpcpp-generate-rbfx-usercode
   sharpcpp-rbfx-runtime)
 target_compile_features(SharpCppRbfxUserCode_Native PRIVATE cxx_std_20)
+if(MSVC)
+  # A unity source of the generated wrappers exceeds the section limit of the default object format.
+  target_compile_options(SharpCppRbfxUserCode_Native PRIVATE /bigobj)
+endif()
 set_target_properties(
   SharpCppRbfxUserCode_Native
   PROPERTIES

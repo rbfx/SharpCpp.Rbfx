@@ -17,6 +17,10 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/RefCountedRuntime.cpp")
 add_dependencies(SharpCppRbfx_Native sharpcpp-generate-rbfx)
 target_compile_features(SharpCppRbfx_Native PRIVATE cxx_std_20)
+if(MSVC)
+  # A unity source of the generated wrappers exceeds the section limit of the default object format.
+  target_compile_options(SharpCppRbfx_Native PRIVATE /bigobj)
+endif()
 set_target_properties(
   SharpCppRbfx_Native
   PROPERTIES

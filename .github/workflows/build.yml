@@ -350,7 +350,7 @@ jobs:
         working-directory: SharpCpp.Rbfx
         shell: bash
         run: >-
-          dotnet restore '${{ matrix.project }}' --source build/cross-packages
+          MSYS_NO_PATHCONV=1 dotnet restore '${{ matrix.project }}' --source build/cross-packages
           --source https://api.nuget.org/v3/index.json
           -p:RbfxPackageVersion="$PACKAGE_VERSION"
           -p:RuntimeIdentifier='${{ matrix.rid }}'

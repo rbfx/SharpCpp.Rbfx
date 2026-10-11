@@ -105,6 +105,14 @@ jobs:
           path: SharpCpp.Rbfx/build/native/*/generated/rbfx/ApiManifest.tsv
           if-no-files-found: error
 
+      # The generated C# and C++ sources and the generator logs, for debugging.
+      - name: Upload Generated Sources
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/native/*/generated/
+          if-no-files-found: error
+
   Release-Latest:
     name: Release Latest
     needs: Package

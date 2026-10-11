@@ -12,9 +12,15 @@ does not use new `.nuspec` files.
   for their RID. Applications must select one of the supported RIDs.
 - `SharpCpp.Rbfx.Bindings.runtime.<rid>` contains the managed implementation and native runtime files for one
   runtime identifier, including `SharpCpp.Rbfx.Native` and the copied rbfx native
-  dependencies from the shared `build/bin` output directory. The CI union packages
-  contain no dependency on the main package, to avoid a dependency cycle.
-  The single-platform `package.sh create` mode retains its existing main-package dependency.
+  dependencies from the shared `build/bin` output directory. In CI union packages,
+  Linux x64 and Android x64 share one `runtime.unix-x64` package because NuGet's
+  Android x64 RID fallback includes Linux x64. Their managed assets stay in
+  RID-specific folders in that package. Linux native files use a private package
+  folder with `.bin` extensions and a Linux-only copy target that restores their
+  `.so` names in application output, so Android tooling does not scan glibc
+  libraries while packaging an Android app. Union runtime packages do not depend
+  on the main package, avoiding a dependency cycle. The single-platform
+  `package.sh create` mode retains its existing main-package dependency.
 - `SharpCpp.Rbfx.CoreData`, `SharpCpp.Rbfx.Data`, and
   `SharpCpp.Rbfx.EditorData` contain resource folders copied from the downloaded
   rbfx SDK archive when present.

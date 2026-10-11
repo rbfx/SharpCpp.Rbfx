@@ -133,11 +133,22 @@ static class UnionPackage
             var runtimeLib = Path.Combine(stage, "runtime", rid, "lib", framework);
             Directory.CreateDirectory(runtimeLib);
             File.Copy(implementation, Path.Combine(runtimeLib, Path.GetFileName(implementation)));
-            Pack("SharpCpp.Rbfx.Bindings.Runtime", rid, version, framework, stage, packages);
         }
+        foreach (var rid in platforms.Where(rid => rid is not ("android-x64" or "linux-x64")))
+            Pack("SharpCpp.Rbfx.Bindings.Runtime", rid, version, framework, stage, packages);
+        if (platforms.Contains("android-x64") && platforms.Contains("linux-x64"))
+        {
+            var linuxNativeAssets = Path.Combine(stage, "runtime/linux-x64/native-assets");
+            Directory.CreateDirectory(linuxNativeAssets);
+            foreach (var nativeFile in Directory.GetFiles(Path.Combine(stage, "runtime/linux-x64/native")))
+                File.Copy(nativeFile, Path.Combine(linuxNativeAssets, Path.GetFileName(nativeFile) + ".bin"));
+            PackRuntimeGroup("unix-x64", "android-x64", "linux-x64", version, framework, stage, packages);
+        }
+
+        var runtimePackages = platforms.Select(RuntimePackageId).Distinct(StringComparer.Ordinal).ToArray();
         var dependencyProps = Path.Combine(stage, "RuntimeDependencies.props");
-        new XDocument(new XElement("Project", new XElement("ItemGroup", platforms.Select(rid => new XElement("PackageReference",
-            new XAttribute("Include", "SharpCpp.Rbfx.Bindings.runtime." + rid), new XAttribute("Version", version)))))).Save(dependencyProps);
+        new XDocument(new XElement("Project", new XElement("ItemGroup", runtimePackages.Select(packageId => new XElement("PackageReference",
+            new XAttribute("Include", packageId), new XAttribute("Version", version)))))).Save(dependencyProps);
         Pack("SharpCpp.Rbfx.Bindings", platforms[0], version, framework, stage, packages, dependencyProps);
         foreach (var path in Directory.GetDirectories(inputs, "nuget-*").SelectMany(path => Directory.GetFiles(path, "*.nupkg")))
             if (new[] { "SharpCpp.Rbfx.CoreData.", "SharpCpp.Rbfx.Data.", "SharpCpp.Rbfx.EditorData." }.Any(prefix => Path.GetFileName(path).StartsWith(prefix, StringComparison.Ordinal)))
@@ -154,16 +165,23 @@ static class UnionPackage
         CreateEmptyDirectory(smoke);
         IsolateProjects(smoke);
         new XDocument(new XElement("configuration", new XElement("packageSources", new XElement("clear"),
-            new XElement("add", new XAttribute("key", "union"), new XAttribute("value", packages))))).Save(Path.Combine(smoke, "NuGet.Config"));
+            new XElement("add", new XAttribute("key", "union"), new XAttribute("value", packages)),
+            new XElement("add", new XAttribute("key", "nuget.org"), new XAttribute("value", "https://api.nuget.org/v3/index.json"))))).Save(Path.Combine(smoke, "NuGet.Config"));
         foreach (var rid in platforms)
         {
             var directory = Path.Combine(smoke, rid);
             Directory.CreateDirectory(directory);
             var project = Path.Combine(directory, "Consumer.csproj");
-            new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
-                Properties(new() { ["TargetFramework"] = framework, ["OutputType"] = "Exe", ["RuntimeIdentifier"] = rid,
+            var properties = new Dictionary<string, string> { ["TargetFramework"] = framework, ["OutputType"] = "Exe", ["RuntimeIdentifier"] = rid,
                     ["SelfContained"] = "false", ["UseAppHost"] = "false", ["ImplicitUsings"] = "enable", ["NuGetAudit"] = "false",
-                    ["NoWarn"] = "CA1416", ["RestorePackagesPath"] = "../cache" }),
+                    ["NoWarn"] = "CA1416", ["RestorePackagesPath"] = "../cache" };
+            if (rid == "browser-wasm")
+            {
+                properties["WasmEnableThreads"] = "true";
+                properties["WasmEnableExceptionHandling"] = "true";
+            }
+            new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
+                Properties(properties),
                 new XElement("ItemGroup", new XElement("PackageReference", new XAttribute("Include", "SharpCpp.Rbfx.Bindings"),
                     new XAttribute("Version", version))))).Save(project);
             File.WriteAllText(Path.Combine(directory, "Program.cs"), """
@@ -203,14 +221,15 @@ static class UnionPackage
             var main = target.GetProperty("SharpCpp.Rbfx.Bindings/" + version);
             if (!main.GetProperty("compile").TryGetProperty($"ref/{framework}/SharpCpp.Rbfx.Bindings.dll", out _))
                 throw new InvalidOperationException($"{rid}: compile does not select the union reference.");
-            var runtime = target.GetProperty($"SharpCpp.Rbfx.Bindings.runtime.{rid}/{version}");
+            var runtimePackageId = RuntimePackageId(rid);
+            var runtime = target.GetProperty($"{runtimePackageId}/{version}");
             if (!runtime.GetProperty("runtime").TryGetProperty($"runtimes/{rid}/lib/{framework}/SharpCpp.Rbfx.Bindings.dll", out _))
                 throw new InvalidOperationException($"{rid}: runtime does not select the platform implementation.");
-            foreach (var other in platforms.Where(other => other != rid))
-                if (target.GetProperty($"SharpCpp.Rbfx.Bindings.runtime.{other}/{version}").TryGetProperty("runtime", out var otherRuntime) && otherRuntime.EnumerateObject().Any())
-                    throw new InvalidOperationException($"{rid}: runtime selects {other} assets.");
+            foreach (var otherPackageId in platforms.Select(RuntimePackageId).Distinct(StringComparer.Ordinal).Where(other => other != runtimePackageId))
+                if (target.GetProperty($"{otherPackageId}/{version}").TryGetProperty("runtime", out var otherRuntime) && otherRuntime.EnumerateObject().Any())
+                    throw new InvalidOperationException($"{rid}: runtime selects assets from {otherPackageId}.");
             var binary = Path.Combine(directory, "bin/Release", framework, rid);
-            var selected = Path.Combine(smoke, "cache", $"sharpcpp.rbfx.bindings.runtime.{rid}", version, "runtimes", rid, "lib", framework, "SharpCpp.Rbfx.Bindings.dll");
+            var selected = Path.Combine(smoke, "cache", runtimePackageId.ToLowerInvariant(), version, "runtimes", rid, "lib", framework, "SharpCpp.Rbfx.Bindings.dll");
             if (!SHA256.HashData(File.ReadAllBytes(selected)).SequenceEqual(SHA256.HashData(File.ReadAllBytes(Path.Combine(binary, "SharpCpp.Rbfx.Bindings.dll")))))
                 throw new InvalidOperationException($"{rid}: copied runtime DLL differs from the platform package.");
             if (rid == RuntimeInformation.RuntimeIdentifier)
@@ -248,6 +267,18 @@ static class UnionPackage
             "-c", "Release", "--nologo", "--output", packages, "--source", packages, $"-p:PackageVersion={version}",
             $"-p:SharpCppNuGetStageRoot={stage}", $"-p:SharpCppRuntimeIdentifier={rid}", $"-p:SharpCppPackageTargetFramework={framework}",
             "-p:SharpCppUnionPackage=true", .. dependencies is null ? Array.Empty<string>() : [$"-p:SharpCppUnionDependencies={dependencies}"]]);
+
+    static void PackRuntimeGroup(string group, string primaryRid, string additionalRid, string version, string framework,
+        string stage, string packages) =>
+        Run("dotnet", ["pack", Path.Combine(Repo, "packaging/nuget/packages/SharpCpp.Rbfx.Bindings.Runtime", "SharpCpp.Rbfx.Bindings.Runtime.Package.csproj"),
+            "-c", "Release", "--nologo", "--output", packages, "--source", packages, $"-p:PackageVersion={version}",
+            $"-p:SharpCppNuGetStageRoot={stage}", $"-p:SharpCppRuntimeIdentifier={primaryRid}",
+            $"-p:SharpCppAdditionalRuntimeIdentifier={additionalRid}", $"-p:SharpCppRuntimePackageId=SharpCpp.Rbfx.Bindings.runtime.{group}",
+            $"-p:SharpCppPackageTargetFramework={framework}", "-p:SharpCppUnionPackage=true"]);
+
+    static string RuntimePackageId(string rid) => rid is "android-x64" or "linux-x64"
+        ? "SharpCpp.Rbfx.Bindings.runtime.unix-x64"
+        : "SharpCpp.Rbfx.Bindings.runtime." + rid;
     static void CreateEmptyDirectory(string path)
     {
         if (Directory.Exists(path)) throw new InvalidOperationException($"Use an empty output directory: {path}");

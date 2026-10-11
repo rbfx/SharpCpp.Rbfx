@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework Condition="'$(SharpCppPackageTargetFramework)' != ''">$(SharpCppPackageTargetFramework)</TargetFramework>
-    <PackageId>SharpCpp.Rbfx.Bindings.runtime.$(SharpCppRuntimeIdentifier)</PackageId>
-    <Title>SharpCpp.Rbfx.Bindings.runtime.$(SharpCppRuntimeIdentifier)</Title>
+    <SharpCppRuntimePackageId Condition="'$(SharpCppRuntimePackageId)' == ''">SharpCpp.Rbfx.Bindings.runtime.$(SharpCppRuntimeIdentifier)</SharpCppRuntimePackageId>
+    <PackageId>$(SharpCppRuntimePackageId)</PackageId>
+    <Title>$(SharpCppRuntimePackageId)</Title>
     <Version>$(PackageVersion)</Version>
     <Authors>rbfx contributors</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -24,6 +25,10 @@
     <None Include="$(SharpCppNuGetStageRoot)/managed/analyzers/dotnet/cs/*" Pack="true" PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)" Condition="'$(SharpCppUnionPackage)' != 'true'" />
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/native/*" Pack="true" PackagePath="runtimes/$(SharpCppRuntimeIdentifier)/native/%(Filename)%(Extension)" />
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/buildTransitive/*" Pack="true" PackagePath="buildTransitive/%(Filename)%(Extension)" />
+    <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/lib/$(TargetFramework)/*" Pack="true" PackagePath="runtimes/$(SharpCppAdditionalRuntimeIdentifier)/lib/$(TargetFramework)/%(Filename)%(Extension)" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' != ''" />
+    <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/native-assets/*" Pack="true" PackagePath="native-assets/$(SharpCppAdditionalRuntimeIdentifier)/%(Filename)%(Extension)" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' == 'linux-x64'" />
+    <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/buildTransitive/*" Pack="true" PackagePath="buildTransitive/%(Filename)%(Extension)" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' != ''" />
+    <None Include="LinuxX64NativeAssets.targets" Pack="true" PackagePath="buildTransitive/SharpCpp.Rbfx.Bindings.runtime.unix-x64.targets" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' == 'linux-x64'" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
@@ -32,6 +37,7 @@
     <Error Condition="'$(SharpCppRuntimeIdentifier)' == ''" Text="SharpCppRuntimeIdentifier must be set." />
     <ItemGroup>
       <SharpCppRuntimeNativeFiles Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/native/*" />
+      <SharpCppRuntimeNativeFiles Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/native/*" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' != ''" />
     </ItemGroup>
     <Error Condition="'@(SharpCppRuntimeNativeFiles)' == ''" Text="No native runtime files were staged for $(SharpCppRuntimeIdentifier)." />
   </Target>

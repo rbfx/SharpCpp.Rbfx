@@ -328,7 +328,7 @@ static class CrossPackage
         var sdk = rid == "browser-wasm" ? "Microsoft.NET.Sdk.WebAssembly" : "Microsoft.NET.Sdk";
         new XDocument(new XElement("Project", new XAttribute("Sdk", sdk), properties,
             new XElement("ItemGroup", new XElement("PackageReference", new XAttribute("Include", "SharpCpp.Rbfx.Bindings"), new XAttribute("Version", version)),
-                new XElement("PackageReference", new XAttribute("Include", $"SharpCpp.Rbfx.Bindings.runtime.{rid}"), new XAttribute("Version", version))))).Save(Path.Combine(output, "Consumer.csproj"));
+                new XElement("PackageReference", new XAttribute("Include", UnionRuntimePackageId(rid)), new XAttribute("Version", version))))).Save(Path.Combine(output, "Consumer.csproj"));
         var check = """
             if (new Urho3D.Math.Vector3(3, 4, 0).Length != 5) throw new System.Exception("Native rbfx call failed");
             using var context = new Urho3D.Core.Context();
@@ -369,6 +369,10 @@ static class CrossPackage
     {
         if (!File.Exists(path)) throw new FileNotFoundException($"Required toolchain file is missing: {path}");
     }
+
+    static string UnionRuntimePackageId(string rid) => rid is "android-x64" or "linux-x64"
+        ? "SharpCpp.Rbfx.Bindings.runtime.unix-x64"
+        : "SharpCpp.Rbfx.Bindings.runtime." + rid;
 
     static string Run(string executable, IEnumerable<string> arguments, bool capture = false,
         Dictionary<string, string>? environment = null, string? workingDirectory = null)

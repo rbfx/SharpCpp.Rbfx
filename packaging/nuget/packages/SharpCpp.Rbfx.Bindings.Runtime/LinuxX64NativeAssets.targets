@@ -1,0 +1,15 @@
+<Project>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <_SharpCppLinuxX64NativeAsset Include="$(MSBuildThisFileDirectory)../native-assets/linux-x64/*.so.bin" />
+  </ItemGroup>
+  <Target Name="CopySharpCppLinuxX64NativeAssetsToOutput" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <Copy SourceFiles="@(_SharpCppLinuxX64NativeAsset)"
+          DestinationFiles="@(_SharpCppLinuxX64NativeAsset->'$(TargetDir)%(Filename)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopySharpCppLinuxX64NativeAssetsToPublish" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <Copy SourceFiles="@(_SharpCppLinuxX64NativeAsset)"
+          DestinationFiles="@(_SharpCppLinuxX64NativeAsset->'$(PublishDir)%(Filename)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

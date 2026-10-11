@@ -366,6 +366,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
+      workflows: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -380,8 +381,8 @@ jobs:
           path: packages
           merge-multiple: true
 
-      # A git push of the tag fails when the tagged commit changes a workflow file, because the
-      # workflow token has no `workflows` permission. The references API has no such check.
+      # Updating the tag to a commit that changes a workflow file requires both contents and
+      # workflows write permissions on the GitHub Actions token.
       - name: Move Tag
         run: |
           if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then

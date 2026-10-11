@@ -195,6 +195,8 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+      - name: Install Wasm Tools Workload
+        run: dotnet workload install wasm-tools
       - name: Download Platform Inputs
         uses: actions/download-artifact@v8
         with:

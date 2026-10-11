@@ -265,7 +265,6 @@ internal static class Program
             File.WriteAllText(
                 Path.Combine(options.GeneratedRoot, $"{GeneratedFileStem}.Bindings.json"),
                 BindingMetadataSerializer.Serialize(metadataDocument));
-            ApiManifestWriter.WriteToDirectory(compilation, options.GeneratedRoot);
             Logger.LogInformation("Metadata export + file write completed in {Duration}", FormatDuration(exportSw.Elapsed));
 
             Logger.LogInformation("Generated rbfx bindings for {Retained} retained record(s) from {Total} ingested record declaration(s).", compilation.Records.Count(record => !record.IsIgnored()), compilation.Records.Count);

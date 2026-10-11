@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="RotatingCube/RotatingCube.csproj" />
+  <Project Path="AndroidScene/AndroidScene.csproj" />
+  <Project Path="IosScene/IosScene.csproj" />
+  <Project Path="BrowserWasm/BrowserWasm.csproj" />
+  <Project Path="UwpScene/UwpScene.csproj" />
+</Solution>

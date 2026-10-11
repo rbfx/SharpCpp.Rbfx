@@ -39,6 +39,9 @@ jobs:
           - rid: win-x64
             runs_on: windows-latest
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          - rid: uap-x64
+            runs_on: windows-2022
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: android-arm
             runs_on: ubuntu-latest
             cross: true
@@ -128,9 +131,15 @@ jobs:
         shell: bash
         working-directory: SharpCpp.Rbfx
         run: |
+          cmake_args=()
+          if [[ '${{ matrix.rid }}' == 'uap-x64' ]]; then
+            cmake_args+=(--cmake-arg '-DCMAKE_SYSTEM_NAME=WindowsStore'
+              --cmake-arg '-DCMAKE_SYSTEM_VERSION=10.0.26100.0')
+          fi
           ./packaging/nuget/package.sh create \
             --version "$PACKAGE_VERSION" \
             --rid '${{ matrix.rid }}' \
+            "${cmake_args[@]}" \
             --configuration Release
 
       - name: Build Cross-platform Packages
@@ -269,28 +278,50 @@ jobs:
           --platform linux-x64 --platform osx-arm64 --platform win-x64
 
   Cross-Consumer:
-    name: Native Package Consumer (${{ matrix.rid }})
+    name: Example Build (${{ matrix.rid }})
     needs: Union
     runs-on: ${{ matrix.runs_on }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          - rid: linux-x64
+            runs_on: ubuntu-latest
+            project: Rbfx.Examples/RotatingCube/RotatingCube.csproj
+          - rid: osx-arm64
+            runs_on: macos-latest
+            project: Rbfx.Examples/RotatingCube/RotatingCube.csproj
+          - rid: win-x64
+            runs_on: windows-latest
+            project: Rbfx.Examples/RotatingCube/RotatingCube.csproj
           - rid: android-arm
             workload: android
             runs_on: ubuntu-latest
+            project: Rbfx.Examples/AndroidScene/AndroidScene.csproj
+            verify: true
           - rid: android-arm64
             workload: android
             runs_on: ubuntu-latest
+            project: Rbfx.Examples/AndroidScene/AndroidScene.csproj
+            verify: true
           - rid: android-x64
             workload: android
             runs_on: ubuntu-latest
+            project: Rbfx.Examples/AndroidScene/AndroidScene.csproj
+            verify: true
           - rid: ios-arm64
             workload: ios
             runs_on: macos-latest
+            project: Rbfx.Examples/IosScene/IosScene.csproj
+            verify: true
           - rid: browser-wasm
             workload: wasm-tools
             runs_on: ubuntu-latest
+            project: Rbfx.Examples/BrowserWasm/BrowserWasm.csproj
+            verify: true
+          - rid: uap-x64
+            runs_on: windows-latest
+            project: Rbfx.Examples/UwpScene/UwpScene.csproj
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -302,6 +333,7 @@ jobs:
         with:
           dotnet-version: 10.0.401
       - name: Install Platform Workload
+        if: matrix.workload != ''
         run: dotnet workload install ${{ matrix.workload }} --version 10.0.401
       - name: Download Union Packages
         uses: actions/download-artifact@v8
@@ -309,10 +341,27 @@ jobs:
           name: union-nuget
           path: SharpCpp.Rbfx/build/cross-packages
       - name: Build Native Package Consumer
+        if: matrix.verify == true
         working-directory: SharpCpp.Rbfx
         run: >-
           dotnet run --file packaging/nuget/CrossPackage.cs -- verify
           --rid '${{ matrix.rid }}' --version "$PACKAGE_VERSION" --packages build/cross-packages
+      - name: Restore Example
+        working-directory: SharpCpp.Rbfx
+        shell: bash
+        run: >-
+          dotnet restore '${{ matrix.project }}' --source build/cross-packages
+          --source https://api.nuget.org/v3/index.json
+          -p:RbfxPackageVersion="$PACKAGE_VERSION"
+          -p:RuntimeIdentifier='${{ matrix.rid }}'
+      - name: Build Example
+        working-directory: SharpCpp.Rbfx
+        shell: bash
+        run: >-
+          dotnet build '${{ matrix.project }}' --configuration Release --no-restore --nologo
+          -p:RbfxPackageVersion="$PACKAGE_VERSION"
+          -p:RuntimeIdentifier='${{ matrix.rid }}'
+          -p:EnableCodeSigning=false -p:BuildIpa=false
       - name: Upload Consumer Build Logs
         if: failure()
         uses: actions/upload-artifact@v7

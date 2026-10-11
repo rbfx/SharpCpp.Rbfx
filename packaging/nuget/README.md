@@ -109,6 +109,7 @@ these RIDs:
 - Android: `android-arm`, `android-arm64`, `android-x64` (Android NDK 27.2.12479018)
 - iOS: `ios-arm64` (macOS with Xcode)
 - Browser WebAssembly: `browser-wasm` (Emscripten 3.1.56, matching .NET 10)
+- UWP: `uap-x64` (WindowsStore CMake target, Windows SDK 10.0.26100.0)
 
 For local Android and Wasm package builds, pass `--ndk-root` or `--emsdk-root`:
 

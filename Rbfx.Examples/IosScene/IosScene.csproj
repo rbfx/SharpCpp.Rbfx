@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ApplicationId>org.rbfx.examples.iosscene</ApplicationId>
+    <ApplicationTitle>rbfx Scene</ApplicationTitle>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">ios-arm64</RuntimeIdentifier>
+    <EnableCodeSigning>false</EnableCodeSigning>
+    <BuildIpa>false</BuildIpa>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+  </ItemGroup>
+</Project>

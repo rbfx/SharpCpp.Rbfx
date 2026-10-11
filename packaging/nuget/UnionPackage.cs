@@ -153,7 +153,9 @@ static class UnionPackage
         foreach (var path in Directory.GetDirectories(inputs, "nuget-*").SelectMany(path => Directory.GetFiles(path, "*.nupkg")))
             if (new[] { "SharpCpp.Rbfx.CoreData.", "SharpCpp.Rbfx.Data.", "SharpCpp.Rbfx.EditorData." }.Any(prefix => Path.GetFileName(path).StartsWith(prefix, StringComparison.Ordinal)))
                 File.Copy(path, Path.Combine(packages, Path.GetFileName(path)), overwrite: true);
-        Smoke(packages, version, framework, platforms);
+        // UWP uses the same Windows toolchain and a custom RID graph, so its consumer is
+        // verified by the Windows UWP example job rather than this portable RID smoke build.
+        Smoke(packages, version, framework, platforms.Where(rid => rid != "uap-x64").ToArray());
         Console.WriteLine($"Union packages: {packages}");
     }
 

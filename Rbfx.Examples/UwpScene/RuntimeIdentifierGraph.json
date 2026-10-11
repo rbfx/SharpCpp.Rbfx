@@ -1,0 +1,8 @@
+{
+  "runtimes": {
+    "uap-x64": { "#import": [ "win-x64" ] },
+    "win-x64": { "#import": [ "win" ] },
+    "win": { "#import": [ "any" ] },
+    "any": {}
+  }
+}

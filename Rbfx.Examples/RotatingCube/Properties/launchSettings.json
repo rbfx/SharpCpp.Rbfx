@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "RotatingCube": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "GLIBC_TUNABLES": "glibc.rtld.optional_static_tls=32768"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+    <PackageReference Include="SharpCpp.Rbfx.CoreData" Version="$(RbfxPackageVersion)" />
+    <PackageReference Include="SharpCpp.Rbfx.Data" Version="$(RbfxPackageVersion)" />
+  </ItemGroup>
+</Project>

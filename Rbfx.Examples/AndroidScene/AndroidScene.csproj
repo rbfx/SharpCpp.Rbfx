@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AndroidApplication>true</AndroidApplication>
+    <ApplicationId>org.rbfx.examples.androidscene</ApplicationId>
+    <ApplicationTitle>rbfx Scene</ApplicationTitle>
+    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+  </ItemGroup>
+</Project>

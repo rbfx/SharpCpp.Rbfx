@@ -31,6 +31,8 @@ internal static class ApiManifestWriter
                 .Select(static name => "base:" + name));
             AddFlag(details, record.IsAbstract, "abstract");
             AddFlag(details, record.IsPolymorphic, "polymorphic");
+            AddMetadataValue(details, record, MetadataKeys.RecordSize, "size");
+            AddMetadataValue(details, record, MetadataKeys.RecordAlignment, "align");
             lines.Add(FormatLine("record", record.CppQualifiedName, details, GetState(record)));
         }
 
@@ -41,6 +43,7 @@ internal static class ApiManifestWriter
             var details = new List<string> { field.CppTypeName };
             AddFlag(details, field.IsStatic, "static");
             AddFlag(details, field.IsReadOnly, "readonly");
+            AddMetadataValue(details, field, MetadataKeys.FieldOffset, "offset");
             lines.Add(FormatLine("field", $"{ownerName}::{field.NativeName}", details, GetState(field)));
         }
 
@@ -108,6 +111,15 @@ internal static class ApiManifestWriter
         }
 
         return StateBound;
+    }
+
+    // A layout value (size and alignment in bytes, offset in bits) is absent when the parser does not know it.
+    private static void AddMetadataValue(List<string> details, BindingNode node, string key, string label)
+    {
+        if (node.TryGetMetadata<long>(key, out var value))
+        {
+            details.Add($"{label}={value}");
+        }
     }
 
     private static void AddFlag(List<string> details, bool condition, string flag)

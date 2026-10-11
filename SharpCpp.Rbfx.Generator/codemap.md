@@ -166,12 +166,14 @@ Each line has four tab-separated columns: `kind`, `key`, `details`, `state`. The
 
 | `kind` | `key` | `details` |
 |---|---|---|
-| `record` | `CppQualifiedName` | `base:<name>` for each base (sorted), then `abstract`, `polymorphic` |
-| `field` | `<record CppQualifiedName>::<native field name>` | `CppTypeName`, then `static`, `readonly` |
+| `record` | `CppQualifiedName` | `base:<name>` for each base (sorted), then `abstract`, `polymorphic`, `size=<bytes>`, `align=<bytes>` |
+| `field` | `<record CppQualifiedName>::<native field name>` | `CppTypeName`, then `static`, `readonly`, `offset=<bits>` |
 | `function` | `<CppQualifiedName>(<parameter CppTypeName list>)`, plus ` const` for a const method | return `CppTypeName`, then `static`, `virtual`, `pure`, `constructor` |
 | `enum` | `CppQualifiedName` | `UnderlyingTypeName` |
 | `enumvalue` | `<enum CppQualifiedName>::<NativeName>` | `ValueExpression` |
 | `alias` | C++ qualified name | target type `CppTypeName` |
+
+The layout items come from the parser metadata `record_size`, `record_alignment` and `field_offset`. They are absent when clang does not know the layout (a forward declaration, a class template, a flattened field). A layout difference between two platforms shows that one managed assembly cannot serve both.
 
 The `state` column is `bound` or `ignored`. A declaration is `ignored` if it or one of its ancestors has an ignore reason. The reason text is not in the file. An `enumvalue` has the state of its enum. An `alias` is always `bound`.
 

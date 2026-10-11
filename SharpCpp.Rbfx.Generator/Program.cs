@@ -60,11 +60,9 @@ internal static class Program
 
     private const string ManagedNamespace = "Urho3D";
     private const string ManagedClassName = "Bindings";
-    private const string NativeLibraryName = "SharpCpp.Rbfx.Native";
     private const string ProjectName = "SharpCpp.Rbfx.Bindings";
     private const string GeneratedFileStem = "SharpCpp.Rbfx";
     private const string EntryPointPrefix = "scrbfx";
-    private const string NativeOutputHeader = "Urho3D/Urho3DAll.h";
     private static readonly AccessorPropertyPattern[] Urho3DAccessorPropertyPatterns =
     [
         new("Get", "Set", allowGetterOnly: true),
@@ -147,14 +145,9 @@ internal static class Program
             Logger.LogInformation("RmlUI bindings: {State}", submodules.HasRmlUi ? "enabled" : "disabled");
             Logger.LogInformation("Dear ImGui bindings: {State}", submodules.HasSystemUi ? "enabled" : "disabled");
 
-            var clangArguments = BuildClangArguments([sharpCppIncludeRoot, rbfxIncludeRoot], includeRoot, sdkFlags);
-            var umbrellaHeaderPath = Path.Combine(urhoIncludeRoot, "Urho3DAll.h");
-            if (!File.Exists(umbrellaHeaderPath))
-            {
-                throw new InvalidOperationException($"rbfx umbrella header was not found at '{umbrellaHeaderPath}'.");
-            }
-
-            var parseUmbrellaHeaderPath = submodules.WriteParseUmbrella(options.GeneratedRoot);
+            var clangArguments = BuildClangArguments(
+                [sharpCppIncludeRoot, rbfxIncludeRoot], includeRoot, sdkFlags, out var targetTriple);
+            var parseUmbrellaHeaderPath = submodules.WriteParseUmbrella(options.GeneratedRoot, urhoIncludeRoot);
 
             Logger.LogInformation("Parsing umbrella header '{Header}' with owned declaration root '{Root}'.", parseUmbrellaHeaderPath, urhoIncludeRoot);
 
@@ -165,7 +158,7 @@ internal static class Program
                     ProjectName,
                      ManagedNamespace,
                      ManagedClassName,
-                     NativeLibraryName,
+                     sdkFlags.NativeLibraryName,
                      parseUmbrellaHeaderPath,
                      Path.GetFileName(parseUmbrellaHeaderPath),
                      clangArguments,
@@ -212,11 +205,12 @@ internal static class Program
             var silentExclusionCount = RbfxSilentExclusionPass.Apply(compilation);
             Logger.LogInformation("Silently excluded {Count} rbfx non-public implementation declaration(s).", silentExclusionCount);
 
-            var unsupportedApiCount = RbfxUnsupportedApisPass.Apply(compilation);
+            var unsupportedApiCount = RbfxUnsupportedApisPass.Apply(
+                compilation, targetTriple?.Contains("emscripten", StringComparison.OrdinalIgnoreCase) == true);
             Logger.LogInformation("Suppressed {Count} rbfx API(s) with known unsupported linkage or surface constraints.", unsupportedApiCount);
 
             var sdkFilterSw = Stopwatch.StartNew();
-            ApplySdkExportFilter(compilation, options.SdkLibraryPath);
+            ApplySdkExportFilter(compilation, options.SdkLibraryPath, sdkFlags.SymbolToolPath);
             Logger.LogInformation("SDK filter complete.");
             Logger.LogInformation("SDK filter completed in {Duration}", FormatDuration(sdkFilterSw.Elapsed));
 
@@ -291,7 +285,11 @@ internal static class Program
 
     private static string FormatDuration(TimeSpan elapsed) => $"{elapsed.TotalSeconds:F1}s";
 
-    private static IReadOnlyList<string> BuildClangArguments(IReadOnlyList<string> projectIncludeRoots, string includeRoot, SdkParseFlags sdkFlags)
+    private static IReadOnlyList<string> BuildClangArguments(
+        IReadOnlyList<string> projectIncludeRoots,
+        string includeRoot,
+        SdkParseFlags sdkFlags,
+        out string? targetTriple)
     {
         var arguments = new List<string>
         {
@@ -339,13 +337,16 @@ internal static class Program
 
         var toolchainInfo = CompilerToolchainDiscovery.Discover(
             sdkFlags.CompilerPath,
+            targetTripleOverride: sdkFlags.TargetTriple,
+            sysroot: sdkFlags.Sysroot,
             clangResourceDirectoryOverride: Environment.GetEnvironmentVariable("SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY"));
+        targetTriple = toolchainInfo.TargetTriple;
         if (IsX86Target(toolchainInfo.TargetTriple))
             arguments.AddRange(ParseSimdDisableArguments);
         else if (IsArmTarget(toolchainInfo.TargetTriple))
             arguments.AddRange(ParseNeonDisableArguments);
 
-        arguments.AddRange(toolchainInfo.GetClangArguments(arguments));
+        arguments.AddRange(toolchainInfo.GetClangArguments(arguments, sdkFlags.Sysroot));
 
         return arguments.Distinct(StringComparer.Ordinal).ToArray();
     }
@@ -371,7 +372,7 @@ internal static class Program
         return false;
     }
 
-    private static void ApplySdkExportFilter(BindingCompilation compilation, string? sdkLibraryPath)
+    private static void ApplySdkExportFilter(BindingCompilation compilation, string? sdkLibraryPath, string? symbolToolPath)
     {
         if (string.IsNullOrWhiteSpace(sdkLibraryPath) || !File.Exists(sdkLibraryPath))
         {
@@ -384,7 +385,7 @@ internal static class Program
             return;
         }
 
-        var exportedSymbols = LoadExportedSymbols(sdkLibraryPath);
+        var exportedSymbols = LoadExportedSymbols(sdkLibraryPath, symbolToolPath);
         if (exportedSymbols.Count == 0)
         {
             return;
@@ -483,20 +484,21 @@ internal static class Program
         }
     }
 
-    private static IReadOnlyList<string> LoadExportedSymbols(string sdkLibraryPath)
+    private static IReadOnlyList<string> LoadExportedSymbols(string sdkLibraryPath, string? symbolToolPath)
     {
         try
         {
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "nm",
+                FileName = symbolToolPath ?? "nm",
                 RedirectStandardInput = true,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false
             };
             // A Mach-O library has no dynamic symbol table, so nm rejects -D for it.
-            startInfo.ArgumentList.Add(OperatingSystem.IsMacOS() ? "--extern-only" : "-D");
+            startInfo.ArgumentList.Add(OperatingSystem.IsMacOS() || sdkLibraryPath.EndsWith(".a", StringComparison.OrdinalIgnoreCase)
+                ? "--extern-only" : "-D");
             startInfo.ArgumentList.Add("--defined-only");
             startInfo.ArgumentList.Add("--demangle");
             startInfo.ArgumentList.Add(sdkLibraryPath);

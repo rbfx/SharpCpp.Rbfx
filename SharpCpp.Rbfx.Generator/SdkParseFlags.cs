@@ -14,12 +14,20 @@ internal sealed class SdkParseFlags
 
     private SdkParseFlags(
         string compilerPath,
+        string? targetTriple,
+        string? sysroot,
+        string? symbolToolPath,
+        string nativeLibraryName,
         string languageStandard,
         IReadOnlyList<string> includeDirectories,
         IReadOnlyList<string> defines,
         IReadOnlyList<string> additionalArguments)
     {
         CompilerPath = compilerPath;
+        TargetTriple = targetTriple;
+        Sysroot = sysroot;
+        SymbolToolPath = symbolToolPath;
+        NativeLibraryName = nativeLibraryName;
         LanguageStandard = languageStandard;
         IncludeDirectories = includeDirectories;
         Defines = defines;
@@ -27,6 +35,11 @@ internal sealed class SdkParseFlags
     }
 
     public string CompilerPath { get; }
+
+    public string? TargetTriple { get; }
+    public string? Sysroot { get; }
+    public string? SymbolToolPath { get; }
+    public string NativeLibraryName { get; }
 
     public string LanguageStandard { get; }
 
@@ -69,6 +82,10 @@ internal sealed class SdkParseFlags
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
         string? compilerPath = null;
+        string? targetTriple = null;
+        string? sysroot = null;
+        string? symbolToolPath = null;
+        string nativeLibraryName = "SharpCpp.Rbfx.Native";
         string? languageStandard = null;
         var includeDirectories = new List<string>();
         var defines = new List<string>();
@@ -99,6 +116,18 @@ internal sealed class SdkParseFlags
                 case "language_standard":
                     languageStandard = NormalizeLanguageStandard(value);
                     break;
+                case "target_triple":
+                    targetTriple = value;
+                    break;
+                case "sysroot":
+                    sysroot = string.IsNullOrWhiteSpace(value) ? null : Path.GetFullPath(value);
+                    break;
+                case "symbol_tool_path":
+                    symbolToolPath = string.IsNullOrWhiteSpace(value) ? null : value;
+                    break;
+                case "native_library_name":
+                    nativeLibraryName = value;
+                    break;
                 case "include_directory":
                     includeDirectories.Add(Path.GetFullPath(value));
                     break;
@@ -109,7 +138,7 @@ internal sealed class SdkParseFlags
                     }
                     break;
                 case "clang_argument":
-                    if (!TryGetIgnoredArgumentReason(value, out _))
+                    if (!string.IsNullOrWhiteSpace(value) && !TryGetIgnoredArgumentReason(value, out _))
                     {
                         additionalArguments.Add(value);
                     }
@@ -124,6 +153,10 @@ internal sealed class SdkParseFlags
 
         return new SdkParseFlags(
             compilerPath,
+            targetTriple,
+            sysroot,
+            symbolToolPath,
+            nativeLibraryName,
             string.IsNullOrWhiteSpace(languageStandard) ? "gnu++20" : languageStandard,
             includeDirectories.Distinct(StringComparer.Ordinal).ToArray(),
             defines.Distinct(StringComparer.Ordinal).ToArray(),
@@ -133,6 +166,13 @@ internal sealed class SdkParseFlags
     private static bool TryGetIgnoredArgumentReason(string argument, out string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(argument);
+
+        if ((argument.Length > 2 && argument.StartsWith("-s", StringComparison.Ordinal) && char.IsUpper(argument[2])) ||
+            argument is "-gsource-map" or "-gseparate-dwarf" || argument.StartsWith("--source-map-base", StringComparison.Ordinal))
+        {
+            reason = "Emscripten linker and debug-output settings do not affect libclang parsing";
+            return true;
+        }
 
         if (argument.StartsWith("-W", StringComparison.Ordinal) ||
             argument.StartsWith("/W", StringComparison.Ordinal))

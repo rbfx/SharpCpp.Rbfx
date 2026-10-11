@@ -29,6 +29,10 @@
     <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`Linux`))">.so</RbfxSharedLibrarySuffix>
     <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`OSX`))">.dylib</RbfxSharedLibrarySuffix>
     <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`Windows`))">.dll</RbfxSharedLibrarySuffix>
+    <RbfxSharedLibraryPrefix Condition="'$(RbfxTargetRid)' != ''">lib</RbfxSharedLibraryPrefix>
+    <RbfxSharedLibrarySuffix Condition="$(RbfxTargetRid.StartsWith('android-'))">.so</RbfxSharedLibrarySuffix>
+    <RbfxSharedLibrarySuffix Condition="'$(RbfxTargetRid)' == 'ios-arm64' or '$(RbfxTargetRid)' == 'browser-wasm'">.a</RbfxSharedLibrarySuffix>
+    <DefineConstants Condition="'$(RbfxTargetRid)' == 'ios-arm64' or '$(RbfxTargetRid)' == 'browser-wasm'">$(DefineConstants);SHARPCPP_STATIC_RUNTIME</DefineConstants>
     <RbfxNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.Native$(RbfxSharedLibrarySuffix)</RbfxNativeLibraryPath>
     <RbfxUserCodeNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.UserCode.Native$(RbfxSharedLibrarySuffix)</RbfxUserCodeNativeLibraryPath>
     <RbfxRunSettingsPath>$(SharpCppOutputDir)/SharpCpp.Rbfx.Tests.runsettings</RbfxRunSettingsPath>

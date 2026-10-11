@@ -20,6 +20,11 @@ declare -A SDK_ASSETS=(
   [osx-arm64]="rebelfork-sdk-macos-clang-arm64-dll-latest.7z"
   [win-x64]="rebelfork-sdk-windows-msvc-x64-dll-latest.7z"
   [uap-x64]="rebelfork-sdk-uwp-msvc-x64-dll-latest.7z"
+  [android-arm]="rebelfork-sdk-android-clang-arm-dll-latest.7z"
+  [android-arm64]="rebelfork-sdk-android-clang-arm64-dll-latest.7z"
+  [android-x64]="rebelfork-sdk-android-clang-x64-dll-latest.7z"
+  [ios-arm64]="rebelfork-sdk-ios-clang-arm64-lib-latest.7z"
+  [browser-wasm]="rebelfork-sdk-web-emscripten-wasm-lib-latest.7z"
 )
 
 usage() {
@@ -255,7 +260,8 @@ stage_packages() {
   local configuration="$2"
   local sdk_root="$3"
   local target_framework="$4"
-  local bin_dir="$REPO_ROOT/build/bin/$configuration"
+  local build_root="$5"
+  local bin_dir="$build_root/bin/$configuration"
 
   if [ ! -d "$bin_dir" ]; then
     echo "Error: SharpCpp output directory is missing: $bin_dir" >&2
@@ -287,6 +293,36 @@ stage_packages() {
   copy_optional_related_files "$bin_dir" "SharpCpp.Rbfx.SourceGenerator" "$STAGE_DIR/managed/analyzers/dotnet/cs"
 
   case "$rid" in
+    android-*)
+      require_file "$bin_dir/libSharpCpp.Rbfx.Native.so"
+      cp -a "$bin_dir/libSharpCpp.Rbfx.Native.so" "$STAGE_DIR/runtime/$rid/native/"
+      copy_native_glob "$sdk_root/bin/$configuration/*.so" "$STAGE_DIR/runtime/$rid/native" || true
+      if [ ! -f "$STAGE_DIR/runtime/$rid/native/libUrho3D.so" ]; then
+        copy_native_glob "$sdk_root/bin/RelWithDebInfo/*.so" "$STAGE_DIR/runtime/$rid/native" || true
+      fi
+      rm -f "$STAGE_DIR/runtime/$rid/native/libPlayer.so" "$STAGE_DIR/runtime/$rid/native/"libSample.*.so
+      require_file "$STAGE_DIR/runtime/$rid/native/libUrho3D.so"
+      ;;
+    ios-arm64|browser-wasm)
+      require_file "$bin_dir/libSharpCpp.Rbfx.Native.a"
+      cp -a "$bin_dir/libSharpCpp.Rbfx.Native.a" "$STAGE_DIR/runtime/$rid/native/"
+      local library_dir="$sdk_root/lib/$configuration"
+      if [ ! -d "$library_dir" ]; then library_dir="$sdk_root/lib/RelWithDebInfo"; fi
+      if [ ! -d "$library_dir" ]; then library_dir="$sdk_root/lib/Release"; fi
+      local library
+      shopt -s nullglob
+      for library in "$library_dir"/*.a; do
+        case "$(basename "$library")" in
+          libPlayerLibrary.a|libSample.*) ;;
+          *) cp -a "$library" "$STAGE_DIR/runtime/$rid/native/" ;;
+        esac
+      done
+      shopt -u nullglob
+      require_file "$STAGE_DIR/runtime/$rid/native/libUrho3D.a"
+      if [ "$rid" = "browser-wasm" ]; then
+        copy_native_glob "$sdk_root/include/libdatachannel-wasm/wasm/js/*.js" "$STAGE_DIR/runtime/$rid/native" || true
+      fi
+      ;;
     linux-*)
       require_file "$bin_dir/libSharpCpp.Rbfx.Native.so"
       cp -a "$bin_dir/libSharpCpp.Rbfx.Native.so" "$STAGE_DIR/runtime/$rid/native/"
@@ -366,6 +402,8 @@ create_packages() {
   local target_framework=""
   local skip_fetch=0
   local skip_build=0
+  local build_root="$REPO_ROOT/build"
+  local cmake_arguments=()
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -405,6 +443,14 @@ create_packages() {
         skip_build=1
         shift
         ;;
+      --build-root)
+        build_root="$2"
+        shift 2
+        ;;
+      --cmake-arg)
+        cmake_arguments+=("$2")
+        shift 2
+        ;;
       --help|-h)
         cat <<'EOF'
 Usage: package.sh create --version VERSION [options]
@@ -419,6 +465,8 @@ Options:
   --target-framework TFM     Override package target framework. Defaults to repo TargetFramework.
   --skip-fetch               Do not download/extract the SDK.
   --skip-build               Do not build package inputs.
+  --build-root PATH          Build directory containing bin/CONFIGURATION.
+  --cmake-arg ARG            Extra CMake configure argument (repeatable).
 EOF
         return 0
         ;;
@@ -467,10 +515,18 @@ EOF
   normalize_sdk_cmake_exports "$sdk_root"
 
   if [ "$skip_build" -eq 0 ]; then
+    local native_configure_arguments="" encoded_argument argument
+    for argument in "${cmake_arguments[@]}"; do
+      printf -v encoded_argument '%q' "$argument"
+      native_configure_arguments+=" $encoded_argument"
+    done
     "$DOTNET" build "$REPO_ROOT/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" \
       --configuration "$configuration" \
       --nologo \
-      -p:SharpCppNativePreset="$configure_preset" \
+      -p:RbfxNativePreset="$configure_preset" \
+      -p:RbfxTargetRid="$rid" \
+      -p:SharpCppBuildRoot="$build_root" \
+      -p:RbfxNativeConfigureArguments="$native_configure_arguments" \
       -p:RbfxSdkRoot="$sdk_root"
   fi
 
@@ -479,7 +535,8 @@ EOF
   fi
 
   echo "Staging packages for $version ($rid, $configuration, $target_framework)"
-  stage_packages "$rid" "$configuration" "$sdk_root" "$target_framework"
+  stage_packages "$rid" "$configuration" "$sdk_root" "$target_framework" "$build_root"
+  "$DOTNET" run --file "$SCRIPT_DIR/CrossPackage.cs" -- targets --rid "$rid" --stage "$STAGE_DIR"
 
   rm -rf "$OUT_DIR"
   mkdir -p "$OUT_DIR"

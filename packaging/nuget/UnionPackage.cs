@@ -100,7 +100,7 @@ static class UnionPackage
                 "--sources", Path.GetDirectoryName(generated)!, "--sources", Path.Combine(Repo, "SharpCpp.Rbfx.Bindings")]);
             var implementationProject = Path.Combine(sources, rid, $"UnionImplementation-{rid}.csproj");
             Project(implementationProject, framework, Directory.GetFiles(prepared, "*.cs").Order(StringComparer.Ordinal),
-                dependencies, assemblyVersion, analyzer: analyzer);
+                dependencies, assemblyVersion, analyzer: analyzer, staticRuntime: rid is "ios-arm64" or "browser-wasm");
             Run("dotnet", ["build", implementationProject, "-c", "Release", "--nologo"]);
             implementations.Add(rid, Path.Combine(sources, rid, "output/SharpCpp.Rbfx.Bindings.dll"));
         }
@@ -128,6 +128,8 @@ static class UnionPackage
             var native = Path.Combine(payload, "runtimes", rid, "native");
             if (!Directory.Exists(native)) throw new InvalidOperationException($"Missing native package for {rid}.");
             CopyDirectory(native, Path.Combine(stage, "runtime", rid, "native"));
+            var targets = Path.Combine(payload, "buildTransitive");
+            if (Directory.Exists(targets)) CopyDirectory(targets, Path.Combine(stage, "runtime", rid, "buildTransitive"));
             var runtimeLib = Path.Combine(stage, "runtime", rid, "lib", framework);
             Directory.CreateDirectory(runtimeLib);
             File.Copy(implementation, Path.Combine(runtimeLib, Path.GetFileName(implementation)));
@@ -222,7 +224,7 @@ static class UnionPackage
     }
 
     static void Project(string path, string framework, IEnumerable<string> sources, string dependencies,
-        string version, bool reference = false, string? analyzer = null)
+        string version, bool reference = false, string? analyzer = null, bool staticRuntime = false)
     {
         var items = new XElement("ItemGroup", sources.Select(source => new XElement("Compile",
             new XAttribute("Include", Path.GetRelativePath(Path.GetDirectoryName(path)!, source)))));
@@ -235,6 +237,7 @@ static class UnionPackage
             ["EnableDefaultItems"] = "false", ["ProduceReferenceAssembly"] = reference.ToString().ToLowerInvariant(),
             ["AllowUnsafeBlocks"] = "true", ["DisableRuntimeMarshalling"] = "true", ["Nullable"] = "enable",
             ["ImplicitUsings"] = "enable", ["LangVersion"] = "latest", ["NoWarn"] = "CS0108;CS0109;CS0618;CS0672;CA1416",
+            ["DefineConstants"] = staticRuntime ? "SHARPCPP_STATIC_RUNTIME" : "",
             ["OutputPath"] = "output/", ["AppendTargetFrameworkToOutputPath"] = "false", ["GenerateDependencyFile"] = "false"
         }), items)).Save(path);
     }
@@ -279,7 +282,7 @@ static class UnionPackage
                 var parts = entry.FullName.Split('/');
                 if (entry.FullName.StartsWith('/') || parts.Contains("..") || entry.FullName.Contains('\\') || entry.FullName.Contains(':'))
                     throw new InvalidOperationException($"Unsafe package member in {package}: {entry.FullName}");
-                if (entry.Name.Length == 0 || parts[0] is not ("ref" or "lib" or "analyzers" or "runtimes")) continue;
+                if (entry.Name.Length == 0 || parts[0] is not ("ref" or "lib" or "analyzers" or "runtimes" or "buildTransitive")) continue;
                 var path = Path.Combine(destination, Path.Combine(parts));
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 entry.ExtractToFile(path, overwrite: true);

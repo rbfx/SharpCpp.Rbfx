@@ -40,7 +40,7 @@ internal sealed record RbfxBindingSubmodules(bool HasRmlUi, bool HasSystemUi)
             sdkFlags.HasDefine("URHO3D_SYSTEMUI", "1"));
     }
 
-    public string WriteParseUmbrella(string generatedRoot)
+    public string WriteParseUmbrella(string generatedRoot, string urhoIncludeRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(generatedRoot);
         Directory.CreateDirectory(generatedRoot);
@@ -49,11 +49,27 @@ internal sealed record RbfxBindingSubmodules(bool HasRmlUi, bool HasSystemUi)
         var lines = new List<string>
         {
             "#pragma once",
-            "#include <Urho3D/Urho3DAll.h>",
+        };
+        if (File.Exists(Path.Combine(urhoIncludeRoot, "Urho3D.h")))
+            lines.Add("#include <Urho3D/Urho3D.h>");
+        if (File.Exists(Path.Combine(urhoIncludeRoot, "Urho3DAll.h")))
+            lines.Add("#include <Urho3D/Urho3DAll.h>");
+        else
+        {
+            // Mobile/web SDKs omit the optional monolithic header. Installed subdirectories
+            // contain only the engine modules enabled by that SDK's build.
+            lines.AddRange(Directory.GetFiles(urhoIncludeRoot, "*", SearchOption.AllDirectories)
+                .Where(path => Path.GetExtension(path) is ".h" or ".hpp")
+                .Select(path => Path.GetRelativePath(urhoIncludeRoot, path).Replace('\\', '/'))
+                .Where(path => path.Contains('/') && path is not ("Core/Main.h" or "Core/PE.h"))
+                .Order(StringComparer.Ordinal).Select(path => $"#include <Urho3D/{path}>"));
+            lines.Add("#include <Urho3D/DebugNew.h>");
+        }
+        lines.AddRange([
             "",
             "template void Urho3D::Object::SubscribeToEvent<Urho3D::EventHandler::HandlerFunction>(Urho3D::StringHash, Urho3D::EventHandler::HandlerFunction);",
             "template void Urho3D::Object::SubscribeToEvent<Urho3D::EventHandler::HandlerFunction>(Urho3D::Object*, Urho3D::StringHash, Urho3D::EventHandler::HandlerFunction);"
-        };
+        ]);
         lines.AddRange(EnabledHeaderPaths.Select(static header => $"#include <{header}>"));
         File.WriteAllText(path, string.Join(Environment.NewLine, lines) + Environment.NewLine);
         return path;

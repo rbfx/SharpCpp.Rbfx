@@ -96,15 +96,48 @@ The policy's environment is empty, so `Publish-NuGet` has no `environment` setti
 
 ## Runtime IDs
 
-This pipeline packages one RID per invocation. Downloading SDK archives for other
-platforms is not enough to produce their runtime packages from a Linux host: the
-generated C++ glue library (`SharpCpp.Rbfx.Native`) must also be compiled and
-linked for each target RID with a compatible compiler/toolchain and SDK binary
-set. The generated managed assembly is portable, but the native glue is not.
+Desktop packages use `package.sh create`. Cross-platform packages use the C#
+utility and must be built with the matching native toolchain. CI builds and tests
+these RIDs:
 
-To produce all runtime packages, run this same package step on CI runners for
-each RID, or provide cross-compilation toolchain files that can build and link
-`SharpCpp.Rbfx.Native` for those SDKs.
+- Android: `android-arm`, `android-arm64`, `android-x64` (Android NDK 27.2.12479018)
+- iOS: `ios-arm64` (macOS with Xcode)
+- Browser WebAssembly: `browser-wasm` (Emscripten 3.1.56, matching .NET 10)
+
+For local Android and Wasm package builds, pass `--ndk-root` or `--emsdk-root`:
+
+```bash
+dotnet run --file packaging/nuget/CrossPackage.cs -- create --rid android-arm64 --version 0.1.0-local.1 --ndk-root build/toolchains/android-sdk/ndk/27.2.12479018
+dotnet run --file packaging/nuget/CrossPackage.cs -- create --rid browser-wasm --version 0.1.0-local.1 --emsdk-root build/toolchains/emsdk
+dotnet run --file packaging/nuget/CrossPackage.cs -- verify --rid browser-wasm --version 0.1.0-local.1
+```
+
+Android and iOS reuse SDK archives fetched by `package.sh`. Wasm builds rbfx's
+`latest` source tag with the matching Emscripten toolchain because newer published
+archives can have incompatible libc++ and embind symbols. Use `--rbfx-source` to
+choose an existing source checkout, or `--sdk-root` for an SDK built with the same
+toolchain and `-fwasm-exceptions`. The Wasm source build disables rbfx's unsupported
+`SystemRun` process spawning path for Emscripten. Wasm consumers require the
+`wasm-tools` workload and must select .NET's multithreaded runtime and
+WebAssembly exception handling to match the Emscripten mode used to build rbfx.
+Set these properties in the app project (or `Directory.Build.props`) so they
+are present during restore and runtime-pack selection:
+
+```xml
+<PropertyGroup>
+  <WasmEnableThreads>true</WasmEnableThreads>
+  <WasmEnableExceptionHandling>true</WasmEnableExceptionHandling>
+</PropertyGroup>
+```
+Android consumer verification accepts `--AndroidSdkDirectory` and
+`--JavaSdkDirectory`.
+
+iOS packages must be built on macOS. iOS and Wasm native glue use static libraries;
+Android uses shared `.so` files.
+The iOS package strips debug information from staged copies of its archives to
+keep the package smaller; source SDK files are left untouched. Platform-specific
+consumer projects verify the NuGet linking metadata in CI. Android and Wasm
+consumers can also be generated locally with the utility's `verify` command.
 
 Known SDK archive mappings:
 
@@ -113,6 +146,11 @@ Known SDK archive mappings:
 - `osx-arm64`: `rebelfork-sdk-macos-clang-arm64-dll-latest.7z`
 - `win-x64`: `rebelfork-sdk-windows-msvc-x64-dll-latest.7z`
 - `uap-x64`: `rebelfork-sdk-uwp-msvc-x64-dll-latest.7z`
+- `android-arm`: `rebelfork-sdk-android-clang-arm-dll-latest.7z`
+- `android-arm64`: `rebelfork-sdk-android-clang-arm64-dll-latest.7z`
+- `android-x64`: `rebelfork-sdk-android-clang-x64-dll-latest.7z`
+- `ios-arm64`: `rebelfork-sdk-ios-clang-arm64-lib-latest.7z`
+- `browser-wasm`: `rebelfork-sdk-web-emscripten-wasm-lib-latest.7z`
 
 ## Local Repository
 

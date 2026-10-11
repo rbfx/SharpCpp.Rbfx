@@ -4,6 +4,7 @@
 
 namespace sharpcpp::interop::rbfx
 {
+#if URHO3D_CSHARP
 namespace detail
 {
 template <class Tag, typename Tag::type Member>
@@ -54,4 +55,14 @@ inline void ResetScriptObject(Urho3D::RefCounted* instance) noexcept
 {
     AssignScriptObject(instance, nullptr, false);
 }
+inline void* TakeExpiredScriptObject() noexcept { return nullptr; }
+#else
+// SDKs without rbfx's optional C# runtime have no script fields in RefCounted.
+// Store wrapper identity outside the engine, retaining a weak control block so
+// native address reuse cannot resurrect a wrapper for an expired object.
+void* GetScriptObject(Urho3D::RefCounted* instance) noexcept;
+void AssignScriptObject(Urho3D::RefCounted* instance, void* handle, bool isStrong) noexcept;
+void ResetScriptObject(Urho3D::RefCounted* instance) noexcept;
+void* TakeExpiredScriptObject() noexcept;
+#endif
 }

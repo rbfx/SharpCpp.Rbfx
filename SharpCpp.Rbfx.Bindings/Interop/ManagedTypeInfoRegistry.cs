@@ -21,7 +21,7 @@ public static partial class ManagedTypeInfoRegistry
 
     private static partial class __PInvoke
     {
-        [LibraryImport("SharpCpp.Rbfx.Native", EntryPoint = "sharpcpp_rbfx_get_or_create_managed_type_info", StringMarshalling = StringMarshalling.Utf8)]
+        [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_get_or_create_managed_type_info", StringMarshalling = StringMarshalling.Utf8)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static partial nint GetOrCreateManagedTypeInfo(string typeName, global::Urho3D.Core.TypeInfo? baseTypeInfo);
     }

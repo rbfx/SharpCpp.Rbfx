@@ -142,9 +142,9 @@ Dual-output logging (console + file) via `Log()` helper. Errors and exceptions a
 | `SharpCpp.Pipeline` | `BindingCompilationBootstrapPipeline` |
 | `SharpCpp.Rendering` | `BindingOutputRenderer`, `RenderedOutput` |
 | `SharpCpp.Support` | (transitive dependency for output consistency) |
-| rbfx SDK headers | Parsed input (via `Urho3DAll.h` umbrella header) |
-| rbfx SDK shared library | `--sdk-library` for export symbol filtering (`.so`/`.dylib`/`.dll`) |
-| `urho3d-sdk-flags.txt` | Compiler path, language standard, include dirs, defines, clang args |
+| rbfx SDK headers | Parsed via `Urho3DAll.h`, or a generated umbrella for mobile/web SDKs that omit it |
+| rbfx SDK library | `--sdk-library` for export symbol filtering (`.so`/`.dylib`/`.dll`/`.a`) |
+| `urho3d-sdk-flags.txt` | Compiler, target triple, sysroot, symbol tool, native library name, include dirs, defines and clang args |
 | `include/SharpCpp/Marshaller.hpp` | Marshaller configuration consumed by the bootstrap pipeline |
 
 ### Produces

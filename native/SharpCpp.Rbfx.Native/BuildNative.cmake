@@ -72,7 +72,7 @@ execute_process(
   COMMAND
     "${CMAKE_COMMAND}" --build "${RBFX_NATIVE_BUILD_DIR}"
     --config "${RBFX_CONFIGURATION}"
-    --target sharpcpp-generate-rbfx-usercode
+    --target sharpcpp-rbfx-generate
   WORKING_DIRECTORY "${RBFX_SOURCE_DIR}"
   COMMAND_ERROR_IS_FATAL ANY)
 

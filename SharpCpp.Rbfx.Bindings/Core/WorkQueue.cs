@@ -66,11 +66,11 @@ public partial class WorkQueue
 
 internal static partial class __WorkQueuePInvoke
 {
-    [LibraryImport("SharpCpp.Rbfx.Native", EntryPoint = "SharpCpp_Rbfx_WorkQueue_PostTaskForMainThread")]
+    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "SharpCpp_Rbfx_WorkQueue_PostTaskForMainThread")]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static partial void PostTaskForMainThread(nint receiver, nint callback, nint release, nint callbackHandle, TaskPriority priority);
 
-    [LibraryImport("SharpCpp.Rbfx.Native", EntryPoint = "SharpCpp_Rbfx_WorkQueue_PostDelayedTaskForMainThread")]
+    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "SharpCpp_Rbfx_WorkQueue_PostDelayedTaskForMainThread")]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static partial void PostDelayedTaskForMainThread(nint receiver, nint callback, nint release, nint callbackHandle);
 }

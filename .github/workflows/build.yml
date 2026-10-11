@@ -39,6 +39,26 @@ jobs:
           - rid: win-x64
             runs_on: windows-latest
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          - rid: android-arm
+            runs_on: ubuntu-latest
+            cross: true
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          - rid: android-arm64
+            runs_on: ubuntu-latest
+            cross: true
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          - rid: android-x64
+            runs_on: ubuntu-latest
+            cross: true
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          - rid: ios-arm64
+            runs_on: macos-latest
+            cross: true
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+          - rid: browser-wasm
+            runs_on: ubuntu-latest
+            cross: true
+            packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -79,9 +99,24 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Install Android NDK
+        if: startsWith(matrix.rid, 'android-')
+        shell: bash
+        run: sdkmanager 'ndk;27.2.12479018'
+
+      - name: Setup Emscripten
+        if: matrix.rid == 'browser-wasm'
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git emsdk
+          ./emsdk/emsdk install 3.1.56
+          ./emsdk/emsdk activate 3.1.56
+          echo "EMSDK=$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_ENV"
+
       # Downloads the rbfx SDK from the rbfx/rbfx `latest` release, generates and builds
       # the wrappers, then packs them.
       - name: Build Packages
+        if: matrix.cross != true
         timeout-minutes: 60
         shell: bash
         working-directory: SharpCpp.Rbfx
@@ -90,6 +125,15 @@ jobs:
             --version "$PACKAGE_VERSION" \
             --rid '${{ matrix.rid }}' \
             --configuration Release
+
+      - name: Build Cross-platform Packages
+        if: matrix.cross == true
+        timeout-minutes: 60
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: >-
+          dotnet run --file packaging/nuget/CrossPackage.cs -- create
+          --version "$PACKAGE_VERSION" --rid '${{ matrix.rid }}' --build-root build
 
       - name: Upload Packages
         uses: actions/upload-artifact@v7
@@ -215,9 +259,62 @@ jobs:
           --packages build/union-smoke/packages --version "${{ env.PACKAGE_VERSION }}" --framework net10.0
           --platform linux-x64 --platform osx-arm64 --platform win-x64
 
+  Cross-Consumer:
+    name: Native Package Consumer (${{ matrix.rid }})
+    needs: Union
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: android-arm
+            workload: android
+            runs_on: ubuntu-latest
+          - rid: android-arm64
+            workload: android
+            runs_on: ubuntu-latest
+          - rid: android-x64
+            workload: android
+            runs_on: ubuntu-latest
+          - rid: ios-arm64
+            workload: ios
+            runs_on: macos-latest
+          - rid: browser-wasm
+            workload: wasm-tools
+            runs_on: ubuntu-latest
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Platform Workload
+        run: dotnet workload install ${{ matrix.workload }}
+      - name: Download Union Packages
+        uses: actions/download-artifact@v8
+        with:
+          name: union-nuget
+          path: SharpCpp.Rbfx/build/cross-packages
+      - name: Build Native Package Consumer
+        working-directory: SharpCpp.Rbfx
+        run: >-
+          dotnet run --file packaging/nuget/CrossPackage.cs -- verify
+          --rid '${{ matrix.rid }}' --version "$PACKAGE_VERSION" --packages build/cross-packages
+      - name: Upload Consumer Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: consumer-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/cross-consumer/${{ matrix.rid }}/obj/**/*.log
+          if-no-files-found: warn
+
   Publish-NuGet:
     name: Publish NuGet Packages
-    needs: [Union, Smoke]
+    needs: [Union, Smoke, Cross-Consumer]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     permissions:
@@ -252,7 +349,7 @@ jobs:
 
   Release-Latest:
     name: Release Latest
-    needs: [Union, Smoke]
+    needs: [Union, Smoke, Cross-Consumer]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     permissions:

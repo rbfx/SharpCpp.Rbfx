@@ -21,7 +21,7 @@ public sealed class RefCountedInstanceCache : INativeInstanceCache
             return false;
         }
 
-        var storedHandle = RefCountedRuntime.GetScriptObjectHandle(handle);
+        var storedHandle = GetScriptObjectHandle(handle);
         if (storedHandle == IntPtr.Zero)
         {
             instance = null;
@@ -49,7 +49,7 @@ public sealed class RefCountedInstanceCache : INativeInstanceCache
         }
 
         var handle = instance.DangerousGetHandle();
-        var currentHandle = RefCountedRuntime.GetScriptObjectHandle(handle);
+        var currentHandle = GetScriptObjectHandle(handle);
 
         if (currentHandle != IntPtr.Zero)
         {
@@ -93,7 +93,7 @@ public sealed class RefCountedInstanceCache : INativeInstanceCache
         }
 
         var handle = instance.DangerousGetHandle();
-        var currentHandle = RefCountedRuntime.GetScriptObjectHandle(handle);
+        var currentHandle = GetScriptObjectHandle(handle);
         if (currentHandle == IntPtr.Zero)
         {
             return;
@@ -123,6 +123,18 @@ public sealed class RefCountedInstanceCache : INativeInstanceCache
         {
             gcHandle.Free();
         }
+    }
+
+    private static nint GetScriptObjectHandle(nint handle)
+    {
+        var current = RefCountedRuntime.GetScriptObjectHandle(handle);
+        while (RefCountedRuntime.TakeExpiredScriptObjectHandle() is var expired && expired != IntPtr.Zero)
+        {
+            var gcHandle = GCHandle.FromIntPtr(expired);
+            if (gcHandle.Target is RefCountedNativeObject instance) instance.DisposeFromNativeRuntime();
+            gcHandle.Free();
+        }
+        return current;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

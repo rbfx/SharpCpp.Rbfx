@@ -366,7 +366,6 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
-      workflows: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -381,9 +380,10 @@ jobs:
           path: packages
           merge-multiple: true
 
-      # Updating the tag to a commit that changes a workflow file requires both contents and
-      # workflows write permissions on the GitHub Actions token.
+      # GITHUB_TOKEN cannot update the tag when the target commit changes a workflow file.
+      # Keep refreshing release assets even when that tag update is denied.
       - name: Move Tag
+        continue-on-error: true
         run: |
           if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
             gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$RELEASE_TAG" -f sha="$GITHUB_SHA" -F force=true

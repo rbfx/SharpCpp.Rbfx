@@ -65,7 +65,10 @@ internal sealed class SdkParseFlags
                     defines.Add(value);
                     break;
                 case "clang_argument":
-                    additionalArguments.Add(value);
+                    if (!string.Equals(value, "/Zc:twoPhase-", StringComparison.OrdinalIgnoreCase))
+                    {
+                        additionalArguments.Add(value);
+                    }
                     break;
             }
         }

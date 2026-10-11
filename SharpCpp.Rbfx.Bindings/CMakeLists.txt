@@ -28,8 +28,8 @@ set_target_properties(
     UNITY_BUILD ON
     UNITY_BUILD_BATCH_SIZE 100
     OUTPUT_NAME "SharpCpp.Rbfx.Native"
-    BUILD_RPATH "$ORIGIN"
-    INSTALL_RPATH "$ORIGIN")
+    BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
+    INSTALL_RPATH "${RBFX_RUNTIME_RPATH}")
 target_include_directories(
   SharpCppRbfx_Native
   PRIVATE

@@ -33,6 +33,12 @@ include(SharpCppOutput)
 include(SharpCppClang)
 find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
 
+if(APPLE)
+  set(RBFX_RUNTIME_RPATH "@loader_path")
+else()
+  set(RBFX_RUNTIME_RPATH "$ORIGIN")
+endif()
+
 get_filename_component(_rbfx_default_sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../rbfx-sdk" ABSOLUTE)
 if(DEFINED ENV{RBFX_SDK_ROOT} AND EXISTS "$ENV{RBFX_SDK_ROOT}")
   set(_rbfx_default_sdk_root "$ENV{RBFX_SDK_ROOT}")

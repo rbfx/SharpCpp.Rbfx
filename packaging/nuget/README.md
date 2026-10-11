@@ -82,6 +82,18 @@ The Linux smoke process reserves static TLS space for the prebuilt rbfx SDK with
 Linux also needs the SDK's system dependencies: OpenGL, GLX, X11, D-Bus and uuid.
 On Ubuntu, CI installs `libopengl0 libglx0 libx11-6 libdbus-1-3 libuuid1` for the runtime checks.
 
+## Publish to NuGet.org
+
+After the union checks and all native runtime checks pass, `build.yml` publishes
+the final `union-nuget` packages to NuGet.org on master builds. Pull requests do
+not publish. Existing versions are skipped when a workflow is rerun.
+
+The job uses [NuGet trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
+with `NuGet/login@v1` and job-scoped `id-token: write` permission. The policy belongs
+to NuGet user `rokups` for repository `rbfx/SharpCpp.Rbfx` and workflow `build.yml`.
+No long-lived API key or username variable is required.
+The policy's environment is empty, so `Publish-NuGet` has no `environment` setting.
+
 ## Runtime IDs
 
 This pipeline packages one RID per invocation. Downloading SDK archives for other

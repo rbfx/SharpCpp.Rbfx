@@ -215,6 +215,41 @@ jobs:
           --packages build/union-smoke/packages --version "${{ env.PACKAGE_VERSION }}" --framework net10.0
           --platform linux-x64 --platform osx-arm64 --platform win-x64
 
+  Publish-NuGet:
+    name: Publish NuGet Packages
+    needs: [Union, Smoke]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Packages
+        uses: actions/download-artifact@v8
+        with:
+          name: union-nuget
+          path: packages
+
+      - name: NuGet Login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: rokups
+
+      - name: Publish Packages
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: >-
+          dotnet nuget push "packages/*.nupkg"
+          --api-key "$NUGET_API_KEY"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
   Release-Latest:
     name: Release Latest
     needs: [Union, Smoke]

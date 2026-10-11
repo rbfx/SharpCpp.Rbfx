@@ -17,8 +17,9 @@
     <DefaultLanguage>en-US</DefaultLanguage>
   </PropertyGroup>
   <ItemGroup>
-    <ApplicationDefinition Update="App.xaml" />
-    <Page Update="MainPage.xaml" />
+    <None Remove="App.xaml;MainPage.xaml" />
+    <ApplicationDefinition Include="App.xaml" />
+    <Page Include="MainPage.xaml" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />

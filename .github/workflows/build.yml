@@ -107,6 +107,10 @@ jobs:
           rbfx_sdkmanager_path="$(find -L "$rbfx_android_sdk_root/cmdline-tools" -type f -name sdkmanager -print -quit)"
           test -n "$rbfx_sdkmanager_path"
           "$rbfx_sdkmanager_path" --install 'ndk;27.2.12479018'
+          rbfx_ndk_path="$rbfx_android_sdk_root/ndk/27.2.12479018"
+          test -f "$rbfx_ndk_path/build/cmake/android.toolchain.cmake"
+          echo "ANDROID_NDK_HOME=$rbfx_ndk_path" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$rbfx_ndk_path" >> "$GITHUB_ENV"
 
       - name: Setup Emscripten
         if: matrix.rid == 'browser-wasm'
@@ -117,8 +121,7 @@ jobs:
           ./emsdk/emsdk activate 3.1.56
           echo "EMSDK=$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_ENV"
 
-      # Downloads the rbfx SDK from the rbfx/rbfx `latest` release, generates and builds
-      # the wrappers, then packs them.
+      # Downloads or builds the matching rbfx SDK, generates and builds the wrappers, then packs them.
       - name: Build Packages
         if: matrix.cross != true
         timeout-minutes: 60
@@ -356,6 +359,9 @@ jobs:
     needs: [Union, Smoke, Cross-Consumer]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: rbfx-sharpcpp-latest-release
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
@@ -389,8 +395,8 @@ jobs:
             gh release create "$RELEASE_TAG" --prerelease --title "Latest Build" \
               --notes "Rolling build of the latest commit on master."
           fi
-          # Package file names contain the version, so remove the packages of the previous build.
-          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | while read -r asset; do
+          # Package file names contain the version, so remove only old packages and preserve the Wasm SDK cache.
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name | select(endswith(".nupkg"))' | while read -r asset; do
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes
           done
           gh release upload "$RELEASE_TAG" packages/*.nupkg --clobber

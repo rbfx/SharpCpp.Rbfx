@@ -24,7 +24,6 @@ declare -A SDK_ASSETS=(
   [android-arm64]="rebelfork-sdk-android-clang-arm64-dll-latest.7z"
   [android-x64]="rebelfork-sdk-android-clang-x64-dll-latest.7z"
   [ios-arm64]="rebelfork-sdk-ios-clang-arm64-lib-latest.7z"
-  [browser-wasm]="rebelfork-sdk-web-emscripten-wasm-lib-latest.7z"
 )
 
 usage() {

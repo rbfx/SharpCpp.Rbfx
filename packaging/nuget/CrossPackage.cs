@@ -20,7 +20,13 @@ try
         case "create": CrossPackage.Create(Required("rid"), Required("version"), options); break;
         case "targets": CrossPackage.Targets(Required("rid"), Path.GetFullPath(Required("stage"))); break;
         case "verify": CrossPackage.Verify(Required("rid"), Required("version"), options); break;
-        default: throw new ArgumentException("Expected create, targets or verify. See packaging/nuget/README.md.");
+        case "build-wasm-sdk": CrossPackage.BuildWasmSdkCommand(options); break;
+        case "help":
+        case "--help":
+        case "-h":
+            Console.WriteLine("Usage: CrossPackage.cs <create|targets|verify|build-wasm-sdk> [--option VALUE ...]");
+            break;
+        default: throw new ArgumentException("Expected create, targets, verify or build-wasm-sdk. See packaging/nuget/README.md.");
     }
 }
 catch (Exception exception)
@@ -36,6 +42,10 @@ static class CrossPackage
     static readonly string Repo = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../.."));
     const string NdkVersion = "27.2.12479018";
     const string EmscriptenVersion = "3.1.56";
+    const string RbfxRepository = "https://github.com/rbfx/rbfx.git";
+    const string RbfxLatestRef = "refs/tags/latest";
+    const string WasmSdkAssetPrefix = "rbfx-web-wasm-sdk-";
+    const string WasmSdkReleaseBaseUrl = "https://github.com/rbfx/SharpCpp.Rbfx/releases/download/latest/";
 
     public static void Create(string rid, string version, Dictionary<string, string> options)
     {
@@ -61,25 +71,25 @@ static class CrossPackage
         {
             if (!OperatingSystem.IsMacOS()) throw new PlatformNotSupportedException("Building iOS packages requires macOS and Xcode.");
             var sdk = Run("xcrun", ["--sdk", "iphoneos", "--show-sdk-path"], capture: true).Trim();
-            cmake.AddRange(["-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_ARCHITECTURES=arm64", $"-DCMAKE_OSX_SYSROOT={sdk}", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0"]);
+            cmake.AddRange(["-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_ARCHITECTURES=arm64", $"-DCMAKE_OSX_SYSROOT={sdk}", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0",
+                "-DRBFX_SDK_PARSE_USE_PLATFORM_COMPILER_INCLUDES=ON"]);
         }
         else if (rid == "browser-wasm")
         {
-            var emsdk = options.GetValueOrDefault("emsdk-root") ?? Environment.GetEnvironmentVariable("EMSDK")
-                ?? throw new ArgumentException($"Supply --emsdk-root pointing to an activated Emscripten {EmscriptenVersion} SDK.");
-            emsdk = Path.GetFullPath(emsdk);
+            var emsdk = GetEmsdkRoot(options, environment);
+            ValidateEmsdk(emsdk, environment);
+            string wasmSdkRoot;
+            if (options.TryGetValue("sdk-root", out var explicitSdkRoot))
+                wasmSdkRoot = Path.GetFullPath(explicitSdkRoot);
+            else
+            {
+                var rbfxCommit = ResolveRbfxLatestCommit();
+                wasmSdkRoot = ResolveWasmSdk(emsdk, rbfxCommit, options, environment);
+            }
             var toolchain = Path.Combine(emsdk, "upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake");
-            RequireFile(toolchain);
-            environment["EM_CONFIG"] = Path.Combine(emsdk, ".emscripten");
-            RequireFile(environment["EM_CONFIG"]);
-            var emcc = Path.Combine(emsdk, "upstream/emscripten", OperatingSystem.IsWindows() ? "emcc.bat" : "emcc");
-            var compilerVersion = Run(emcc, ["--version"], capture: true, environment: environment);
-            if (!compilerVersion.Contains(EmscriptenVersion, StringComparison.Ordinal))
-                throw new ArgumentException($"The .NET 10 native toolchain requires Emscripten {EmscriptenVersion}.");
             cmake.AddRange([$"-DCMAKE_TOOLCHAIN_FILE={toolchain}", "-DCMAKE_C_FLAGS=-fwasm-exceptions",
                 "-DCMAKE_CXX_FLAGS=-fwasm-exceptions", "-DRBFX_SDK_PARSE_EXTRA_OPTIONS=-fwasm-exceptions"]);
-            if (!options.ContainsKey("sdk-root"))
-                options["sdk-root"] = BuildWasmSdk(toolchain, environment, options);
+            options["sdk-root"] = wasmSdkRoot;
         }
         else throw new ArgumentException($"Unsupported cross-platform RID: {rid}");
 
@@ -90,42 +100,162 @@ static class CrossPackage
         Run("bash", arguments, environment: environment);
     }
 
-    static string BuildWasmSdk(string toolchain, Dictionary<string, string> environment, Dictionary<string, string> options)
+    public static void BuildWasmSdkCommand(Dictionary<string, string> options)
     {
-        // rbfx's published Wasm archives may use a newer libc++/embind ABI than
-        // the Emscripten version bundled with .NET. Build all native inputs together.
-        var root = Path.GetFullPath(options.GetValueOrDefault("build-root") ?? Path.Combine(Repo, "build/cross/browser-wasm"));
-        var source = Path.GetFullPath(options.GetValueOrDefault("rbfx-source") ?? Path.Combine(root, "engine-source"));
-        if (!Directory.Exists(source))
-            Run("git", ["clone", "--depth", "1", "--branch", "latest", "https://github.com/rbfx/rbfx.git", source]);
-        RequireFile(Path.Combine(source, "CMakeLists.txt"));
+        var environment = new Dictionary<string, string>();
+        var emsdk = GetEmsdkRoot(options, environment);
+        ValidateEmsdk(emsdk, environment);
+        var buildRoot = Path.GetFullPath(options.GetValueOrDefault("build-root") ?? Path.Combine(Repo, "build/cross/browser-wasm-sdk"));
+        var (sdkRoot, commit) = BuildWasmSdkFromSource(emsdk, buildRoot, environment);
+        var assetName = WasmSdkAssetName(EmscriptenVersion, commit);
+        var archive = Path.GetFullPath(options.GetValueOrDefault("output") ?? Path.Combine(Repo, "build/package/nuget/wasm-sdk", assetName));
+        CreateWasmSdkArchive(sdkRoot, archive);
+        Console.WriteLine($"Built rbfx Wasm SDK for rbfx {commit} with Emscripten {EmscriptenVersion}: {archive}");
+    }
+
+    static string GetEmsdkRoot(Dictionary<string, string> options, Dictionary<string, string> environment)
+    {
+        var emsdk = options.GetValueOrDefault("emsdk-root") ?? Environment.GetEnvironmentVariable("EMSDK")
+            ?? throw new ArgumentException($"Supply --emsdk-root pointing to an activated Emscripten {EmscriptenVersion} SDK.");
+        emsdk = Path.GetFullPath(emsdk);
+        environment["EMSDK"] = emsdk;
+        environment["EM_CONFIG"] = Path.Combine(emsdk, ".emscripten");
+        RequireFile(environment["EM_CONFIG"]);
+
+        var searchPaths = new List<string>
+        {
+            Path.Combine(emsdk, "upstream/emscripten"),
+            Path.Combine(emsdk, "upstream/bin")
+        };
+        var nodeRoot = Path.Combine(emsdk, "node");
+        if (Directory.Exists(nodeRoot))
+            foreach (var nodeDirectory in Directory.GetDirectories(nodeRoot).Order(StringComparer.Ordinal))
+            {
+                searchPaths.Add(nodeDirectory);
+                searchPaths.Add(Path.Combine(nodeDirectory, "bin"));
+            }
+        var pathEntries = searchPaths.Where(Directory.Exists).ToList();
+        if (Environment.GetEnvironmentVariable("PATH") is { Length: > 0 } path) pathEntries.Add(path);
+        environment["PATH"] = string.Join(Path.PathSeparator, pathEntries);
+        return emsdk;
+    }
+
+    static void ValidateEmsdk(string emsdk, Dictionary<string, string> environment)
+    {
+        var toolchain = Path.Combine(emsdk, "upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake");
+        RequireFile(toolchain);
+        var emcc = Path.Combine(emsdk, "upstream/emscripten", OperatingSystem.IsWindows() ? "emcc.bat" : "emcc");
+        var compilerVersion = Run(emcc, ["--version"], capture: true, environment: environment);
+        if (!compilerVersion.Contains(EmscriptenVersion, StringComparison.Ordinal))
+            throw new ArgumentException($"The .NET 10 Wasm workload requires Emscripten {EmscriptenVersion}; found '{compilerVersion.Trim()}'.");
+    }
+
+    static string ResolveWasmSdk(string emsdk, string rbfxCommit, Dictionary<string, string> options,
+        Dictionary<string, string> environment)
+    {
+        var buildRoot = Path.GetFullPath(options.GetValueOrDefault("build-root") ?? Path.Combine(Repo, "build/cross/browser-wasm"));
+        var cacheRoot = Path.Combine(buildRoot, "wasm-sdk-cache");
+        var archive = Path.Combine(buildRoot, "wasm-sdk-cache.7z");
+        if (TryDownloadWasmSdk(archive, EmscriptenVersion, rbfxCommit))
+        {
+            if (Directory.Exists(cacheRoot)) Directory.Delete(cacheRoot, recursive: true);
+            Directory.CreateDirectory(cacheRoot);
+            Run("7z", ["x", "-y", $"-o{cacheRoot}", archive]);
+            Console.WriteLine($"Using cached rbfx Wasm SDK asset {WasmSdkAssetName(EmscriptenVersion, rbfxCommit)}.");
+            return cacheRoot;
+        }
+        else Console.WriteLine("No rbfx Wasm SDK cache found in the latest release; building it locally.");
+
+        var (sdkRoot, _) = BuildWasmSdkFromSource(emsdk, Path.Combine(buildRoot, "wasm-sdk-build"), environment);
+        return sdkRoot;
+    }
+
+    static bool TryDownloadWasmSdk(string archive, string emscriptenVersion, string rbfxCommit)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SharpCpp.Rbfx-Wasm-SDK");
+            var assetName = WasmSdkAssetName(emscriptenVersion, rbfxCommit);
+            var url = WasmSdkReleaseBaseUrl + Uri.EscapeDataString(assetName);
+            using var response = client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return false;
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Could not read the latest-release Wasm SDK cache ({(int)response.StatusCode}); building it locally.");
+                return false;
+            }
+            using var source = response.Content.ReadAsStream();
+            using var destination = File.Create(archive);
+            source.CopyTo(destination);
+            return true;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            Console.WriteLine($"Could not download the latest-release Wasm SDK cache ({exception.Message}); building it locally.");
+            return false;
+        }
+    }
+
+    static string WasmSdkAssetName(string emscriptenVersion, string rbfxCommit) =>
+        $"{WasmSdkAssetPrefix}emscripten-{emscriptenVersion}-rbfx-{rbfxCommit[..12]}.7z";
+
+    static string ResolveRbfxLatestCommit()
+    {
+        var output = Run("git", ["ls-remote", RbfxRepository, RbfxLatestRef, $"{RbfxLatestRef}^{{}}"], capture: true);
+        var entries = output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t', StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length == 2)
+            .ToArray();
+        var commit = entries.FirstOrDefault(parts => parts[1] == $"{RbfxLatestRef}^{{}}")?.FirstOrDefault()
+            ?? entries.FirstOrDefault(parts => parts[1] == RbfxLatestRef)?.FirstOrDefault();
+        if (commit is null || commit.Length != 40 || !commit.All(Uri.IsHexDigit))
+            throw new InvalidOperationException($"Could not resolve rbfx's {RbfxLatestRef} commit.");
+        return commit.ToLowerInvariant();
+    }
+
+    static (string SdkRoot, string RbfxCommit) BuildWasmSdkFromSource(string emsdk, string buildRoot,
+        Dictionary<string, string> environment)
+    {
+        var source = Path.Combine(buildRoot, "engine-source");
+        var build = Path.Combine(buildRoot, "engine-build");
+        var sdk = Path.Combine(buildRoot, "engine-sdk");
+
+        if (Directory.Exists(buildRoot)) Directory.Delete(buildRoot, recursive: true);
+        Directory.CreateDirectory(buildRoot);
+        Run("git", ["clone", "--depth", "1", "--branch", "latest", RbfxRepository, source]);
+        var actualCommit = Run("git", ["-C", source, "rev-parse", "HEAD"], capture: true).Trim();
         PatchWasmProcessSpawning(source);
-        var build = Path.Combine(root, "engine-build");
-        var sdk = Path.Combine(root, "engine-sdk");
+
+        var toolchain = Path.Combine(emsdk, "upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake");
         Run("cmake", ["-S", source, "-B", build, "-G", "Ninja", $"-DCMAKE_TOOLCHAIN_FILE={toolchain}",
             "-DCMAKE_BUILD_TYPE=Release", $"-DCMAKE_INSTALL_PREFIX={sdk}", "-DBUILD_SHARED_LIBS=OFF",
             "-DCMAKE_C_FLAGS=-fwasm-exceptions", "-DCMAKE_CXX_FLAGS=-fwasm-exceptions",
             "-DURHO3D_NO_EDITOR_PLAYER_EXE=ON", "-DURHO3D_SAMPLES=OFF", "-DURHO3D_PCH=ON"], environment: environment);
         Run("cmake", ["--build", build, "--parallel", Math.Min(Environment.ProcessorCount, 12).ToString()], environment: environment);
         Run("cmake", ["--install", build], environment: environment);
-        return sdk;
+        return (sdk, actualCommit.ToLowerInvariant());
     }
 
     static void PatchWasmProcessSpawning(string source)
     {
-        // rbfx currently builds its POSIX process-spawning branch for Emscripten,
-        // where posix_spawnp is unavailable. SystemRun is unsupported there.
         var path = Path.Combine(source, "Source/Urho3D/IO/FileSystem.cpp");
         RequireFile(path);
         var contents = File.ReadAllText(path);
         const string oldCondition = "#if defined(TVOS) || defined(IOS) || (defined(__ANDROID__) && __ANDROID_API__ < 28) || defined(UWP)";
         const string wasmCondition = oldCondition + " || defined(__EMSCRIPTEN__)";
-        if (!contents.Contains(wasmCondition, StringComparison.Ordinal))
-        {
-            if (!contents.Contains(oldCondition, StringComparison.Ordinal))
-                throw new InvalidOperationException("The rbfx FileSystem.cpp SystemRun platform guard changed; update the Wasm source patch.");
-            File.WriteAllText(path, contents.Replace(oldCondition, wasmCondition, StringComparison.Ordinal));
-        }
+        if (contents.Contains(wasmCondition, StringComparison.Ordinal)) return;
+        if (!contents.Contains(oldCondition, StringComparison.Ordinal))
+            throw new InvalidOperationException("The rbfx FileSystem.cpp SystemRun platform guard changed; update the Wasm source patch.");
+        File.WriteAllText(path, contents.Replace(oldCondition, wasmCondition, StringComparison.Ordinal));
+    }
+
+    static void CreateWasmSdkArchive(string sdkRoot, string archive)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
+        if (File.Exists(archive)) File.Delete(archive);
+        Run("7z", ["a", "-t7z", "-mx=5", "-y", archive, "."], workingDirectory: sdkRoot);
     }
 
     public static void Targets(string rid, string stage)
@@ -240,9 +370,10 @@ static class CrossPackage
         if (!File.Exists(path)) throw new FileNotFoundException($"Required toolchain file is missing: {path}");
     }
 
-    static string Run(string executable, IEnumerable<string> arguments, bool capture = false, Dictionary<string, string>? environment = null)
+    static string Run(string executable, IEnumerable<string> arguments, bool capture = false,
+        Dictionary<string, string>? environment = null, string? workingDirectory = null)
     {
-        var start = new ProcessStartInfo(executable) { WorkingDirectory = Repo, RedirectStandardOutput = capture, UseShellExecute = false };
+        var start = new ProcessStartInfo(executable) { WorkingDirectory = workingDirectory ?? Repo, RedirectStandardOutput = capture, UseShellExecute = false };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         if (environment is not null) foreach (var (key, value) in environment) start.Environment[key] = value;
         using var process = Process.Start(start) ?? throw new InvalidOperationException($"Cannot start {executable}.");

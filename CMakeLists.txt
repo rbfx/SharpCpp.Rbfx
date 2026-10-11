@@ -62,6 +62,10 @@ set(
   ""
   CACHE STRING
   "Additional compiler options required to parse the installed rbfx SDK.")
+option(
+  RBFX_SDK_PARSE_USE_PLATFORM_COMPILER_INCLUDES
+  "Use the target platform compiler's builtin Clang headers when parsing the rbfx SDK."
+  OFF)
 
 if(NOT EXISTS "${RBFX_SDK_ROOT}/share/Urho3D/CMake/Urho3DConfig.cmake")
   message(FATAL_ERROR "Set RBFX_SDK_ROOT to an installed rbfx SDK before configuring SharpCpp.Rbfx.")

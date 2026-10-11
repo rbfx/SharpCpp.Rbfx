@@ -16,6 +16,7 @@ internal sealed class SdkParseFlags
         string compilerPath,
         string? targetTriple,
         string? sysroot,
+        string? clangResourceDirectory,
         string? symbolToolPath,
         string nativeLibraryName,
         string languageStandard,
@@ -26,6 +27,7 @@ internal sealed class SdkParseFlags
         CompilerPath = compilerPath;
         TargetTriple = targetTriple;
         Sysroot = sysroot;
+        ClangResourceDirectory = clangResourceDirectory;
         SymbolToolPath = symbolToolPath;
         NativeLibraryName = nativeLibraryName;
         LanguageStandard = languageStandard;
@@ -38,6 +40,7 @@ internal sealed class SdkParseFlags
 
     public string? TargetTriple { get; }
     public string? Sysroot { get; }
+    public string? ClangResourceDirectory { get; }
     public string? SymbolToolPath { get; }
     public string NativeLibraryName { get; }
 
@@ -84,6 +87,7 @@ internal sealed class SdkParseFlags
         string? compilerPath = null;
         string? targetTriple = null;
         string? sysroot = null;
+        string? clangResourceDirectory = null;
         string? symbolToolPath = null;
         string nativeLibraryName = "SharpCpp.Rbfx.Native";
         string? languageStandard = null;
@@ -122,6 +126,9 @@ internal sealed class SdkParseFlags
                 case "sysroot":
                     sysroot = string.IsNullOrWhiteSpace(value) ? null : Path.GetFullPath(value);
                     break;
+                case "clang_resource_directory":
+                    clangResourceDirectory = string.IsNullOrWhiteSpace(value) ? null : Path.GetFullPath(value);
+                    break;
                 case "symbol_tool_path":
                     symbolToolPath = string.IsNullOrWhiteSpace(value) ? null : value;
                     break;
@@ -155,6 +162,7 @@ internal sealed class SdkParseFlags
             compilerPath,
             targetTriple,
             sysroot,
+            clangResourceDirectory,
             symbolToolPath,
             nativeLibraryName,
             string.IsNullOrWhiteSpace(languageStandard) ? "gnu++20" : languageStandard,

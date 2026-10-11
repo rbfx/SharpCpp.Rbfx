@@ -112,14 +112,26 @@ dotnet run --file packaging/nuget/CrossPackage.cs -- create --rid browser-wasm -
 dotnet run --file packaging/nuget/CrossPackage.cs -- verify --rid browser-wasm --version 0.1.0-local.1
 ```
 
-Android and iOS reuse SDK archives fetched by `package.sh`. Wasm builds rbfx's
-`latest` source tag with the matching Emscripten toolchain because newer published
-archives can have incompatible libc++ and embind symbols. Use `--rbfx-source` to
-choose an existing source checkout, or `--sdk-root` for an SDK built with the same
-toolchain and `-fwasm-exceptions`. The Wasm source build disables rbfx's unsupported
-`SystemRun` process spawning path for Emscripten. Wasm consumers require the
-`wasm-tools` workload and must select .NET's multithreaded runtime and
-WebAssembly exception handling to match the Emscripten mode used to build rbfx.
+Android and iOS use the matching published SDK archives fetched by `package.sh`.
+The Wasm package uses Emscripten 3.1.56, matching .NET 10. It first looks for an
+exact SDK asset in this repository's rolling `latest` release, named
+`rbfx-web-wasm-sdk-emscripten-3.1.56-rbfx-<12-character-commit>.7z`. If that
+asset is absent, it builds rbfx from its `latest` tag with the matching Emscripten
+SDK and uses the result for packaging.
+
+To build and upload the cache on demand, run the **Update Wasm SDK Cache**
+workflow, or build the archive locally:
+
+```bash
+dotnet run --file packaging/nuget/CrossPackage.cs -- build-wasm-sdk --emsdk-root build/toolchains/emsdk
+```
+
+The update workflow removes older assets with the `rbfx-web-wasm-sdk-` prefix
+before uploading, so the rolling release retains one Wasm SDK archive. Wasm
+consumers require the `wasm-tools` workload and must select .NET's multithreaded
+runtime and WebAssembly exception handling. iOS parsing can use the platform compiler's
+builtin Clang headers with `-DRBFX_SDK_PARSE_USE_PLATFORM_COMPILER_INCLUDES=ON`;
+the cross-platform package workflow enables this for iOS.
 Set these properties in the app project (or `Directory.Build.props`) so they
 are present during restore and runtime-pack selection:
 
@@ -150,7 +162,7 @@ Known SDK archive mappings:
 - `android-arm64`: `rebelfork-sdk-android-clang-arm64-dll-latest.7z`
 - `android-x64`: `rebelfork-sdk-android-clang-x64-dll-latest.7z`
 - `ios-arm64`: `rebelfork-sdk-ios-clang-arm64-lib-latest.7z`
-- `browser-wasm`: `rebelfork-sdk-web-emscripten-wasm-lib-latest.7z`
+- `browser-wasm`: `rbfx-web-wasm-sdk-emscripten-<version>-rbfx-<short-commit>.7z`
 
 ## Local Repository
 

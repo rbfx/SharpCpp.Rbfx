@@ -339,7 +339,8 @@ internal static class Program
             sdkFlags.CompilerPath,
             targetTripleOverride: sdkFlags.TargetTriple,
             sysroot: sdkFlags.Sysroot,
-            clangResourceDirectoryOverride: Environment.GetEnvironmentVariable("SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY"));
+            clangResourceDirectoryOverride: sdkFlags.ClangResourceDirectory ??
+                Environment.GetEnvironmentVariable("SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY"));
         targetTriple = toolchainInfo.TargetTriple;
         if (IsX86Target(toolchainInfo.TargetTriple))
             arguments.AddRange(ParseSimdDisableArguments);

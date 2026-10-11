@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         # One entry for each runtime package. A failure of an entry stops the release.
-        # Only linux-x64 publishes the managed packages, so entries do not overwrite each other.
+        # The union job assembles the final managed packages after all platform builds finish.
         # There is no osx-x64 entry, because libclang has no runtime package for that RID.
         include:
           - rid: linux-x64
@@ -114,6 +114,15 @@ jobs:
           path: SharpCpp.Rbfx/build/bin/Release/SharpCpp.Rbfx.Bindings.dll
           if-no-files-found: error
 
+      - name: Upload Managed Package Inputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-input-${{ matrix.rid }}
+          path: |
+            SharpCpp.Rbfx/build/package/nuget/stage/managed/lib/
+            SharpCpp.Rbfx/build/package/nuget/stage/managed/analyzers/
+          if-no-files-found: error
+
       # The generated C# and C++ sources and the generator logs, for debugging.
       - name: Upload Generated Sources
         uses: actions/upload-artifact@v7
@@ -122,9 +131,55 @@ jobs:
           path: SharpCpp.Rbfx/build/native/*/generated/
           if-no-files-found: error
 
+  Union:
+    name: Union API and Packages
+    needs: Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          path: SharpCpp
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Download Platform Inputs
+        uses: actions/download-artifact@v8
+        with:
+          path: SharpCpp.Rbfx/build/union-input
+      - name: Test Union Generator
+        run: dotnet test SharpCpp/tests/SharpCpp.Tests.ApiUnion/SharpCpp.Tests.ApiUnion.csproj -c Release --nologo
+      - name: Build Union Packages
+        working-directory: SharpCpp.Rbfx
+        run: dotnet run --file packaging/nuget/UnionPackage.cs -- create --input build/union-input --version "$PACKAGE_VERSION"
+      - name: Upload Union Packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: union-nuget
+          path: SharpCpp.Rbfx/build/package/union/packages/*.nupkg
+          if-no-files-found: error
+      - name: Upload Union Sources
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: union-sources
+          path: |
+            SharpCpp.Rbfx/build/package/union/sources/Reference.g.cs
+            SharpCpp.Rbfx/build/package/union/sources/Aliases.tsv
+            SharpCpp.Rbfx/build/package/union/sources/*/Stubs.g.cs
+          if-no-files-found: warn
+
   Release-Latest:
     name: Release Latest
-    needs: Package
+    needs: Union
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     permissions:
@@ -139,7 +194,7 @@ jobs:
       - name: Download Packages
         uses: actions/download-artifact@v8
         with:
-          pattern: nuget-*
+          name: union-nuget
           path: packages
           merge-multiple: true
 

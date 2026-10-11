@@ -19,8 +19,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(PackageVersion)" />
-    <None Include="$(SharpCppNuGetStageRoot)/managed/analyzers/dotnet/cs/*" Pack="true" PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)" />
+    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(PackageVersion)" Condition="'$(SharpCppUnionPackage)' != 'true'" />
+    <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/lib/$(TargetFramework)/*" Pack="true" PackagePath="runtimes/$(SharpCppRuntimeIdentifier)/lib/$(TargetFramework)/%(Filename)%(Extension)" />
+    <None Include="$(SharpCppNuGetStageRoot)/managed/analyzers/dotnet/cs/*" Pack="true" PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)" Condition="'$(SharpCppUnionPackage)' != 'true'" />
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/native/*" Pack="true" PackagePath="runtimes/$(SharpCppRuntimeIdentifier)/native/%(Filename)%(Extension)" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>

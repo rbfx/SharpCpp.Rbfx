@@ -26,11 +26,13 @@
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <Import Project="$(SharpCppUnionDependencies)" Condition="'$(SharpCppUnionPackage)' == 'true' and '$(SharpCppUnionDependencies)' != ''" />
+
   <Target Name="ValidateSharpCppPackageInputs" BeforeTargets="Pack">
     <Error Condition="'$(SharpCppNuGetStageRoot)' == ''" Text="SharpCppNuGetStageRoot must point to staged package files." />
     <Error Condition="'$(TargetFramework)' == ''" Text="TargetFramework must be set for SharpCpp package creation." />
     <Error Condition="!Exists('$(SharpCppNuGetStageRoot)/managed/ref/$(TargetFramework)/SharpCpp.Rbfx.Bindings.dll')" Text="Missing staged SharpCpp.Rbfx.Bindings reference assembly for $(TargetFramework)." />
-    <Error Condition="!Exists('$(SharpCppNuGetStageRoot)/managed/lib/$(TargetFramework)/SharpCpp.Rbfx.Bindings.dll')" Text="Missing staged SharpCpp.Rbfx.Bindings implementation assembly for $(TargetFramework)." />
+    <Error Condition="'$(SharpCppUnionPackage)' != 'true' and !Exists('$(SharpCppNuGetStageRoot)/managed/lib/$(TargetFramework)/SharpCpp.Rbfx.Bindings.dll')" Text="Missing staged SharpCpp.Rbfx.Bindings implementation assembly for $(TargetFramework)." />
     <Error Condition="!Exists('$(SharpCppNuGetStageRoot)/managed/lib/$(TargetFramework)/SharpCpp.Support.dll')" Text="Missing staged SharpCpp.Support implementation assembly for $(TargetFramework)." />
     <Error Condition="!Exists('$(SharpCppNuGetStageRoot)/managed/ref/$(TargetFramework)/SharpCpp.Std.dll')" Text="Missing staged SharpCpp.Std reference assembly for $(TargetFramework)." />
     <Error Condition="!Exists('$(SharpCppNuGetStageRoot)/managed/lib/$(TargetFramework)/SharpCpp.Std.dll')" Text="Missing staged SharpCpp.Std implementation assembly for $(TargetFramework)." />

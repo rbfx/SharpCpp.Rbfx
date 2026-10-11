@@ -102,7 +102,11 @@ jobs:
       - name: Install Android NDK
         if: startsWith(matrix.rid, 'android-')
         shell: bash
-        run: sdkmanager 'ndk;27.2.12479018'
+        run: |
+          rbfx_android_sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          rbfx_sdkmanager_path="$(find -L "$rbfx_android_sdk_root/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -n "$rbfx_sdkmanager_path"
+          "$rbfx_sdkmanager_path" --install 'ndk;27.2.12479018'
 
       - name: Setup Emscripten
         if: matrix.rid == 'browser-wasm'

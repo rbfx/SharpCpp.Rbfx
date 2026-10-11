@@ -287,7 +287,7 @@ jobs:
             runs_on: ubuntu-latest
           - rid: ios-arm64
             workload: ios
-            runs_on: macos-latest
+            runs_on: xcode-27
           - rid: browser-wasm
             workload: wasm-tools
             runs_on: ubuntu-latest

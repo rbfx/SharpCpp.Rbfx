@@ -105,6 +105,15 @@ jobs:
           path: SharpCpp.Rbfx/build/native/*/generated/rbfx/ApiManifest.tsv
           if-no-files-found: error
 
+      # The managed assembly of this platform. A later job reads the public API of each
+      # platform assembly and builds the union reference assembly.
+      - name: Upload Managed Assembly
+        uses: actions/upload-artifact@v7
+        with:
+          name: managed-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/bin/Release/SharpCpp.Rbfx.Bindings.dll
+          if-no-files-found: error
+
       # The generated C# and C++ sources and the generator logs, for debugging.
       - name: Upload Generated Sources
         uses: actions/upload-artifact@v7

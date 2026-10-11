@@ -195,6 +195,12 @@ internal sealed class SdkParseFlags
             return true;
         }
 
+        if (string.Equals(argument, "/Zc:twoPhase-", StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "MSVC two-phase lookup mode flags are not understood by libclang";
+            return true;
+        }
+
         if (argument.StartsWith("-march=", StringComparison.Ordinal) ||
             argument.StartsWith("-mcpu=", StringComparison.Ordinal) ||
             argument.StartsWith("-mtune=", StringComparison.Ordinal))

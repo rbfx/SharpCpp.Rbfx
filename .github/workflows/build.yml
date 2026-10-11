@@ -349,11 +349,18 @@ jobs:
       - name: Restore Example
         working-directory: SharpCpp.Rbfx
         shell: bash
-        run: >-
-          MSYS_NO_PATHCONV=1 dotnet restore '${{ matrix.project }}' --source build/cross-packages
-          --source https://api.nuget.org/v3/index.json
-          -p:RbfxPackageVersion="$PACKAGE_VERSION"
-          -p:RuntimeIdentifier='${{ matrix.rid }}'
+        run: |
+          cat > build/NuGet.Config <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="ci-union" value="cross-packages" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          EOF
+          dotnet restore '${{ matrix.project }}' --configfile build/NuGet.Config -p:RbfxPackageVersion="$PACKAGE_VERSION" -p:RuntimeIdentifier='${{ matrix.rid }}'
       - name: Build Example
         working-directory: SharpCpp.Rbfx
         shell: bash

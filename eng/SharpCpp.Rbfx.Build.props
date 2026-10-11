@@ -29,7 +29,7 @@
     <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`Linux`))">.so</RbfxSharedLibrarySuffix>
     <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`OSX`))">.dylib</RbfxSharedLibrarySuffix>
     <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`Windows`))">.dll</RbfxSharedLibrarySuffix>
-    <RbfxSharedLibraryPrefix Condition="'$(RbfxTargetRid)' != ''">lib</RbfxSharedLibraryPrefix>
+    <RbfxSharedLibraryPrefix Condition="$(RbfxTargetRid.StartsWith('android-')) or '$(RbfxTargetRid)' == 'ios-arm64' or '$(RbfxTargetRid)' == 'browser-wasm'">lib</RbfxSharedLibraryPrefix>
     <RbfxSharedLibrarySuffix Condition="$(RbfxTargetRid.StartsWith('android-'))">.so</RbfxSharedLibrarySuffix>
     <RbfxSharedLibrarySuffix Condition="'$(RbfxTargetRid)' == 'ios-arm64' or '$(RbfxTargetRid)' == 'browser-wasm'">.a</RbfxSharedLibrarySuffix>
     <DefineConstants Condition="'$(RbfxTargetRid)' == 'ios-arm64' or '$(RbfxTargetRid)' == 'browser-wasm'">$(DefineConstants);SHARPCPP_STATIC_RUNTIME</DefineConstants>

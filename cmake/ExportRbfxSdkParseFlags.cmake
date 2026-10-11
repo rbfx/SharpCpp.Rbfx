@@ -51,7 +51,10 @@ function(sharpcpp_export_rbfx_sdk_parse_flags target_name output_file native_lib
     string(APPEND flags_content "target_triple=${CMAKE_OSX_ARCHITECTURES}-apple-ios${CMAKE_OSX_DEPLOYMENT_TARGET}\n")
   endif()
 
-  if(CMAKE_SYSROOT)
+  if((CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "tvOS") AND
+      CMAKE_OSX_SYSROOT AND IS_DIRECTORY "${CMAKE_OSX_SYSROOT}")
+    string(APPEND flags_content "sysroot=${CMAKE_OSX_SYSROOT}\n")
+  elseif(CMAKE_SYSROOT)
     string(APPEND flags_content "sysroot=${CMAKE_SYSROOT}\n")
   elseif(CMAKE_OSX_SYSROOT AND IS_DIRECTORY "${CMAKE_OSX_SYSROOT}")
     string(APPEND flags_content "sysroot=${CMAKE_OSX_SYSROOT}\n")

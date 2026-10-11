@@ -76,6 +76,7 @@ as a source of portable dependencies. Runtime packages are transitive dependenci
 so restore downloads every supported runtime package even when publishing for one RID.
 The C# utility also builds consumers for every RID, verifies the selected DLLs,
 and runs the Linux consumer against the native SDK and an unsupported API stub.
+CI repeats the consumer check on each native runner before releasing the packages.
 The Linux smoke process reserves static TLS space for the prebuilt rbfx SDK with
 `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768`.
 

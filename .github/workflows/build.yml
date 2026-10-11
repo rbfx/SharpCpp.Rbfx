@@ -177,9 +177,45 @@ jobs:
             SharpCpp.Rbfx/build/package/union/sources/*/Stubs.g.cs
           if-no-files-found: warn
 
+  Smoke:
+    name: Union Runtime (${{ matrix.rid }})
+    needs: Union
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runs_on: ubuntu-latest
+          - rid: osx-arm64
+            runs_on: macos-latest
+          - rid: win-x64
+            runs_on: windows-latest
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Download Union Packages
+        uses: actions/download-artifact@v8
+        with:
+          name: union-nuget
+          path: SharpCpp.Rbfx/build/union-smoke/packages
+      - name: Verify Union Runtime
+        working-directory: SharpCpp.Rbfx
+        run: >-
+          dotnet run --file packaging/nuget/UnionPackage.cs -- smoke
+          --packages build/union-smoke/packages --version "${{ env.PACKAGE_VERSION }}" --framework net10.0
+          --platform linux-x64 --platform osx-arm64 --platform win-x64
+
   Release-Latest:
     name: Release Latest
-    needs: Union
+    needs: [Union, Smoke]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     permissions:

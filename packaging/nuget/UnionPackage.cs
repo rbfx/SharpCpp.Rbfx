@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -183,6 +184,15 @@ static class UnionPackage
                     }
                     catch (PlatformNotSupportedException) { }
                 }
+                else
+                {
+                    try
+                    {
+                        _ = Urho3D.Core.Thread.GetCurrentThreadIDAsUIntPtr();
+                        throw new Exception("Missing return-type variant did not throw");
+                    }
+                    catch (PlatformNotSupportedException) { }
+                }
                 Console.WriteLine("Union runtime selection and missing API stub passed");
                 """);
             Run("dotnet", ["build", project, "-c", "Release", "--nologo"]);
@@ -201,12 +211,12 @@ static class UnionPackage
             var selected = Path.Combine(smoke, "cache", $"sharpcpp.rbfx.bindings.runtime.{rid}", version, "runtimes", rid, "lib", framework, "SharpCpp.Rbfx.Bindings.dll");
             if (!SHA256.HashData(File.ReadAllBytes(selected)).SequenceEqual(SHA256.HashData(File.ReadAllBytes(Path.Combine(binary, "SharpCpp.Rbfx.Bindings.dll")))))
                 throw new InvalidOperationException($"{rid}: copied runtime DLL differs from the platform package.");
-            if (rid == "linux-x64" && OperatingSystem.IsLinux())
+            if (rid == RuntimeInformation.RuntimeIdentifier)
             {
                 // The prebuilt rbfx SDK uses initial-exec TLS; reserve space before .NET loads it.
                 var tunables = Environment.GetEnvironmentVariable("GLIBC_TUNABLES");
-                Run("dotnet", [Path.Combine(binary, "Consumer.dll")], environment: new()
-                { ["GLIBC_TUNABLES"] = string.Join(':', new[] { tunables, "glibc.rtld.optional_static_tls=32768" }.Where(value => !string.IsNullOrEmpty(value))) });
+                Run("dotnet", [Path.Combine(binary, "Consumer.dll")], environment: OperatingSystem.IsLinux() ? new()
+                { ["GLIBC_TUNABLES"] = string.Join(':', new[] { tunables, "glibc.rtld.optional_static_tls=32768" }.Where(value => !string.IsNullOrEmpty(value))) } : null);
             }
         }
     }

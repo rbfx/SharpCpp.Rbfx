@@ -362,6 +362,7 @@ jobs:
           EOF
           dotnet restore '${{ matrix.project }}' --configfile build/NuGet.Config -p:RbfxPackageVersion="$PACKAGE_VERSION" -p:RuntimeIdentifier='${{ matrix.rid }}'
       - name: Build Example
+        if: matrix.rid != 'uap-x64'
         working-directory: SharpCpp.Rbfx
         shell: bash
         run: >-
@@ -369,6 +370,29 @@ jobs:
           -p:RbfxPackageVersion="$PACKAGE_VERSION"
           -p:RuntimeIdentifier='${{ matrix.rid }}'
           -p:EnableCodeSigning=false -p:BuildIpa=false
+      - name: Build UWP Example
+        if: matrix.rid == 'uap-x64'
+        working-directory: SharpCpp.Rbfx
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Workload.Universal -property installationPath
+          if (-not $vsPath) { throw 'Visual Studio with the Universal Windows Platform workload was not found.' }
+
+          $msbuild = Join-Path $vsPath 'MSBuild\Current\Bin\MSBuild.exe'
+          $project = 'Rbfx.Examples/UwpScene/UwpScene.csproj'
+          $arguments = @(
+            $project,
+            '/t:Build',
+            '/nologo',
+            '/p:Configuration=Release',
+            "/p:RbfxPackageVersion=$env:PACKAGE_VERSION",
+            '/p:RuntimeIdentifier=uap-x64',
+            '/p:EnableCodeSigning=false',
+            '/p:BuildIpa=false'
+          )
+          & $msbuild @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload Consumer Build Logs
         if: failure()
         uses: actions/upload-artifact@v7

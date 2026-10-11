@@ -143,10 +143,15 @@ jobs:
           path: packages
           merge-multiple: true
 
-      - name: Create and Push Tag
+      # A git push of the tag fails when the tagged commit changes a workflow file, because the
+      # workflow token has no `workflows` permission. The references API has no such check.
+      - name: Move Tag
         run: |
-          git tag -f "$RELEASE_TAG"
-          git push -f origin "$RELEASE_TAG"
+          if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$RELEASE_TAG" -f sha="$GITHUB_SHA" -F force=true
+          else
+            gh api -X POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$RELEASE_TAG" -f sha="$GITHUB_SHA"
+          fi
 
       - name: Release Packages
         shell: bash

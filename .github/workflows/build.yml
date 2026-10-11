@@ -155,6 +155,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: SharpCpp.Rbfx/build/union-input
+      - name: Install rbfx Runtime Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopengl0 libglx0 libx11-6 libdbus-1-3 libuuid1
       - name: Test Union Generator
         run: dotnet test SharpCpp/tests/SharpCpp.Tests.ApiUnion/SharpCpp.Tests.ApiUnion.csproj -c Release --nologo
       - name: Build Union Packages
@@ -206,6 +210,11 @@ jobs:
         with:
           name: union-nuget
           path: SharpCpp.Rbfx/build/union-smoke/packages
+      - name: Install rbfx Runtime Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopengl0 libglx0 libx11-6 libdbus-1-3 libuuid1
       - name: Verify Union Runtime
         working-directory: SharpCpp.Rbfx
         run: >-

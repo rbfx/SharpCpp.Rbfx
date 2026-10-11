@@ -10,11 +10,16 @@
     <RuntimeIdentifierGraphPath>$(MSBuildProjectDirectory)/RuntimeIdentifierGraph.json</RuntimeIdentifierGraphPath>
     <UseRidGraph>true</UseRidGraph>
     <UseUwp>true</UseUwp>
+    <UseUwpTools>true</UseUwpTools>
     <EnableMsixTooling>true</EnableMsixTooling>
     <PublishAot>true</PublishAot>
     <DisableRuntimeMarshalling>true</DisableRuntimeMarshalling>
     <DefaultLanguage>en-US</DefaultLanguage>
   </PropertyGroup>
+  <ItemGroup>
+    <ApplicationDefinition Update="App.xaml" />
+    <Page Update="MainPage.xaml" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
   </ItemGroup>

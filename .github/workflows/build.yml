@@ -23,25 +23,21 @@ jobs:
   Package:
     name: ${{ matrix.rid }}
     runs-on: ${{ matrix.runs_on }}
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        # One entry for each runtime package. An experimental entry does not stop the release.
+        # One entry for each runtime package. A failure of an entry stops the release.
         # Only linux-x64 publishes the managed packages, so entries do not overwrite each other.
         # There is no osx-x64 entry, because libclang has no runtime package for that RID.
         include:
           - rid: linux-x64
             runs_on: ubuntu-latest
-            experimental: false
             packages: '*.nupkg'
           - rid: osx-arm64
             runs_on: macos-latest
-            experimental: true
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: win-x64
             runs_on: windows-latest
-            experimental: true
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
     steps:
       - name: Checkout SharpCpp.Rbfx

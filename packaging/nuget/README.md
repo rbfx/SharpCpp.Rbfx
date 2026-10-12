@@ -122,9 +122,11 @@ dotnet run --file packaging/nuget/CrossPackage.cs -- verify --rid browser-wasm -
 Android and iOS use the matching published SDK archives fetched by `package.sh`.
 The Wasm package uses Emscripten 3.1.56, matching .NET 10. It first looks for an
 exact SDK asset in this repository's rolling `latest` release, named
-`rbfx-web-wasm-sdk-emscripten-3.1.56-rbfx-<12-character-commit>.7z`. If that
-asset is absent, it builds rbfx from its `latest` tag with the matching Emscripten
-SDK and uses the result for packaging.
+`rbfx-web-wasm-sdk-emscripten-3.1.56-rbfx-<12-character-commit>.7z`. The filename
+is the cache key: it records the Emscripten version and rbfx commit, so the archive
+needs no embedded manifest or additional SDK validation. If the exact asset is
+absent, CI builds rbfx from its `latest` tag with the matching Emscripten SDK and
+uses the result for packaging.
 
 To build and upload the cache on demand, run the **Update Wasm SDK Cache**
 workflow, or build the archive locally:
@@ -152,7 +154,11 @@ Android consumer verification accepts `--AndroidSdkDirectory` and
 `--JavaSdkDirectory`.
 
 iOS packages must be built on macOS. iOS and Wasm native glue use static libraries;
-Android uses shared `.so` files.
+Android uses shared `.so` files and includes `libc++_shared.so` from the selected NDK.
+Its build targets defer rbfx native libraries until the binding calls them, because
+`libUrho3D.so`'s JNI startup expects SDL's Java activity. The Android x64 target also
+sets Tracy's `TRACY_NO_INVARIANT_CHECK` environment variable so Android emulators
+without invariant TSC can load the upstream SDK library.
 The iOS package strips debug information from staged copies of its archives to
 keep the package smaller; source SDK files are left untouched. Platform-specific
 consumer projects verify the NuGet linking metadata in CI. Android and Wasm

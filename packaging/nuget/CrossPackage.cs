@@ -63,7 +63,10 @@ static class CrossPackage
                 if (sdk is not null) ndk = Path.Combine(sdk, "ndk", NdkVersion);
             }
             if (ndk is null) throw new ArgumentException($"Supply --ndk-root or install NDK {NdkVersion} under ANDROID_HOME.");
-            var toolchain = Path.Combine(Path.GetFullPath(ndk), "build/cmake/android.toolchain.cmake");
+            ndk = Path.GetFullPath(ndk);
+            environment["ANDROID_NDK_HOME"] = ndk;
+            environment["ANDROID_NDK_ROOT"] = ndk;
+            var toolchain = Path.Combine(ndk, "build/cmake/android.toolchain.cmake");
             RequireFile(toolchain);
             cmake.AddRange([$"-DCMAKE_TOOLCHAIN_FILE={toolchain}", $"-DANDROID_ABI={abi}", "-DANDROID_PLATFORM=android-21", "-DANDROID_STL=c++_static", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"]);
         }
@@ -260,6 +263,33 @@ static class CrossPackage
 
     public static void Targets(string rid, string stage)
     {
+        if (rid.StartsWith("android-", StringComparison.Ordinal))
+        {
+            var androidRoot = Path.Combine(stage, "runtime", rid);
+            var nativeDirectory = Path.Combine(androidRoot, "native");
+            var androidLibraries = Directory.GetFiles(nativeDirectory, "*.so")
+                .Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToArray();
+            if (androidLibraries.Length == 0) throw new InvalidOperationException($"No shared libraries staged for {rid}.");
+
+            var androidProject = new XElement("Project");
+            var androidGroup = new XElement("ItemGroup", new XAttribute("Condition", "'$(AndroidApplication)' == 'true'"));
+            foreach (var library in androidLibraries)
+                androidGroup.Add(new XElement("AndroidNativeLibraryNoJniPreload",
+                    new XAttribute("Include", $"$(MSBuildThisFileDirectory)../runtimes/{rid}/native/{library}")));
+            if (rid == "android-x64")
+                androidGroup.Add(new XElement("AndroidEnvironment",
+                    new XAttribute("Include", "$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Bindings.runtime.android-x64.env")));
+            androidProject.Add(androidGroup);
+
+            var androidTargets = Path.Combine(androidRoot, "buildTransitive");
+            Directory.CreateDirectory(androidTargets);
+            new XDocument(androidProject).Save(Path.Combine(androidTargets, $"SharpCpp.Rbfx.Bindings.runtime.{rid}.targets"));
+            if (rid == "android-x64")
+                File.WriteAllText(Path.Combine(androidTargets, "SharpCpp.Rbfx.Bindings.runtime.android-x64.env"),
+                    "TRACY_NO_INVARIANT_CHECK=1\n");
+            return;
+        }
+
         if (rid is not ("ios-arm64" or "browser-wasm")) return;
         var root = Path.Combine(stage, "runtime", rid);
         var libraries = Directory.GetFiles(Path.Combine(root, "native"), "*.a").Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToArray();

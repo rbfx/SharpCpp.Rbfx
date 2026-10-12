@@ -1,4 +1,8 @@
 <Project>
+  <ItemGroup Condition="'$(AndroidApplication)' == 'true'">
+    <AndroidNativeLibraryNoJniPreload Include="$(MSBuildThisFileDirectory)../runtimes/android-x64/native/*.so" />
+    <AndroidEnvironment Include="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Bindings.runtime.android-x64.env" />
+  </ItemGroup>
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
     <_SharpCppLinuxX64NativeAsset Include="$(MSBuildThisFileDirectory)../native-assets/linux-x64/*.so.bin" />
   </ItemGroup>

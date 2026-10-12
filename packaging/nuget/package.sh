@@ -301,6 +301,29 @@ stage_packages() {
       fi
       rm -f "$STAGE_DIR/runtime/$rid/native/libPlayer.so" "$STAGE_DIR/runtime/$rid/native/"libSample.*.so
       require_file "$STAGE_DIR/runtime/$rid/native/libUrho3D.so"
+
+      local ndk_root="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}"
+      local ndk_triple libcxx_candidate libcxx_source=""
+      if [ -z "$ndk_root" ]; then
+        echo "Error: ANDROID_NDK_HOME or ANDROID_NDK_ROOT is required to package Android's libc++_shared.so." >&2
+        return 1
+      fi
+      case "$rid" in
+        android-arm) ndk_triple="arm-linux-androideabi" ;;
+        android-arm64) ndk_triple="aarch64-linux-android" ;;
+        android-x64) ndk_triple="x86_64-linux-android" ;;
+      esac
+      for libcxx_candidate in "$ndk_root"/toolchains/llvm/prebuilt/*/sysroot/usr/lib/"$ndk_triple"/libc++_shared.so; do
+        if [ -f "$libcxx_candidate" ]; then
+          libcxx_source="$libcxx_candidate"
+          break
+        fi
+      done
+      if [ -z "$libcxx_source" ]; then
+        echo "Error: could not find NDK libc++_shared.so for $rid under $ndk_root." >&2
+        return 1
+      fi
+      cp -a "$libcxx_source" "$STAGE_DIR/runtime/$rid/native/"
       ;;
     ios-arm64|browser-wasm)
       require_file "$bin_dir/libSharpCpp.Rbfx.Native.a"

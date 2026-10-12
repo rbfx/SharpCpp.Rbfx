@@ -5,6 +5,7 @@
     <RbfxWrappedAssemblyName>@WRAP_ASSEMBLY_NAME@</RbfxWrappedAssemblyName>
     <RbfxWrappedNamespace>@WRAP_NAMESPACE@</RbfxWrappedNamespace>
     <RbfxWrappedLibraryName>@WRAP_LIBRARY_NAME@</RbfxWrappedLibraryName>
+    <RbfxWrappedImportLibraryName>@WRAP_IMPORT_LIBRARY_NAME@</RbfxWrappedImportLibraryName>
     <RbfxWrappedGeneratedDirectory>@WRAP_GENERATED_DIRECTORY@</RbfxWrappedGeneratedDirectory>
     <RbfxConsumedGeneratedDir>@WRAP_GENERATED_ROOT@</RbfxConsumedGeneratedDir>
     <RbfxConsumedGeneratedStamp>@WRAP_GENERATED_STAMP@</RbfxConsumedGeneratedStamp>

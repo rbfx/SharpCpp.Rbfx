@@ -16,7 +16,16 @@ public static partial class UserCodeSupport
 #if RBFX_USERCODE
     public const bool IsAvailable = true;
 
-    [LibraryImport("Example.UserCode.Native", EntryPoint = "RbfxExamples_AddRotatingComponent")]
+    // The generator does not wrap the factory: it is a global extern "C" function. The name follows the generated bindings.
+#if SHARPCPP_BROWSER_WASM
+    private const string NativeLibraryName = "libExample.UserCode.Native";
+#elif SHARPCPP_STATIC_RUNTIME
+    private const string NativeLibraryName = "__Internal";
+#else
+    private const string NativeLibraryName = "Example.UserCode.Native";
+#endif
+
+    [LibraryImport(NativeLibraryName, EntryPoint = "RbfxExamples_AddRotatingComponent")]
     private static partial nint AddRotatingComponent(nint node, float degreesPerSecond);
 
     /// <summary>

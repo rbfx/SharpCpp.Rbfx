@@ -8,6 +8,8 @@
 #   NAMESPACE            C# namespace of the bindings. Default: <target> without "." and "-".
 #   ASSEMBLY_NAME        Name of the managed assembly. Default: <target>.
 #   LIBRARY_NAME         Name of the native library without prefix and suffix. Default: <target>.Native.
+#                        The generated C# imports "lib<LIBRARY_NAME>" for a static library on Emscripten,
+#                        "__Internal" for another static library, and LIBRARY_NAME otherwise.
 #   SYMBOL_PREFIX        Prefix of the exported native symbols. Default: lower-case <target> with letters and digits only.
 #   GENERATED_DIRECTORY  Directory below SHARPCPP_GENERATED_ROOT for the generated sources. Default: <target>.
 #   LIBRARY_TYPE         SHARED or STATIC. Default: RBFX_NATIVE_LIBRARY_TYPE.
@@ -114,6 +116,14 @@ function(rbfx_csharp_add_usercode target)
     set(native_library_prefix "${CMAKE_SHARED_LIBRARY_PREFIX}")
     set(native_library_suffix "${CMAKE_SHARED_LIBRARY_SUFFIX}")
   endif()
+  # The name that the generated C# passes to DllImport. A static library is linked into the executable.
+  if(WRAP_LIBRARY_TYPE STREQUAL "STATIC" AND CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    set(WRAP_IMPORT_LIBRARY_NAME "lib${WRAP_LIBRARY_NAME}")
+  elseif(WRAP_LIBRARY_TYPE STREQUAL "STATIC")
+    set(WRAP_IMPORT_LIBRARY_NAME "__Internal")
+  else()
+    set(WRAP_IMPORT_LIBRARY_NAME "${WRAP_LIBRARY_NAME}")
+  endif()
   set(WRAP_TARGET "${target}")
   set(WRAP_GENERATED_ROOT "${generated_root}")
   set(WRAP_GENERATED_STAMP "${generated_stamp}")
@@ -219,7 +229,7 @@ function(rbfx_csharp_add_usercode target)
             --assembly-name "${WRAP_ASSEMBLY_NAME}"
             --namespace "${WRAP_NAMESPACE}"
             --bindings-class "Bindings"
-            --library-name "${WRAP_LIBRARY_NAME}"
+            --library-name "${WRAP_IMPORT_LIBRARY_NAME}"
             --file-stem "${file_stem}"
             --symbol-prefix "${WRAP_SYMBOL_PREFIX}"
             --sharpcpp-include "${SHARPCPP_ROOT}/include"

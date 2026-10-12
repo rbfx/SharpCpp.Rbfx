@@ -20,7 +20,7 @@ A managed project that wants the dll declares `<RbfxUserCodeReference Include="E
 `Rbfx.Examples/Example.Common` does this:
 
 - `Example.Common.csproj` declares the `RbfxUserCodeReference`, references the bindings and source generator projects, and defines `RBFX_USERCODE`.
-- `UserCodeSupport.cs` imports `RbfxExamples_AddRotatingComponent` from `Example.UserCode.Native`. `UserCodeSupport.AddRotatingComponent(node)` adds the component to a node. `SceneSample` calls it for its primary node.
+- `UserCodeSupport.cs` imports `RbfxExamples_AddRotatingComponent` with its own `LibraryImport`, because the generator does not wrap a global `extern "C"` function. The library name is a constant: `Example.UserCode.Native`, `__Internal` when `SHARPCPP_STATIC_RUNTIME` is defined (iOS), or `libExample.UserCode.Native` when `SHARPCPP_BROWSER_WASM` is defined. The generated bindings use the same names, because `rbfx_csharp_add_usercode` passes them to the generator (property `RbfxWrappedImportLibraryName` in `Example.UserCode.props`). `UserCodeSupport.AddRotatingComponent(node)` adds the component to a node. `SceneSample` calls it for its primary node.
 - A target in `Example.Common.csproj` copies `libSharpCpp.Rbfx.Native`, `libUrho3D` and `libExample.UserCode.Native` to the output folder of each app that references Common. It gives an error if one file is missing.
 
 `Rbfx.Examples/Example.Common.NuGet` compiles the same sources against the `SharpCpp.Rbfx.Bindings` NuGet package. It has no `RBFX_USERCODE` constant, and `UserCodeSupport.IsAvailable` is `false`. The Android, iOS, Wasm and UWP examples reference it.

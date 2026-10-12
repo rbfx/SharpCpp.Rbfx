@@ -7,9 +7,12 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 ## Layout
 
 - `SharpCpp.Rbfx.Generator/` - phase-1 generator for the installed rbfx SDK headers.
-- `Rbfx.UserCode/` - phase-2 user-code generator, sample user code and bindings.
+- `Rbfx.UserCode/` - only `Rbfx.UserCode.Generator/`, the phase-2 user-code generator.
 - `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). Public headers are `Urho3D/CSharp/DotNetHost.h` and `DotNetHostExport.h` (`namespace Urho3D`). `cmake/FindNetHost.cmake` finds nethost.
-- `Rbfx.Examples/Example.NativeHost/` - example: C++ executable that hosts .NET and uses a wrapped C++ type. `rbfx_csharp_add_usercode()` is in `cmake/RbfxCSharpAddUsercode.cmake`.
+- `Rbfx.Examples/Example.UserCode/` - example: native C++ component (`RotatingComponent`) and CMake. No managed project.
+- `Rbfx.Examples/Example.Common/` - shared demo source build. It uses `Example.UserCode.Bindings.dll`. `Example.Desktop` uses it.
+- `Rbfx.Examples/Example.Common.NuGet/` - NuGet-only twin of `Example.Common` (same sources). Android, iOS, Wasm and UWP use it. Desktop uses it with `-p:RbfxExamplesNuGetOnly=true` (CI).
+- `Rbfx.Examples/Example.NativeHost/` - example: C++ executable that hosts .NET and uses a wrapped C++ type.
 - `SharpCpp.Rbfx.Bindings/` - generated rbfx wrapper assembly and hand-written runtime glue.
 - `SharpCpp.Ea/`, `SharpCpp.Rbfx.SourceGenerator/` - EASTL containers and Roslyn helpers.
 - `SharpCpp.Rbfx.Tests.E2E/` - round-trip tests against the generated rbfx wrappers.
@@ -23,6 +26,35 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
   sibling `../SharpCpp`.
 - `RbfxSdkRoot` (MSBuild) / `RBFX_SDK_ROOT` (CMake or environment): installed
   shared-library rbfx SDK; defaults to `../../rbfx-sdk` when present.
+
+## Wrap user C++ code
+
+`rbfx_csharp_add_usercode(<target> HEADERS ... [SOURCES INCLUDE_DIRECTORIES LINK_LIBRARIES NAMESPACE
+ASSEMBLY_NAME LIBRARY_NAME SYMBOL_PREFIX GENERATED_DIRECTORY LIBRARY_TYPE CSPROJ])` is in
+`cmake/RbfxCSharpAddUsercode.cmake`.
+
+- The function builds the native library and runs the phase-2 generator.
+- At configure time it writes `Directory.Build.props`, `Directory.Build.targets`, `<target>.props`
+  and `<ASSEMBLY_NAME>.csproj` into the build tree, below `usercode/<target>/`.
+- The user needs no generator knowledge and no bindings csproj.
+- CMake never runs `dotnet build`. It would deadlock with the native build lock.
+- `CSPROJ <path>`: the user supplies the project and the function writes none. `<target>.props` stays available to import.
+- Opt-in hooks: a user csproj can import `<target>.props`. Cache variables are
+  `RBFX_CSHARP_BINDINGS_PROJECTS`, `RBFX_CSHARP_BINDINGS_PACKAGE_VERSION`,
+  `RBFX_CSHARP_MSBUILD_PROPS` and `RBFX_CSHARP_MSBUILD_TARGETS`. Target properties are
+  `SHARPCPP_RBFX_MANAGED_PROJECT`, `SHARPCPP_RBFX_MANAGED_PROPS` and `SHARPCPP_RBFX_MANAGED_ASSEMBLY`.
+- A duplicate `ASSEMBLY_NAME` is a configure error.
+
+A consumer csproj declares `<RbfxUserCodeReference Include="<cmake target>" />`.
+`eng/SharpCpp.Rbfx.Build.targets` then adds a reference to the native project. Target
+`RbfxResolveUserCodeReferences` restores and builds the generated project and references its dll.
+So the wrapped user code gives a dll that other modules use.
+
+## Run the examples
+
+- `Example.Desktop` and `Example.Common` need `RBFX_SDK_ROOT` and the native build (about 7 minutes the first time).
+- `Rbfx.Examples.slnx` also needs the SDK now.
+- A Linux desktop run needs `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768`.
 
 Do not use absolute paths. Missing generator capabilities are fixed in SharpCpp, not
 worked around here.

@@ -14,8 +14,11 @@ WebAssembly, and UWP require the matching .NET workload or Windows UWP tools.
 references the bindings project and the generated `Example.UserCode.Bindings` assembly, so the
 desktop cube also shows the native `RotatingComponent`. They need `RBFX_SDK_ROOT` and the
 native build (CMake option `RBFX_BUILD_USERCODE`, ON by default). See `Example.UserCode/README.md`.
+`Example.Common` and `Rbfx.Examples.slnx` need the SDK. The first native build takes about 7 minutes.
 To build `Example.Desktop` from NuGet packages only, pass `-p:RbfxExamplesNuGetOnly=true`.
 Desktop then uses `Example.Common.NuGet` and shows no user code. CI does this.
+
+`Example.UserCode` is native only. Its generated `Example.UserCode.Bindings.dll` is used by `Example.Common`, and so by `Example.Desktop`.
 
 `Example.NativeHost` is also an exception. It builds from source with the main CMake project and is not part of `Rbfx.Examples.slnx`. See its README.
 

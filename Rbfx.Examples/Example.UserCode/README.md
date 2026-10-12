@@ -11,7 +11,7 @@ Like `Example.NativeHost`, this example builds from source with the main CMake p
   - `Example.UserCode.Bindings.dll`: the generated bindings assembly with the `RbfxExamples.RotatingComponent` wrapper.
   - `libExample.UserCode.Native.so` (`Example.UserCode.Native.dll` on Windows): the native library. It also exports the C function `RbfxExamples_AddRotatingComponent`, because the user-code bindings cannot pass `Node*` or `Context*` yet.
 
-  At configure time the call also writes the managed bindings project below `build/native/dev/generated/usercode/Example.UserCode/`.
+  At configure time the call also writes `Directory.Build.props`, `Directory.Build.targets`, `Example.UserCode.props` and `Example.UserCode.Bindings.csproj` below `build/native/dev/generated/usercode/Example.UserCode/`. You need no generator knowledge and no bindings project. CMake never runs `dotnet build`. With `CSPROJ <path>` you supply your own project and the call writes none.
 
 ## How managed code uses the dll
 
@@ -26,6 +26,8 @@ A managed project that wants the dll declares `<RbfxUserCodeReference Include="E
 `Rbfx.Examples/Example.Common.NuGet` compiles the same sources against the `SharpCpp.Rbfx.Bindings` NuGet package. It has no `RBFX_USERCODE` constant, and `UserCodeSupport.IsAvailable` is `false`. The Android, iOS, Wasm and UWP examples reference it.
 
 ## Build and run
+
+The build needs `RBFX_SDK_ROOT` and the native build (about 7 minutes the first time).
 
 ```
 export RBFX_SDK_ROOT=<path of the installed rbfx SDK>

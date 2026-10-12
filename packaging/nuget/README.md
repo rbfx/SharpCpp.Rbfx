@@ -31,17 +31,18 @@ does not use new `.nuspec` files.
 ./packaging/nuget/package.sh create --version 0.1.0-alpha --rid linux-x64
 ```
 
-The script downloads the matching prebuilt rbfx DLL SDK archive from
-`https://github.com/rbfx/rbfx/releases/download/latest`, builds the binding
+The script fetches the matching prebuilt rbfx SDK with `eng/fetch-rbfx-sdk.sh`
+into `build/sdk/<rid>/` (see `eng/fetch-rbfx-sdk.sh --help`), builds the binding
 project (which drives the auxiliary native CMake target through MSBuild), stages
 files, and runs `dotnet pack`.
 Package target-framework paths are derived from the repository `TargetFramework`
 property. Use `--target-framework TFM` only when explicitly overriding it.
 
-Use `--skip-fetch` when `build/package/nuget/in/<sdk-name>/` already exists. Use
-`--skip-build` to package an already-built `build/bin/<Configuration>` tree.
-Package staging, package output, downloaded SDKs, and the local repository all
-remain below `build/package/nuget/`.
+Use `--sdk-root PATH` to use an SDK that exists already. Use `--skip-fetch` when
+`build/sdk/<rid>/` already exists. Use `--rbfx-tag TAG` to select an rbfx release.
+Use `--skip-build` to package an already-built `build/bin/<Configuration>` tree.
+Package staging, package output, and the local repository remain below
+`build/package/nuget/`. Downloaded SDKs are in `build/sdk/`.
 
 ## Union packages
 
@@ -119,14 +120,14 @@ dotnet run --file packaging/nuget/CrossPackage.cs -- create --rid browser-wasm -
 dotnet run --file packaging/nuget/CrossPackage.cs -- verify --rid browser-wasm --version 0.1.0-local.1
 ```
 
-Android and iOS use the matching published SDK archives fetched by `package.sh`.
+Android and iOS use the matching published SDK archives fetched by `eng/fetch-rbfx-sdk.sh`.
 The Wasm package uses Emscripten 3.1.56, matching .NET 10. It first looks for an
 exact SDK asset in this repository's rolling `latest` release, named
 `rbfx-web-wasm-sdk-emscripten-3.1.56-rbfx-<12-character-commit>.7z`. The filename
 is the cache key: it records the Emscripten version and rbfx commit, so the archive
 needs no embedded manifest or additional SDK validation. If the exact asset is
 absent, CI builds rbfx from its `latest` tag with the matching Emscripten SDK and
-uses the result for packaging.
+uses the result for packaging. `eng/fetch-rbfx-sdk.sh` downloads the asset.
 
 To build and upload the cache on demand, run the **Update Wasm SDK Cache**
 workflow, or build the archive locally:
@@ -164,7 +165,7 @@ keep the package smaller; source SDK files are left untouched. Platform-specific
 consumer projects verify the NuGet linking metadata in CI. Android and Wasm
 consumers can also be generated locally with the utility's `verify` command.
 
-Known SDK archive mappings:
+Known SDK archive mappings (kept in `eng/fetch-rbfx-sdk.sh`):
 
 - `linux-x64`: `rebelfork-sdk-linux-gcc-x64-dll-latest.7z`
 - `osx-x64`: `rebelfork-sdk-macos-clang-x64-dll-latest.7z`

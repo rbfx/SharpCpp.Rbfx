@@ -45,7 +45,6 @@ static class CrossPackage
     const string RbfxRepository = "https://github.com/rbfx/rbfx.git";
     const string RbfxLatestRef = "refs/tags/latest";
     const string WasmSdkAssetPrefix = "rbfx-web-wasm-sdk-";
-    const string WasmSdkReleaseBaseUrl = "https://github.com/rbfx/SharpCpp.Rbfx/releases/download/latest/";
 
     public static void Create(string rid, string version, Dictionary<string, string> options)
     {
@@ -84,11 +83,7 @@ static class CrossPackage
             string wasmSdkRoot;
             if (options.TryGetValue("sdk-root", out var explicitSdkRoot))
                 wasmSdkRoot = Path.GetFullPath(explicitSdkRoot);
-            else
-            {
-                var rbfxCommit = ResolveRbfxLatestCommit();
-                wasmSdkRoot = ResolveWasmSdk(emsdk, rbfxCommit, options, environment);
-            }
+            else wasmSdkRoot = ResolveWasmSdk(emsdk, options, environment);
             var toolchain = Path.Combine(emsdk, "upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake");
             cmake.AddRange([$"-DCMAKE_TOOLCHAIN_FILE={toolchain}", "-DCMAKE_C_FLAGS=-fwasm-exceptions",
                 "-DCMAKE_CXX_FLAGS=-fwasm-exceptions", "-DRBFX_SDK_PARSE_EXTRA_OPTIONS=-fwasm-exceptions"]);
@@ -153,56 +148,45 @@ static class CrossPackage
             throw new ArgumentException($"The .NET 10 Wasm workload requires Emscripten {EmscriptenVersion}; found '{compilerVersion.Trim()}'.");
     }
 
-    static string ResolveWasmSdk(string emsdk, string rbfxCommit, Dictionary<string, string> options,
-        Dictionary<string, string> environment)
+    static string ResolveWasmSdk(string emsdk, Dictionary<string, string> options, Dictionary<string, string> environment)
     {
         var buildRoot = Path.GetFullPath(options.GetValueOrDefault("build-root") ?? Path.Combine(Repo, "build/cross/browser-wasm"));
-        var cacheRoot = Path.Combine(buildRoot, "wasm-sdk-cache");
-        var archive = Path.Combine(buildRoot, "wasm-sdk-cache.7z");
-        if (TryDownloadWasmSdk(archive, EmscriptenVersion, rbfxCommit))
+        var expectedAsset = WasmSdkAssetName(EmscriptenVersion, ResolveRbfxLatestCommit());
+        try
         {
-            if (Directory.Exists(cacheRoot)) Directory.Delete(cacheRoot, recursive: true);
-            Directory.CreateDirectory(cacheRoot);
-            Run("7z", ["x", "-y", $"-o{cacheRoot}", archive]);
-            Console.WriteLine($"Using cached rbfx Wasm SDK asset {WasmSdkAssetName(EmscriptenVersion, rbfxCommit)}.");
-            return cacheRoot;
+            // eng/fetch-rbfx-sdk.sh is the single source of truth for SDK downloads. It logs to stderr.
+            var output = Run("bash", [Path.Combine(Repo, "eng/fetch-rbfx-sdk.sh"), "--rid", "browser-wasm", "--print-root"], capture: true);
+            var root = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim();
+            if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
+                Console.WriteLine("eng/fetch-rbfx-sdk.sh did not print an SDK root; building the rbfx Wasm SDK locally.");
+            else
+            {
+                // Accept only the SDK asset that matches the Emscripten version and the current rbfx latest commit.
+                var asset = ReadSdkStampAsset(root);
+                if (asset == expectedAsset)
+                {
+                    Console.WriteLine($"Using rbfx Wasm SDK asset {asset}.");
+                    return Path.GetFullPath(root);
+                }
+                Console.WriteLine($"Fetched Wasm SDK asset '{asset ?? "unknown"}' is not '{expectedAsset}'; building it locally.");
+            }
         }
-        else Console.WriteLine("No rbfx Wasm SDK cache found in the latest release; building it locally.");
+        catch (InvalidOperationException exception)
+        {
+            Console.WriteLine($"Could not fetch the rbfx Wasm SDK ({exception.Message}); building it locally.");
+        }
 
         var (sdkRoot, _) = BuildWasmSdkFromSource(emsdk, Path.Combine(buildRoot, "wasm-sdk-build"), environment);
         return sdkRoot;
     }
 
-    static bool TryDownloadWasmSdk(string archive, string emscriptenVersion, string rbfxCommit)
+    static string? ReadSdkStampAsset(string sdkRoot)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("SharpCpp.Rbfx-Wasm-SDK");
-            var assetName = WasmSdkAssetName(emscriptenVersion, rbfxCommit);
-            var url = WasmSdkReleaseBaseUrl + Uri.EscapeDataString(assetName);
-            using var response = client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return false;
-            if (!response.IsSuccessStatusCode)
-            {
-                Console.WriteLine($"Could not read the latest-release Wasm SDK cache ({(int)response.StatusCode}); building it locally.");
-                return false;
-            }
-            using var source = response.Content.ReadAsStream();
-            using var destination = File.Create(archive);
-            source.CopyTo(destination);
-            return true;
-        }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
-        {
-            Console.WriteLine($"Could not download the latest-release Wasm SDK cache ({exception.Message}); building it locally.");
-            return false;
-        }
+        var stamp = Path.Combine(sdkRoot, ".rbfx-sdk.json");
+        if (!File.Exists(stamp)) return null;
+        using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(stamp));
+        return document.RootElement.TryGetProperty("asset", out var asset) ? asset.GetString() : null;
     }
-
-    static string WasmSdkAssetName(string emscriptenVersion, string rbfxCommit) =>
-        $"{WasmSdkAssetPrefix}emscripten-{emscriptenVersion}-rbfx-{rbfxCommit[..12]}.7z";
 
     static string ResolveRbfxLatestCommit()
     {
@@ -217,6 +201,9 @@ static class CrossPackage
             throw new InvalidOperationException($"Could not resolve rbfx's {RbfxLatestRef} commit.");
         return commit.ToLowerInvariant();
     }
+
+    static string WasmSdkAssetName(string emscriptenVersion, string rbfxCommit) =>
+        $"{WasmSdkAssetPrefix}emscripten-{emscriptenVersion}-rbfx-{rbfxCommit[..12]}.7z";
 
     static (string SdkRoot, string RbfxCommit) BuildWasmSdkFromSource(string emsdk, string buildRoot,
         Dictionary<string, string> environment)

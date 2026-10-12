@@ -5,34 +5,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 PACKAGE_ROOT="$REPO_ROOT/build/package/nuget"
-IN_DIR="$PACKAGE_ROOT/in"
 STAGE_DIR="$PACKAGE_ROOT/stage"
 OUT_DIR="$PACKAGE_ROOT/out"
 LOCAL_REPOSITORY_DIR="$PACKAGE_ROOT/local-repository"
-RELEASE_DOWNLOAD_BASE="https://github.com/rbfx/rbfx/releases/download/latest"
+FETCH_SDK_SCRIPT="$REPO_ROOT/eng/fetch-rbfx-sdk.sh"
+SDK_OUTPUT_DIR="$REPO_ROOT/build/sdk"
 
 DOTNET="${DOTNET:-dotnet}"
 NUGET="${NUGET:-nuget}"
-
-declare -A SDK_ASSETS=(
-  [linux-x64]="rebelfork-sdk-linux-gcc-x64-dll-latest.7z"
-  [osx-x64]="rebelfork-sdk-macos-clang-x64-dll-latest.7z"
-  [osx-arm64]="rebelfork-sdk-macos-clang-arm64-dll-latest.7z"
-  [win-x64]="rebelfork-sdk-windows-msvc-x64-dll-latest.7z"
-  [uap-x64]="rebelfork-sdk-uwp-msvc-x64-dll-latest.7z"
-  [android-arm]="rebelfork-sdk-android-clang-arm-dll-latest.7z"
-  [android-arm64]="rebelfork-sdk-android-clang-arm64-dll-latest.7z"
-  [android-x64]="rebelfork-sdk-android-clang-x64-dll-latest.7z"
-  [ios-arm64]="rebelfork-sdk-ios-clang-arm64-lib-latest.7z"
-)
 
 usage() {
   cat >&2 <<'EOF'
 Usage: package.sh <action> [options]
 
 Actions:
-  fetch-sdk     Download and extract one rbfx prebuilt DLL SDK archive
-  fetch-sdks    Download and extract all known rbfx prebuilt DLL SDK archives
+  fetch-sdk     Fetch one rbfx prebuilt SDK with eng/fetch-rbfx-sdk.sh
+  fetch-sdks    Fetch all known rbfx prebuilt SDKs with eng/fetch-rbfx-sdk.sh
   create        Build, stage, and pack SDK-style NuGet packages
   local-repo    Create a local NuGet repository from packages in out/
 
@@ -62,127 +50,79 @@ default_rid() {
   esac
 }
 
-sdk_asset_for_rid() {
-  local rid="$1"
-  local asset="${SDK_ASSETS[$rid]:-}"
-  if [ -z "$asset" ]; then
-    echo "Error: no SDK asset mapping for RID '$rid'. Pass --sdk-asset or --sdk-root." >&2
-    return 1
-  fi
-  echo "$asset"
+# Runs eng/fetch-rbfx-sdk.sh, the single source of truth for SDK downloads.
+# Its log goes to stderr. With --print-root, stdout is the SDK root only.
+run_fetch_sdk() {
+  bash "$FETCH_SDK_SCRIPT" "$@"
 }
 
-download_file() {
-  local url="$1"
-  local output="$2"
-
-  if command -v curl >/dev/null 2>&1; then
-    curl --fail --location --show-error --output "$output" "$url"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -O "$output" "$url"
-  else
-    echo "Error: curl or wget is required to download '$url'." >&2
-    return 1
-  fi
-}
-
-extract_archive() {
-  local archive="$1"
-
-  if command -v 7z >/dev/null 2>&1; then
-    7z x -y "-o$IN_DIR" "$archive"
-  elif command -v 7za >/dev/null 2>&1; then
-    7za x -y "-o$IN_DIR" "$archive"
-  else
-    echo "Error: 7z or 7za is required to extract '$archive'." >&2
-    return 1
-  fi
-}
-
-normalize_sdk_cmake_exports() {
-  local sdk_root="$1"
-  local cmake_file="$sdk_root/share/Urho3D/CMake/Urho3D.cmake"
-  local debian_dbus_path="/usr/lib/x86_64-linux-gnu/libdbus-1.so"
-
-  if [ ! -f "$cmake_file" ] || [ -e "$debian_dbus_path" ]; then
-    return 0
-  fi
-
-  if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists dbus-1; then
-    sed -i "s#$debian_dbus_path#dbus-1#g" "$cmake_file"
-    echo "Normalized missing DBus link path in $cmake_file"
-  fi
-}
-
-fetch_sdk() {
-  local rid=""
-  local asset=""
-  local force=0
-
+# Sets FETCH_RID and FETCH_ARGS from the options shared by fetch-sdk and fetch-sdks.
+parse_fetch_options() {
+  FETCH_RID=""
+  FETCH_ARGS=()
   while [ $# -gt 0 ]; do
     case "$1" in
       --rid)
-        rid="$2"
+        [ $# -ge 2 ] || { echo "Error: $1 needs a value." >&2; return 1; }
+        FETCH_RID="$2"
         shift 2
         ;;
-      --sdk-asset)
-        asset="$2"
+      --rbfx-tag|--output)
+        [ $# -ge 2 ] || { echo "Error: $1 needs a value." >&2; return 1; }
+        FETCH_ARGS+=("$1" "$2")
         shift 2
         ;;
       --force)
-        force=1
+        FETCH_ARGS+=("$1")
         shift
         ;;
-      --help|-h)
-        cat <<'EOF'
-Usage: package.sh fetch-sdk [--rid RID] [--sdk-asset ASSET] [--force]
-
-Downloads and extracts one rbfx prebuilt DLL SDK archive into build/package/nuget/in/.
-If --rid is omitted, the host RID is inferred.
-EOF
-        return 0
-        ;;
       *)
-        echo "Error: unknown fetch-sdk option '$1'." >&2
+        echo "Error: unknown fetch option '$1'." >&2
         return 1
         ;;
     esac
   done
+}
 
-  if [ -z "$rid" ]; then
-    rid="$(default_rid)"
+fetch_sdk() {
+  case "${1:-}" in
+    --help|-h)
+      cat <<'EOF'
+Usage: package.sh fetch-sdk [--rid RID] [--rbfx-tag TAG] [--output DIR] [--force]
+
+Fetches one rbfx prebuilt SDK with eng/fetch-rbfx-sdk.sh into build/sdk/<rid>/
+and prints the SDK root. If --rid is omitted, the host RID is inferred.
+--output sets the SDK directory. See eng/fetch-rbfx-sdk.sh --help.
+EOF
+      return 0
+      ;;
+  esac
+
+  parse_fetch_options "$@"
+  if [ -z "$FETCH_RID" ]; then
+    FETCH_RID="$(default_rid)"
   fi
-
-  if [ -z "$asset" ]; then
-    asset="$(sdk_asset_for_rid "$rid")"
-  fi
-
-  local archive="$IN_DIR/$asset"
-  local sdk_dir="$IN_DIR/${asset%.7z}"
-
-  mkdir -p "$IN_DIR"
-
-  if [ ! -f "$archive" ] || [ "$force" -eq 1 ]; then
-    echo "Downloading $asset"
-    download_file "$RELEASE_DOWNLOAD_BASE/$asset" "$archive"
-  fi
-
-  if [ ! -d "$sdk_dir" ] || [ "$force" -eq 1 ]; then
-    echo "Extracting $asset"
-    rm -rf "$sdk_dir"
-    extract_archive "$archive"
-  fi
-
-  normalize_sdk_cmake_exports "$sdk_dir"
-
-  echo "$sdk_dir"
+  run_fetch_sdk --rid "$FETCH_RID" "${FETCH_ARGS[@]}" --print-root
 }
 
 fetch_sdks() {
-  local rid
-  for rid in "${!SDK_ASSETS[@]}"; do
-    fetch_sdk --rid "$rid" "$@" >/dev/null
-  done
+  case "${1:-}" in
+    --help|-h)
+      cat <<'EOF'
+Usage: package.sh fetch-sdks [--rbfx-tag TAG] [--output DIR] [--force]
+
+Fetches all known rbfx prebuilt SDKs with eng/fetch-rbfx-sdk.sh --all.
+EOF
+      return 0
+      ;;
+  esac
+
+  parse_fetch_options "$@"
+  if [ -n "$FETCH_RID" ]; then
+    echo "Error: fetch-sdks does not accept --rid." >&2
+    return 1
+  fi
+  run_fetch_sdk --all "${FETCH_ARGS[@]}"
 }
 
 require_file() {
@@ -420,7 +360,7 @@ create_packages() {
   local configuration="Release"
   local configure_preset="dev"
   local sdk_root=""
-  local sdk_asset=""
+  local rbfx_tag=""
   local target_framework=""
   local skip_fetch=0
   local skip_build=0
@@ -449,8 +389,8 @@ create_packages() {
         sdk_root="$2"
         shift 2
         ;;
-      --sdk-asset)
-        sdk_asset="$2"
+      --rbfx-tag)
+        rbfx_tag="$2"
         shift 2
         ;;
       --target-framework)
@@ -482,10 +422,10 @@ Options:
   --rid RID                 Runtime package RID. Defaults to host RID.
   --configuration, -c NAME   Build configuration. Defaults to Release.
   --configure-preset NAME    Auxiliary CMake preset. Defaults to dev.
-  --sdk-root PATH            Existing extracted rbfx SDK root.
-  --sdk-asset NAME           Override rbfx SDK release asset name.
+  --sdk-root PATH            Existing extracted rbfx SDK root. Overrides the fetch.
+  --rbfx-tag TAG             Release tag of rbfx/rbfx for the SDK. Defaults to latest.
   --target-framework TFM     Override package target framework. Defaults to repo TargetFramework.
-  --skip-fetch               Do not download/extract the SDK.
+  --skip-fetch               Do not fetch the SDK (use build/sdk/RID or --sdk-root).
   --skip-build               Do not build package inputs.
   --build-root PATH          Build directory containing bin/CONFIGURATION.
   --cmake-arg ARG            Extra CMake configure argument (repeatable).
@@ -515,26 +455,21 @@ EOF
   fi
 
   if [ -z "$sdk_root" ]; then
-    if [ -z "$sdk_asset" ]; then
-      sdk_asset="$(sdk_asset_for_rid "$rid")"
+    if [ "$skip_fetch" -eq 0 ]; then
+      local fetch_args=(--rid "$rid")
+      if [ -n "$rbfx_tag" ]; then
+        fetch_args+=(--rbfx-tag "$rbfx_tag")
+      fi
+      sdk_root="$(run_fetch_sdk "${fetch_args[@]}" --print-root)"
+    else
+      sdk_root="$SDK_OUTPUT_DIR/$rid"
     fi
-    sdk_root="$IN_DIR/${sdk_asset%.7z}"
-  fi
-
-  if [ "$skip_fetch" -eq 0 ]; then
-    local fetch_args=(--rid "$rid")
-    if [ -n "$sdk_asset" ]; then
-      fetch_args+=(--sdk-asset "$sdk_asset")
-    fi
-    fetch_sdk "${fetch_args[@]}" >/dev/null
   fi
 
   if [ ! -d "$sdk_root" ]; then
     echo "Error: SDK root does not exist: $sdk_root" >&2
     return 1
   fi
-
-  normalize_sdk_cmake_exports "$sdk_root"
 
   if [ "$skip_build" -eq 0 ]; then
     local native_configure_arguments="" encoded_argument argument

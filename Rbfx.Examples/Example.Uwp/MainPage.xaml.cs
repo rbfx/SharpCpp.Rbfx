@@ -1,6 +1,6 @@
 using Windows.UI.Xaml.Controls;
 
-namespace Rbfx.Examples.UwpScene;
+namespace Rbfx.Examples.Uwp;
 
 public sealed partial class MainPage : Page
 {

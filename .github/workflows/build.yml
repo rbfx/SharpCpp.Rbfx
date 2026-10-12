@@ -287,41 +287,41 @@ jobs:
         include:
           - rid: linux-x64
             runs_on: ubuntu-latest
-            project: Rbfx.Examples/RotatingCube/RotatingCube.csproj
+            project: Rbfx.Examples/Example.Desktop/Example.Desktop.csproj
           - rid: osx-arm64
             runs_on: macos-latest
-            project: Rbfx.Examples/RotatingCube/RotatingCube.csproj
+            project: Rbfx.Examples/Example.Desktop/Example.Desktop.csproj
           - rid: win-x64
             runs_on: windows-latest
-            project: Rbfx.Examples/RotatingCube/RotatingCube.csproj
+            project: Rbfx.Examples/Example.Desktop/Example.Desktop.csproj
           - rid: android-arm
             workload: android
             runs_on: ubuntu-latest
-            project: Rbfx.Examples/AndroidScene/AndroidScene.csproj
+            project: Rbfx.Examples/Example.Android/Example.Android.csproj
             verify: true
           - rid: android-arm64
             workload: android
             runs_on: ubuntu-latest
-            project: Rbfx.Examples/AndroidScene/AndroidScene.csproj
+            project: Rbfx.Examples/Example.Android/Example.Android.csproj
             verify: true
           - rid: android-x64
             workload: android
             runs_on: ubuntu-latest
-            project: Rbfx.Examples/AndroidScene/AndroidScene.csproj
+            project: Rbfx.Examples/Example.Android/Example.Android.csproj
             verify: true
           - rid: ios-arm64
             workload: ios
             runs_on: macos-latest
-            project: Rbfx.Examples/IosScene/IosScene.csproj
+            project: Rbfx.Examples/Example.Ios/Example.Ios.csproj
             verify: true
           - rid: browser-wasm
             workload: wasm-tools
             runs_on: ubuntu-latest
-            project: Rbfx.Examples/BrowserWasm/BrowserWasm.csproj
+            project: Rbfx.Examples/Example.Wasm/Example.Wasm.csproj
             verify: true
           - rid: uap-x64
             runs_on: windows-latest
-            project: Rbfx.Examples/UwpScene/UwpScene.csproj
+            project: Rbfx.Examples/Example.Uwp/Example.Uwp.csproj
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -380,7 +380,7 @@ jobs:
           if (-not $vsPath) { throw 'Visual Studio with the Universal Windows Platform workload was not found.' }
 
           $msbuild = Join-Path $vsPath 'MSBuild\Current\Bin\MSBuild.exe'
-          $project = 'Rbfx.Examples/UwpScene/UwpScene.csproj'
+          $project = 'Rbfx.Examples/Example.Uwp/Example.Uwp.csproj'
           $arguments = @(
             $project,
             '/t:Build',

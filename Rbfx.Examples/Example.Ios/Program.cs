@@ -1,11 +1,10 @@
 using CoreGraphics;
 using Foundation;
+using Rbfx.Examples.Common;
 using UIKit;
 using Urho3D.Core;
-using Urho3D.Math;
-using Urho3D.Scene;
 
-namespace Rbfx.Examples.IosScene;
+namespace Rbfx.Examples.Ios;
 
 internal static class Program
 {
@@ -16,16 +15,14 @@ internal static class Program
 internal sealed class AppDelegate : UIApplicationDelegate
 {
     private Context? _context;
-    private Scene? _scene;
+    private SceneSample? _sample;
 
     public override UIWindow? Window { get; set; }
 
     public override bool FinishedLaunching(UIApplication application, NSDictionary? launchOptions)
     {
         _context = new Context();
-        _scene = new Scene(_context);
-        var node = _scene.CreateChild(0u);
-        node.Position = new Vector3(3, 4, 0);
+        _sample = new SceneSample(_context);
 
         var window = new UIWindow(UIScreen.MainScreen.Bounds);
         var controller = new UIViewController
@@ -36,7 +33,7 @@ internal sealed class AppDelegate : UIApplicationDelegate
         var label = new UILabel(new CGRect(24, 120, window.Bounds.Width - 48, 120))
         {
             Lines = 0,
-            Text = $"A native rbfx scene contains one node.\nIts distance from the origin is {node.Position.Length:F1}.",
+            Text = _sample.DescribeLastNode(),
             TextAlignment = UITextAlignment.Center,
             TextColor = UIColor.Label
         };
@@ -48,7 +45,7 @@ internal sealed class AppDelegate : UIApplicationDelegate
 
     public override void WillTerminate(UIApplication application)
     {
-        _scene?.Dispose();
+        _sample?.Dispose();
         _context?.Dispose();
     }
 }

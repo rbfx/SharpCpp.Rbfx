@@ -3,37 +3,38 @@
 These examples restore published packages from NuGet.org. They have no project
 references to the binding generator and need no local rbfx SDK or SharpCpp checkout.
 Requires .NET 10. The desktop example supports `linux-x64`, `osx-arm64`, and `win-x64`.
-Android, iOS, browser WebAssembly, and UWP each have a dedicated project. Their
-builds require the matching .NET workload or Windows UWP tools.
+`Example.Common` owns the shared rbfx scene and node logic; each platform project
+contains its entry point and platform UI or engine host. Android, iOS, browser
+WebAssembly, and UWP require the matching .NET workload or Windows UWP tools.
 
 From the SharpCpp.Rbfx repository root:
 
 ```sh
-dotnet build Rbfx.Examples/RotatingCube
-dotnet run --project Rbfx.Examples/RotatingCube
+dotnet build Rbfx.Examples/Example.Desktop
+dotnet run --project Rbfx.Examples/Example.Desktop
 ```
 
 The window displays a rotating cube using models, materials and shaders copied
 from the `SharpCpp.Rbfx.Data` and `SharpCpp.Rbfx.CoreData` NuGet packages. Close the
 window to exit.
 
-`AndroidScene` uses a native rbfx scene behind an Android interface. Tap **Add a
+`Example.Android` uses a native rbfx scene behind an Android interface. Tap **Add a
 node** to create a node, set its position, and display its distance from the origin.
 Build its APK with:
 
 ```sh
-dotnet build Rbfx.Examples/AndroidScene -c Release
+dotnet build Rbfx.Examples/Example.Android -c Release
 ```
 
 It defaults to `android-arm64`; pass `-r android-x64` for an x64 emulator. Deploy
 the generated signed APK with `adb install -r PATH_TO_APK`. Android projects use
 an Activity that calls the static `Program.Main` entry function.
 
-`IosScene` creates an rbfx scene and reports a node's position in a UIKit view.
-`BrowserWasm` creates the same native scene through the browser WebAssembly runtime;
+`Example.Ios` creates an rbfx scene and reports a node's position in a UIKit view.
+`Example.Wasm` creates the same native scene through the browser WebAssembly runtime;
 serve the `bin/Release/net10.0/publish/wwwroot` directory over HTTP to run it. The
 host must enable cross-origin isolation for the multithreaded WebAssembly runtime.
-`UwpScene` is a small modern .NET UWP XAML app. Its custom runtime graph maps
+`Example.Uwp` is a small modern .NET UWP XAML app. Its custom runtime graph maps
 `uap-x64` to the Windows x64 runtime while allowing NuGet to select the
 UWP-specific native engine package.
 
@@ -47,8 +48,8 @@ downloaded package names:
 
 ```sh
 gh release download latest --repo rbfx/SharpCpp.Rbfx --pattern '*.nupkg' --dir build/examples-release-feed
-dotnet restore Rbfx.Examples/RotatingCube/RotatingCube.csproj --source build/examples-release-feed -p:RbfxPackageVersion=VERSION
-dotnet run --project Rbfx.Examples/RotatingCube --no-restore -p:RbfxPackageVersion=VERSION
+dotnet restore Rbfx.Examples/Example.Desktop/Example.Desktop.csproj --source build/examples-release-feed -p:RbfxPackageVersion=VERSION
+dotnet run --project Rbfx.Examples/Example.Desktop --no-restore -p:RbfxPackageVersion=VERSION
 ```
 
 CI builds the desktop sample on Linux, macOS, and Windows, the Android sample for
@@ -60,5 +61,5 @@ The launch profile reserves static TLS space for the Linux native SDK. When runn
 the built DLL directly on Linux, set it before starting the process:
 
 ```sh
-GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768 dotnet Rbfx.Examples/RotatingCube/bin/Debug/net10.0/linux-x64/RotatingCube.dll
+GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768 dotnet Rbfx.Examples/Example.Desktop/bin/Debug/net10.0/linux-x64/Example.Desktop.dll
 ```

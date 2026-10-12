@@ -20,6 +20,6 @@
     <None Remove="App.xaml;MainPage.xaml" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

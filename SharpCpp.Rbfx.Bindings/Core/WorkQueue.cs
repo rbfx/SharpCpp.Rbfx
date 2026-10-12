@@ -7,6 +7,12 @@ namespace Urho3D.Core;
 
 public partial class WorkQueue
 {
+#if SHARPCPP_BROWSER_WASM
+    private static unsafe readonly nint s_managedTaskCallbackPointer =
+        (nint)(delegate* unmanaged[Cdecl]<nint, uint, nint, void>)&DispatchManagedTask;
+    private static unsafe readonly nint s_managedTaskReleasePointer =
+        (nint)(delegate* unmanaged[Cdecl]<nint, void>)&ReleaseManagedTask;
+#else
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void ManagedTaskCallback(nint callbackHandle, uint threadIndex, nint workQueue);
 
@@ -17,6 +23,7 @@ public partial class WorkQueue
     private static readonly nint s_managedTaskCallbackPointer = Marshal.GetFunctionPointerForDelegate(s_managedTaskCallback);
     private static readonly ManagedTaskRelease s_managedTaskRelease = ReleaseManagedTask;
     private static readonly nint s_managedTaskReleasePointer = Marshal.GetFunctionPointerForDelegate(s_managedTaskRelease);
+#endif
 
     public void PostTaskForMainThread(Action<uint, WorkQueue> taskFunction, TaskPriority priority = TaskPriority.Medium)
     {
@@ -43,12 +50,18 @@ public partial class WorkQueue
             callbackHandle);
     }
 
+#if SHARPCPP_BROWSER_WASM
+    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+#endif
     private static void DispatchManagedTask(nint callbackHandle, uint threadIndex, nint workQueue)
     {
         var taskFunction = (Action<uint, WorkQueue>)GCHandle.FromIntPtr(callbackHandle).Target!;
         taskFunction(threadIndex, CreateManagedWrapper(workQueue, ownsHandle: false));
     }
 
+#if SHARPCPP_BROWSER_WASM
+    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+#endif
     private static void ReleaseManagedTask(nint callbackHandle)
     {
         if (callbackHandle == IntPtr.Zero)

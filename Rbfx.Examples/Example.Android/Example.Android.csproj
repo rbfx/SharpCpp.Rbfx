@@ -3,12 +3,12 @@
     <TargetFramework>net10.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
     <AndroidApplication>true</AndroidApplication>
-    <ApplicationId>org.rbfx.examples.androidscene</ApplicationId>
+    <ApplicationId>org.rbfx.examples.android</ApplicationId>
     <ApplicationTitle>rbfx Scene</ApplicationTitle>
     <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

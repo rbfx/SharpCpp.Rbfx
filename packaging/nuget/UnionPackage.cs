@@ -100,7 +100,8 @@ static class UnionPackage
                 "--sources", Path.GetDirectoryName(generated)!, "--sources", Path.Combine(Repo, "SharpCpp.Rbfx.Bindings")]);
             var implementationProject = Path.Combine(sources, rid, $"UnionImplementation-{rid}.csproj");
             Project(implementationProject, framework, Directory.GetFiles(prepared, "*.cs").Order(StringComparer.Ordinal),
-                dependencies, assemblyVersion, analyzer: analyzer, staticRuntime: rid is "ios-arm64" or "browser-wasm");
+                dependencies, assemblyVersion, analyzer: analyzer, staticRuntime: rid is "ios-arm64" or "browser-wasm",
+                browserWasm: rid == "browser-wasm");
             Run("dotnet", ["build", implementationProject, "-c", "Release", "--nologo"]);
             implementations.Add(rid, Path.Combine(sources, rid, "output/SharpCpp.Rbfx.Bindings.dll"));
         }
@@ -245,7 +246,7 @@ static class UnionPackage
     }
 
     static void Project(string path, string framework, IEnumerable<string> sources, string dependencies,
-        string version, bool reference = false, string? analyzer = null, bool staticRuntime = false)
+        string version, bool reference = false, string? analyzer = null, bool staticRuntime = false, bool browserWasm = false)
     {
         var items = new XElement("ItemGroup", sources.Select(source => new XElement("Compile",
             new XAttribute("Include", Path.GetRelativePath(Path.GetDirectoryName(path)!, source)))));
@@ -258,7 +259,9 @@ static class UnionPackage
             ["EnableDefaultItems"] = "false", ["ProduceReferenceAssembly"] = reference.ToString().ToLowerInvariant(),
             ["AllowUnsafeBlocks"] = "true", ["DisableRuntimeMarshalling"] = "true", ["Nullable"] = "enable",
             ["ImplicitUsings"] = "enable", ["LangVersion"] = "latest", ["NoWarn"] = "CS0108;CS0109;CS0618;CS0672;CA1416",
-            ["DefineConstants"] = staticRuntime ? "SHARPCPP_STATIC_RUNTIME" : "",
+            ["DefineConstants"] = string.Join(';', new[]
+                { staticRuntime ? "SHARPCPP_STATIC_RUNTIME" : "", browserWasm ? "SHARPCPP_BROWSER_WASM" : "" }
+                .Where(value => value.Length > 0)),
             ["OutputPath"] = "output/", ["AppendTargetFrameworkToOutputPath"] = "false", ["GenerateDependencyFile"] = "false"
         }), items)).Save(path);
     }

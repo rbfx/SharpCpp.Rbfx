@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rbfx.Examples.Common;
 using Urho3D.Core;
 using Urho3D.Engine;
 using Urho3D.Graphics;
@@ -7,7 +8,7 @@ using Urho3D.Math;
 using Urho3D.Resource;
 using Urho3D.Scene;
 
-namespace Rbfx.Examples.RotatingCube;
+namespace Rbfx.Examples.Desktop;
 
 internal static class Program
 {
@@ -24,6 +25,7 @@ internal static class Program
 
 internal partial class CubeApplication : Application
 {
+    private SceneSample? _sample;
     private Scene? _scene;
     private Node? _cube;
     private Viewport? _viewport;
@@ -36,7 +38,7 @@ internal partial class CubeApplication : Application
     public override void Setup()
     {
         EngineParameters[EngineDefs.WindowTitle] = "rbfx NuGet sample — Rotating Cube";
-        EngineParameters[EngineDefs.ApplicationName] = "Rbfx.Examples.RotatingCube";
+        EngineParameters[EngineDefs.ApplicationName] = "Rbfx.Examples.Desktop";
         EngineParameters[EngineDefs.WindowWidth] = 960;
         EngineParameters[EngineDefs.WindowHeight] = 640;
         EngineParameters[EngineDefs.FullScreen] = false;
@@ -44,13 +46,14 @@ internal partial class CubeApplication : Application
         EngineParameters[EngineDefs.EngineAutoLoadScripts] = false;
         EngineParameters[EngineDefs.ResourcePrefixPaths] = AppContext.BaseDirectory;
         EngineParameters[EngineDefs.ResourcePaths] = "CoreData;Data";
-        EngineParameters[EngineDefs.LogName] = System.IO.Path.Combine(AppContext.BaseDirectory, "RotatingCube.log");
+        EngineParameters[EngineDefs.LogName] = System.IO.Path.Combine(AppContext.BaseDirectory, "Example.Desktop.log");
     }
 
     public override void Start()
     {
-        _scene = new Scene(GetContext());
-        _cube = Require(_scene.CreateChild("Cube"), "cube node");
+        _sample = new SceneSample(GetContext());
+        _scene = _sample.Scene;
+        _cube = _sample.PrimaryNode;
 
         _scene.CreateComponent<Octree>();
         var cache = Require(GetContext().GetSubsystem<ResourceCache>(), "resource cache");
@@ -59,16 +62,16 @@ internal partial class CubeApplication : Application
         model.SetMaterial(0, Require(cache.GetResource<Material>("Materials/StoneTiled.xml"), "stone material"));
 
         var camera = Require(_scene.CreateChild("Camera"), "camera node");
-        camera.Position = new Vector3(0, 1.5f, -4);
-        camera.LookAt(Vector3.Zero);
+        camera.Position = _cube.Position + new Vector3(0, 1.5f, -4);
+        camera.LookAt(_cube.Position);
         _viewport = new Viewport(GetContext()) { Scene = _scene, Camera = Require(camera.CreateComponent<Camera>(), "camera component") };
         var renderer = Require(GetContext().GetSubsystem<Renderer>(), "renderer");
         renderer.SetViewport(0, _viewport);
         renderer.DefaultZone.FogColor = new Color(0.15f, 0.2f, 0.3f);
 
         var light = Require(_scene.CreateChild("Light"), "light node");
-        light.Position = new Vector3(0, 3, -3);
-        light.LookAt(Vector3.Zero);
+        light.Position = _cube.Position + new Vector3(0, 3, -3);
+        light.LookAt(_cube.Position);
         light.CreateComponent<Light>();
         Require(GetContext().GetSubsystem<Input>(), "input").SetMouseVisible(true);
 
@@ -85,7 +88,7 @@ internal partial class CubeApplication : Application
     public override void Stop()
     {
         _viewport?.Dispose();
-        _scene?.Dispose();
+        _sample?.Dispose();
     }
 
     private static T Require<T>(T? value, string name) where T : class

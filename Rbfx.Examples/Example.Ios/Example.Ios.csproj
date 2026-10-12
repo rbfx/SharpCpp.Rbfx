@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0-ios</TargetFramework>
     <OutputType>Exe</OutputType>
-    <ApplicationId>org.rbfx.examples.iosscene</ApplicationId>
+    <ApplicationId>org.rbfx.examples.ios</ApplicationId>
     <ApplicationTitle>rbfx Scene</ApplicationTitle>
     <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">ios-arm64</RuntimeIdentifier>
@@ -10,6 +10,6 @@
     <BuildIpa>false</BuildIpa>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

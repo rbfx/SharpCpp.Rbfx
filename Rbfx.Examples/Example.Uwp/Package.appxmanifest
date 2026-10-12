@@ -2,7 +2,7 @@
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          IgnorableNamespaces="uap">
-  <Identity Name="Rbfx.Examples.UwpScene" Publisher="CN=rbfx" Version="1.0.0.0" />
+  <Identity Name="Rbfx.Examples.Uwp" Publisher="CN=rbfx" Version="1.0.0.0" />
   <Properties>
     <DisplayName>rbfx Scene</DisplayName>
     <PublisherDisplayName>rbfx contributors</PublisherDisplayName>
@@ -15,7 +15,7 @@
     <Resource Language="en-us" />
   </Resources>
   <Applications>
-    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="Rbfx.Examples.UwpScene.App">
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="Rbfx.Examples.Uwp.App">
       <uap:VisualElements DisplayName="rbfx Scene"
                           Description="rbfx NuGet UWP sample"
                           BackgroundColor="#171B24"

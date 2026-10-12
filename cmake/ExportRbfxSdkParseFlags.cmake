@@ -42,7 +42,12 @@ function(sharpcpp_export_rbfx_sdk_parse_flags target_name output_file native_lib
     "symbol_tool_path=${CMAKE_NM}\n"
     "language_standard=${language_standard}\n")
   if(native_library_type STREQUAL "STATIC")
-    string(APPEND flags_content "native_library_name=__Internal\n")
+    if(EMSCRIPTEN)
+      # .NET's NativeFileReference registers static archives by their file stem.
+      string(APPEND flags_content "native_library_name=libSharpCpp.Rbfx.Native\n")
+    else()
+      string(APPEND flags_content "native_library_name=__Internal\n")
+    endif()
   endif()
 
   if(CMAKE_CXX_COMPILER_TARGET)

@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RbfxPackageVersion Condition="'$(RbfxPackageVersion)' == ''">0.1.0-alpha.35</RbfxPackageVersion>
+    <RbfxPackageVersion Condition="'$(RbfxPackageVersion)' == ''">0.1.0-alpha.46</RbfxPackageVersion>
     <SelfContained>false</SelfContained>
     <UseAppHost>false</UseAppHost>
   </PropertyGroup>

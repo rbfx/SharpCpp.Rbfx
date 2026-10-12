@@ -1,7 +1,8 @@
 <Solution>
-  <Project Path="RotatingCube/RotatingCube.csproj" />
-  <Project Path="AndroidScene/AndroidScene.csproj" />
-  <Project Path="IosScene/IosScene.csproj" />
-  <Project Path="BrowserWasm/BrowserWasm.csproj" />
-  <Project Path="UwpScene/UwpScene.csproj" />
+  <Project Path="Example.Common/Example.Common.csproj" />
+  <Project Path="Example.Desktop/Example.Desktop.csproj" />
+  <Project Path="Example.Android/Example.Android.csproj" />
+  <Project Path="Example.Ios/Example.Ios.csproj" />
+  <Project Path="Example.Wasm/Example.Wasm.csproj" />
+  <Project Path="Example.Uwp/Example.Uwp.csproj" />
 </Solution>

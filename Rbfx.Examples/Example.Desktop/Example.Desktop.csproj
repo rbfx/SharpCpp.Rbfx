@@ -4,8 +4,8 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
     <PackageReference Include="SharpCpp.Rbfx.CoreData" Version="$(RbfxPackageVersion)" />
     <PackageReference Include="SharpCpp.Rbfx.Data" Version="$(RbfxPackageVersion)" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

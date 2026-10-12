@@ -7,6 +7,6 @@
     <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

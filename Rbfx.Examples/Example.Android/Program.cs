@@ -1,17 +1,16 @@
 using Android.App;
 using Android.OS;
 using Android.Widget;
+using Rbfx.Examples.Common;
 using Urho3D.Core;
-using Urho3D.Math;
-using Urho3D.Scene;
 
-namespace Rbfx.Examples.AndroidScene;
+namespace Rbfx.Examples.Android;
 
-[Activity(Label = "rbfx Scene", MainLauncher = true, Exported = true)]
+[Activity(Label = "rbfx Scene", MainLauncher = true, Theme = "@android:style/Theme.Material.Light.NoActionBar", Exported = true)]
 public sealed class MainActivity : Activity
 {
     private Context? _context;
-    private Scene? _scene;
+    private SceneSample? _sample;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -22,18 +21,20 @@ public sealed class MainActivity : Activity
     internal void CreateScene()
     {
         _context = new Context();
-        _scene = new Scene(_context);
+        _sample = new SceneSample(_context);
         var layout = new LinearLayout(this) { Orientation = Orientation.Vertical };
-        layout.SetPadding(32, 32, 32, 32);
+        var resources = Resources!;
+        var padding = (int)(16 * resources.DisplayMetrics!.Density);
+        var statusBarResource = resources.GetIdentifier("status_bar_height", "dimen", "android");
+        var statusBarHeight = statusBarResource == 0 ? 0 : resources.GetDimensionPixelSize(statusBarResource);
+        layout.SetPadding(padding, statusBarHeight + padding, padding, padding);
         var description = new TextView(this) { Text = "Create nodes in a native rbfx scene using NuGet bindings.", TextSize = 20 };
-        var details = new TextView(this) { Text = "The scene is empty.", TextSize = 18 };
+        var details = new TextView(this) { Text = _sample.DescribeLastNode(), TextSize = 18 };
         var add = new Button(this) { Text = "Add a node" };
-        var count = 0u;
         add.Click += (_, _) =>
         {
-            var node = _scene.CreateChild(++count);
-            node.Position = new Vector3(count, count * 2, 0);
-            details.Text = $"Nodes: {count}\nLast node position: ({count}, {count * 2}, 0)\nDistance from origin: {node.Position.Length:F2}";
+            _sample.AddNode();
+            details.Text = _sample.DescribeLastNode();
         };
         layout.AddView(description);
         layout.AddView(add);
@@ -43,7 +44,7 @@ public sealed class MainActivity : Activity
 
     protected override void OnDestroy()
     {
-        _scene?.Dispose();
+        _sample?.Dispose();
         _context?.Dispose();
         base.OnDestroy();
     }

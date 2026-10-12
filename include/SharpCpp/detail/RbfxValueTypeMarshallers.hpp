@@ -586,10 +586,15 @@ struct [[sharpcpp::managed_type(
 Marshaller<Urho3D::Quaternion>
 {
     using cpp_type = Urho3D::Quaternion;
-    using abi_type = Urho3D::Quaternion;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    // Quaternion has a user-provided copy constructor, so the Itanium ABI passes and returns it
+    // in memory. Cross the boundary as a trivial struct that matches the managed layout.
+    using abi_type = QuaternionAbi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbi(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCpp(v); }
 };
+
+template <>
+struct Marshaller<Urho3D::Quaternion&> : ProjectedValueReferenceMarshallerBase<Urho3D::Quaternion> {};
 
 template <>
 struct Marshaller<const Urho3D::Quaternion&>

@@ -29,16 +29,23 @@ jobs:
         # One entry for each runtime package. A failure of an entry stops the release.
         # The union job assembles the final managed packages after all platform builds finish.
         # There is no osx-x64 entry, because libclang has no runtime package for that RID.
+        # The xUnit E2E suite runs on desktop hosts; platform examples still build for mobile, web and UWP.
         include:
           - rid: linux-x64
             runs_on: ubuntu-latest
             packages: '*.nupkg'
+            e2e: true
+            sdk_dir: rebelfork-sdk-linux-gcc-x64-dll-latest
           - rid: osx-arm64
             runs_on: macos-latest
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+            e2e: true
+            sdk_dir: rebelfork-sdk-macos-clang-arm64-dll-latest
           - rid: win-x64
             runs_on: windows-latest
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
+            e2e: true
+            sdk_dir: rebelfork-sdk-windows-msvc-x64-dll-latest
           - rid: uap-x64
             runs_on: windows-2022
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
@@ -141,6 +148,35 @@ jobs:
             --rid '${{ matrix.rid }}' \
             "${cmake_args[@]}" \
             --configuration Release
+
+      - name: Run E2E tests
+        if: matrix.e2e == true
+        timeout-minutes: 30
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: |
+          sdk_root="$(pwd)/build/package/nuget/in/${{ matrix.sdk_dir }}"
+          if command -v cygpath >/dev/null 2>&1; then
+            sdk_root="$(cygpath -m "$sdk_root")"
+          fi
+          test -f "$sdk_root/share/Urho3D/CMake/Urho3DConfig.cmake"
+          mkdir -p build/test-results/e2e
+          RBFX_SDK_ROOT="$sdk_root" dotnet test \
+            SharpCpp.Rbfx.Tests.E2E/SharpCpp.Rbfx.Tests.E2E.csproj \
+            --configuration Release \
+            --nologo \
+            --logger 'trx;LogFileName=SharpCpp.Rbfx.Tests.E2E.trx' \
+            --results-directory build/test-results/e2e \
+            -p:RbfxNativePreset=dev \
+            -p:RbfxTargetRid='${{ matrix.rid }}'
+
+      - name: Upload E2E test results
+        if: always() && matrix.e2e == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/test-results/e2e/*.trx
+          if-no-files-found: ignore
 
       - name: Build Cross-platform Packages
         if: matrix.cross == true

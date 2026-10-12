@@ -6,8 +6,77 @@
 #include <Urho3D/Core/Object.h>
 #include <Urho3D/Container/RefCounted.h>
 
+#include <type_traits>
+
 namespace SharpCpp::rbfx::detail
 {
+struct SharedPtrAbi
+{
+    void* pointer{};
+    void* sharedPtr{};
+};
+
+struct ExternalSharedPtrHolderBase
+{
+    virtual ~ExternalSharedPtrHolderBase() = default;
+};
+
+template <class TCpp>
+struct ExternalSharedPtrHolder final : ExternalSharedPtrHolderBase
+{
+    explicit ExternalSharedPtrHolder(const Urho3D::SharedPtr<TCpp, Urho3D::RefCounted>& value)
+        : value_(value)
+    {
+    }
+
+    Urho3D::SharedPtr<TCpp, Urho3D::RefCounted> value_;
+};
+
+template <class TCpp>
+inline Urho3D::SharedPtr<TCpp, Urho3D::RefCounted> MakeExternalSharedPtrFromAbi(SharedPtrAbi value)
+{
+    static_assert(!std::is_base_of_v<Urho3D::RefCounted, TCpp>,
+        "The external-owner marshaller is only for interface types that do not inherit RefCounted");
+
+    if (value.sharedPtr == nullptr)
+    {
+        return {};
+    }
+
+    return static_cast<ExternalSharedPtrHolder<TCpp>*>(value.sharedPtr)->value_;
+}
+
+template <class TCpp>
+inline SharedPtrAbi MakeExternalSharedPtrAbi(
+    const Urho3D::SharedPtr<TCpp, Urho3D::RefCounted>& value)
+{
+    static_assert(!std::is_base_of_v<Urho3D::RefCounted, TCpp>,
+        "The external-owner marshaller is only for interface types that do not inherit RefCounted");
+
+    if (value.Get() == nullptr)
+    {
+        return {};
+    }
+
+    auto* holder = new ExternalSharedPtrHolder<TCpp>(value);
+    return {value.Get(), holder};
+}
+
+template <class TCpp>
+inline Urho3D::WeakPtr<TCpp, Urho3D::RefCounted> MakeExternalWeakPtrFromAbi(SharedPtrAbi value) noexcept
+{
+    auto shared = MakeExternalSharedPtrFromAbi<TCpp>(value);
+    return Urho3D::WeakPtr<TCpp, Urho3D::RefCounted>{shared};
+}
+
+template <class TCpp>
+inline SharedPtrAbi MakeExternalSharedPtrAbiFromWeak(
+    const Urho3D::WeakPtr<TCpp, Urho3D::RefCounted>& value)
+{
+    auto shared = value.Lock();
+    return MakeExternalSharedPtrAbi<TCpp>(shared);
+}
+
 template <class TCpp, class TRefCounted>
 inline TRefCounted* ResolveRefCountedPointer(TCpp* value) noexcept
 {
@@ -122,8 +191,6 @@ struct ReturnMarshaller<Urho3D::SharedPtr<TCpp, TRefCounted>>
 {
 };
 
-static_assert(std::is_same_v<ret_t<Urho3D::SharedPtr<Urho3D::RefCounted>>, Urho3D::RefCounted*>);
-
 template <class TCpp, class TRefCounted>
 struct Marshaller<const Urho3D::SharedPtr<TCpp, TRefCounted>&>
 {
@@ -172,8 +239,6 @@ struct ReturnMarshaller<Urho3D::WeakPtr<TCpp, TRefCounted>>
 {
 };
 
-static_assert(std::is_same_v<ret_t<Urho3D::WeakPtr<Urho3D::RefCounted>>, Urho3D::RefCounted*>);
-
 template <class TCpp, class TRefCounted>
 struct Marshaller<const Urho3D::WeakPtr<TCpp, TRefCounted>&>
 {
@@ -194,5 +259,191 @@ struct Marshaller<const Urho3D::WeakPtr<TCpp, TRefCounted>&>
 private:
     mutable Urho3D::WeakPtr<TCpp, TRefCounted> storage_{};
 };
+
+template <class TCpp>
+struct [[sharpcpp::managed_type(
+    public_type = "global::Urho3D.Interop.SharedPtr<{0}, {1}>",
+    managed_marshaller = "global::Urho3D.Interop.SharedPtrAbiMarshaller<{0}, {1}>",
+    return_ownership = "owning"
+)]] Marshaller<Urho3D::SharedPtr<TCpp, Urho3D::RefCounted>>
+{
+    using cpp_type = Urho3D::SharedPtr<TCpp, Urho3D::RefCounted>;
+    using abi_type = rbfx::detail::SharedPtrAbi;
+
+    abi_type ConvertToAbi(cpp_type value)
+    {
+        return rbfx::detail::MakeExternalSharedPtrAbi<TCpp>(value);
+    }
+
+    cpp_type ConvertToCpp(abi_type value)
+    {
+        return rbfx::detail::MakeExternalSharedPtrFromAbi<TCpp>(value);
+    }
+};
+
+template <class TCpp>
+struct [[sharpcpp::managed_type(
+    public_type = "global::Urho3D.Interop.SharedPtr<{0}, {1}>",
+    managed_marshaller = "global::Urho3D.Interop.SharedPtrAbiMarshaller<{0}, {1}>"
+)]] Marshaller<const Urho3D::SharedPtr<TCpp, Urho3D::RefCounted>&>
+{
+    using cpp_type = const Urho3D::SharedPtr<TCpp, Urho3D::RefCounted>&;
+    using abi_type = rbfx::detail::SharedPtrAbi;
+
+    abi_type ConvertToAbi(cpp_type value)
+    {
+        return rbfx::detail::MakeExternalSharedPtrAbi<TCpp>(Urho3D::SharedPtr<TCpp, Urho3D::RefCounted>(value));
+    }
+
+    cpp_type ConvertToCpp(abi_type value)
+    {
+        storage_ = rbfx::detail::MakeExternalSharedPtrFromAbi<TCpp>(value);
+        return storage_;
+    }
+
+private:
+    mutable Urho3D::SharedPtr<TCpp, Urho3D::RefCounted> storage_{};
+};
+
+template <class TCpp>
+struct [[sharpcpp::managed_type(
+    public_type = "global::Urho3D.Interop.SharedPtr<{0}, {1}>",
+    managed_marshaller = "global::Urho3D.Interop.SharedPtrAbiMarshaller<{0}, {1}>",
+    return_ownership = "owning"
+)]] Marshaller<Urho3D::WeakPtr<TCpp, Urho3D::RefCounted>>
+{
+    using cpp_type = Urho3D::WeakPtr<TCpp, Urho3D::RefCounted>;
+    using abi_type = rbfx::detail::SharedPtrAbi;
+
+    abi_type ConvertToAbi(const cpp_type& value)
+    {
+        return rbfx::detail::MakeExternalSharedPtrAbiFromWeak<TCpp>(value);
+    }
+
+    cpp_type ConvertToCpp(abi_type value)
+    {
+        return rbfx::detail::MakeExternalWeakPtrFromAbi<TCpp>(value);
+    }
+};
+
+template <class TCpp>
+struct [[sharpcpp::managed_type(
+    public_type = "global::Urho3D.Interop.SharedPtr<{0}, {1}>",
+    managed_marshaller = "global::Urho3D.Interop.SharedPtrAbiMarshaller<{0}, {1}>"
+)]] Marshaller<const Urho3D::WeakPtr<TCpp, Urho3D::RefCounted>&>
+{
+    using cpp_type = const Urho3D::WeakPtr<TCpp, Urho3D::RefCounted>&;
+    using abi_type = rbfx::detail::SharedPtrAbi;
+
+    abi_type ConvertToAbi(cpp_type value)
+    {
+        return rbfx::detail::MakeExternalSharedPtrAbiFromWeak<TCpp>(value);
+    }
+
+    cpp_type ConvertToCpp(abi_type value)
+    {
+        storage_ = rbfx::detail::MakeExternalWeakPtrFromAbi<TCpp>(value);
+        return storage_;
+    }
+
+private:
+    mutable Urho3D::WeakPtr<TCpp, Urho3D::RefCounted> storage_{};
+};
+
+// Preserve the ordinary one-type SharedPtr<RefCounted> projection. The external-owner
+// specialization above is for interfaces that are not themselves RefCounted.
+template <>
+struct [[sharpcpp::managed_type(
+    public_type = "global::Urho3D.Container.RefCounted",
+    projection = true,
+    return_ownership = "owning"
+)]] Marshaller<Urho3D::SharedPtr<Urho3D::RefCounted, Urho3D::RefCounted>>
+{
+    using cpp_type = Urho3D::SharedPtr<Urho3D::RefCounted, Urho3D::RefCounted>;
+    using abi_type = Urho3D::RefCounted*;
+
+    abi_type ConvertToAbi(cpp_type value) noexcept
+    {
+        return value.Detach();
+    }
+
+    cpp_type ConvertToCpp(abi_type value) noexcept
+    {
+        return rbfx::detail::MakeSharedPtrFromAbi<Urho3D::RefCounted, Urho3D::RefCounted>(value);
+    }
+};
+
+template <>
+struct Marshaller<const Urho3D::SharedPtr<Urho3D::RefCounted, Urho3D::RefCounted>&>
+{
+    using cpp_type = const Urho3D::SharedPtr<Urho3D::RefCounted, Urho3D::RefCounted>&;
+    using abi_type = Urho3D::RefCounted*;
+
+    abi_type ConvertToAbi(cpp_type value) noexcept
+    {
+        return value.Get();
+    }
+
+    cpp_type ConvertToCpp(abi_type value) noexcept
+    {
+        storage_ = rbfx::detail::MakeSharedPtrFromAbi<Urho3D::RefCounted, Urho3D::RefCounted>(value);
+        return storage_;
+    }
+
+private:
+    mutable Urho3D::SharedPtr<Urho3D::RefCounted, Urho3D::RefCounted> storage_{};
+};
+
+template <>
+struct [[sharpcpp::managed_type(
+    public_type = "global::Urho3D.Container.RefCounted",
+    projection = true,
+    return_ownership = "owning"
+)]] Marshaller<Urho3D::WeakPtr<Urho3D::RefCounted, Urho3D::RefCounted>>
+{
+    using cpp_type = Urho3D::WeakPtr<Urho3D::RefCounted, Urho3D::RefCounted>;
+    using abi_type = Urho3D::RefCounted*;
+
+    abi_type ConvertToAbi(const cpp_type& value) noexcept
+    {
+        return value.Lock().Detach();
+    }
+
+    cpp_type ConvertToCpp(abi_type value) noexcept
+    {
+        return rbfx::detail::MakeWeakPtrFromAbi<Urho3D::RefCounted, Urho3D::RefCounted>(value);
+    }
+};
+
+template <>
+struct Marshaller<const Urho3D::WeakPtr<Urho3D::RefCounted, Urho3D::RefCounted>&>
+{
+    using cpp_type = const Urho3D::WeakPtr<Urho3D::RefCounted, Urho3D::RefCounted>&;
+    using abi_type = Urho3D::RefCounted*;
+
+    abi_type ConvertToAbi(cpp_type value) noexcept
+    {
+        return value.Get();
+    }
+
+    cpp_type ConvertToCpp(abi_type value) noexcept
+    {
+        storage_ = rbfx::detail::MakeWeakPtrFromAbi<Urho3D::RefCounted, Urho3D::RefCounted>(value);
+        return storage_;
+    }
+
+private:
+    mutable Urho3D::WeakPtr<Urho3D::RefCounted, Urho3D::RefCounted> storage_{};
+};
+
+struct ExternalOwnerPointerMarshallerProbe
+{
+};
+static_assert(std::is_same_v<ret_t<Urho3D::SharedPtr<Urho3D::RefCounted>>, Urho3D::RefCounted*>);
+static_assert(std::is_same_v<ret_t<Urho3D::WeakPtr<Urho3D::RefCounted>>, Urho3D::RefCounted*>);
+static_assert(std::is_same_v<ret_t<Urho3D::SharedPtr<ExternalOwnerPointerMarshallerProbe, Urho3D::RefCounted>>,
+    rbfx::detail::SharedPtrAbi>);
+static_assert(std::is_same_v<ret_t<Urho3D::WeakPtr<ExternalOwnerPointerMarshallerProbe, Urho3D::RefCounted>>,
+    rbfx::detail::SharedPtrAbi>);
 
 }

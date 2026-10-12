@@ -28,4 +28,8 @@ internal static partial class RefCountedRuntime
     [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_refcounted_release_ref")]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static partial void ReleaseRef(nint self);
+
+    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_release_shared_ptr_holder")]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static partial void ReleaseExternalSharedPtr(nint sharedPtr);
 }

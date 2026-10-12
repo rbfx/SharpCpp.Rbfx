@@ -1,5 +1,6 @@
 #include <SharpCpp/Export.hpp>
 #include <SharpCpp/detail/RbfxRefCountedAccess.hpp>
+#include <SharpCpp/detail/RbfxRefCountedMarshallers.hpp>
 
 #include <Urho3D/Container/RefCounted.h>
 
@@ -108,5 +109,10 @@ SHARPCPP_EXPORT void sharpcpp_rbfx_refcounted_release_ref(Urho3D::RefCounted* se
     {
         self->ReleaseRef();
     }
+}
+
+SHARPCPP_EXPORT void sharpcpp_rbfx_release_shared_ptr_holder(void* sharedPtr)
+{
+    delete static_cast<SharpCpp::rbfx::detail::ExternalSharedPtrHolderBase*>(sharedPtr);
 }
 }

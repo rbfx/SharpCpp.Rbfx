@@ -11,6 +11,48 @@
       "displayName": "Dev",
       "generator": "Ninja Multi-Config",
       "binaryDir": "${sourceDir}/build/native/${presetName}"
+    },
+    {
+      "name": "android-arm",
+      "displayName": "android-arm",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/cross/android-arm",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm.cmake"
+    },
+    {
+      "name": "android-arm64",
+      "displayName": "android-arm64",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/cross/android-arm64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm64.cmake"
+    },
+    {
+      "name": "android-x64",
+      "displayName": "android-x64",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/cross/android-x64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/android-x64.cmake"
+    },
+    {
+      "name": "ios-arm64",
+      "displayName": "ios-arm64",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/cross/ios-arm64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/ios-arm64.cmake"
+    },
+    {
+      "name": "browser-wasm",
+      "displayName": "browser-wasm",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/cross/browser-wasm",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/browser-wasm.cmake"
+    },
+    {
+      "name": "uap-x64",
+      "displayName": "uap-x64",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/cross/uap-x64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/uap-x64.cmake"
     }
   ],
   "buildPresets": [

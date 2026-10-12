@@ -52,8 +52,7 @@ static class CrossPackage
         var environment = new Dictionary<string, string>();
         if (rid.StartsWith("android-", StringComparison.Ordinal))
         {
-            var abi = rid switch { "android-arm" => "armeabi-v7a", "android-arm64" => "arm64-v8a", "android-x64" => "x86_64",
-                _ => throw new ArgumentException($"Unsupported Android RID: {rid}") };
+            if (rid is not ("android-arm" or "android-arm64" or "android-x64")) throw new ArgumentException($"Unsupported Android RID: {rid}");
             var ndk = options.GetValueOrDefault("ndk-root") ?? Environment.GetEnvironmentVariable("ANDROID_NDK_HOME")
                 ?? Environment.GetEnvironmentVariable("ANDROID_NDK_ROOT");
             if (ndk is null)
@@ -65,16 +64,11 @@ static class CrossPackage
             ndk = Path.GetFullPath(ndk);
             environment["ANDROID_NDK_HOME"] = ndk;
             environment["ANDROID_NDK_ROOT"] = ndk;
-            var toolchain = Path.Combine(ndk, "build/cmake/android.toolchain.cmake");
-            RequireFile(toolchain);
-            cmake.AddRange([$"-DCMAKE_TOOLCHAIN_FILE={toolchain}", $"-DANDROID_ABI={abi}", "-DANDROID_PLATFORM=android-21", "-DANDROID_STL=c++_static", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"]);
+            RequireFile(Path.Combine(ndk, "build/cmake/android.toolchain.cmake"));
         }
         else if (rid == "ios-arm64")
         {
             if (!OperatingSystem.IsMacOS()) throw new PlatformNotSupportedException("Building iOS packages requires macOS and Xcode.");
-            var sdk = Run("xcrun", ["--sdk", "iphoneos", "--show-sdk-path"], capture: true).Trim();
-            cmake.AddRange(["-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_ARCHITECTURES=arm64", $"-DCMAKE_OSX_SYSROOT={sdk}", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0",
-                "-DRBFX_SDK_PARSE_USE_PLATFORM_COMPILER_INCLUDES=ON"]);
         }
         else if (rid == "browser-wasm")
         {
@@ -84,14 +78,12 @@ static class CrossPackage
             if (options.TryGetValue("sdk-root", out var explicitSdkRoot))
                 wasmSdkRoot = Path.GetFullPath(explicitSdkRoot);
             else wasmSdkRoot = ResolveWasmSdk(emsdk, options, environment);
-            var toolchain = Path.Combine(emsdk, "upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake");
-            cmake.AddRange([$"-DCMAKE_TOOLCHAIN_FILE={toolchain}", "-DCMAKE_C_FLAGS=-fwasm-exceptions",
-                "-DCMAKE_CXX_FLAGS=-fwasm-exceptions", "-DRBFX_SDK_PARSE_EXTRA_OPTIONS=-fwasm-exceptions"]);
             options["sdk-root"] = wasmSdkRoot;
         }
         else throw new ArgumentException($"Unsupported cross-platform RID: {rid}");
 
-        var arguments = new List<string> { Path.Combine(Repo, "packaging/nuget/package.sh"), "create", "--rid", rid,
+        // The CMake preset named like the RID carries the toolchain file; see CMakePresets.json and cmake/toolchains.
+        var arguments = new List<string> { Path.Combine(Repo, "packaging/nuget/package.sh"), "create", "--rid", rid, "--configure-preset", rid,
             "--version", version, "--build-root", Path.GetFullPath(options.GetValueOrDefault("build-root") ?? Path.Combine(Repo, "build/cross", rid)) };
         if (options.TryGetValue("sdk-root", out var sdkRoot)) arguments.AddRange(["--sdk-root", Path.GetFullPath(sdkRoot), "--skip-fetch"]);
         foreach (var argument in cmake) arguments.AddRange(["--cmake-arg", argument]);

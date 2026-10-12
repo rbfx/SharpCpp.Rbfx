@@ -381,7 +381,7 @@ create_packages() {
         configuration="$2"
         shift 2
         ;;
-      --configure-preset)
+      --configure-preset|--preset)
         configure_preset="$2"
         shift 2
         ;;
@@ -421,7 +421,7 @@ Options:
   --version, -v VERSION      Package version. Suffix -alpha or -dev appends the git SHA.
   --rid RID                 Runtime package RID. Defaults to host RID.
   --configuration, -c NAME   Build configuration. Defaults to Release.
-  --configure-preset NAME    Auxiliary CMake preset. Defaults to dev.
+  --configure-preset NAME    CMake configure preset (alias --preset). Defaults to dev.
   --sdk-root PATH            Existing extracted rbfx SDK root. Overrides the fetch.
   --rbfx-tag TAG             Release tag of rbfx/rbfx for the SDK. Defaults to latest.
   --target-framework TFM     Override package target framework. Defaults to repo TargetFramework.

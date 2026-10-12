@@ -139,8 +139,7 @@ jobs:
         run: |
           cmake_args=()
           if [[ '${{ matrix.rid }}' == 'uap-x64' ]]; then
-            cmake_args+=(--cmake-arg '-DCMAKE_SYSTEM_NAME=WindowsStore'
-              --cmake-arg '-DCMAKE_SYSTEM_VERSION=10.0.26100.0')
+            cmake_args+=(--preset uap-x64)
           fi
           ./packaging/nuget/package.sh create \
             --version "$PACKAGE_VERSION" \

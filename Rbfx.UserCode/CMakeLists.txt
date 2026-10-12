@@ -1,4 +1,4 @@
-sharpcpp_rbfx_wrap(SharpCppRbfxUserCode_Native
+rbfx_csharp_add_usercode(SharpCppRbfxUserCode_Native
   HEADERS include/RbfxUserCode/RotatingComponent.hpp
   SOURCES src/RotatingComponent.cpp
   INCLUDE_DIRECTORIES include

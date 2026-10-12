@@ -115,10 +115,11 @@ internal static class Program
                     OwnedFileRoots: userIncludeRoots,
                     ImportedBindingMetadata: importedBindings));
 
+            // The root C++ namespace of the wrapped headers has the same name as the managed namespace.
             compilation.NamespaceMappings = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["Urho3D"] = "Urho3D",
-                ["RbfxUserCode"] = "RbfxUserCode"
+                [options.ManagedNamespace] = options.ManagedNamespace
             };
             foreach (var marshallerHeader in marshallerConfigurationFiles)
             {

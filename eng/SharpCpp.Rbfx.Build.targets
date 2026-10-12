@@ -1,5 +1,5 @@
 <Project>
-  <!-- A project that consumes a library from sharpcpp_rbfx_wrap() sets these two properties in its csproj:
+  <!-- A project that consumes a library from rbfx_csharp_add_usercode() sets these two properties in its csproj:
        RbfxWrappedGeneratedDirectory = GENERATED_DIRECTORY, RbfxWrappedLibraryName = LIBRARY_NAME. Evaluated here because the csproj properties are not defined when the props file is imported. -->
   <PropertyGroup Condition="'$(RbfxWrappedGeneratedDirectory)' != '' and '$(RbfxWrappedLibraryName)' != ''">
     <RbfxConsumedGeneratedDir>$(RbfxGeneratedRoot)/$(RbfxWrappedGeneratedDirectory)</RbfxConsumedGeneratedDir>

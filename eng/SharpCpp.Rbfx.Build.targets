@@ -31,6 +31,12 @@
           AfterTargets="ResolveProjectReferences"
           BeforeTargets="ResolveAssemblyReferences"
           Condition="'@(RbfxUserCodeReference)' != ''">
+    <!-- RbfxGeneratedRoot comes from Build.props, which the consumer project evaluates with its own
+         RbfxTargetRid (project property or global property). So the usercode csproj directory
+         already lies in the tree of the target RID. The generated project gets the same RID below. -->
+    <PropertyGroup>
+      <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
+    </PropertyGroup>
     <ItemGroup>
       <_RbfxUserCodeCandidate Include="$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)/*.csproj"
                               RbfxUserCodeId="%(RbfxUserCodeReference.Identity)" />
@@ -43,19 +49,19 @@
     <!-- Each Restore call uses its own session id. The generated project is not in the solution. -->
     <MSBuild Projects="@(_RbfxUserCodeCandidate)"
              Targets="Restore"
-             Properties="Configuration=$(Configuration);RestoreRecursive=false;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty);RestoreRecursive=false;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
              RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
              Condition="'$(DesignTimeBuild)' != 'true'" />
     <MSBuild Projects="@(_RbfxUserCodeCandidate)"
              Targets="Build"
-             Properties="Configuration=$(Configuration)"
+             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty)"
              RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
              Condition="'$(DesignTimeBuild)' != 'true'">
       <Output TaskParameter="TargetOutputs" ItemName="_RbfxUserCodeAssembly" />
     </MSBuild>
     <MSBuild Projects="@(_RbfxUserCodeCandidate)"
              Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)"
+             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty)"
              RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
              Condition="'$(DesignTimeBuild)' == 'true'">
       <Output TaskParameter="TargetOutputs" ItemName="_RbfxUserCodeAssembly" />
@@ -69,9 +75,14 @@
   <Target Name="RbfxSetProjectReferenceProperties"
           AfterTargets="_SplitProjectReferencesByFileExistence"
           BeforeTargets="_GetProjectReferenceTargetFrameworkProperties;ResolveProjectReferences">
+    <!-- A project property RbfxTargetRid is not a global property, so it does not flow to referenced
+         projects (for example the native project). Pass it in SetConfiguration. Empty for the host build. -->
+    <PropertyGroup>
+      <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
+    </PropertyGroup>
     <ItemGroup>
       <_MSBuildProjectReferenceExistent Update="@(_MSBuildProjectReferenceExistent)">
-        <SetConfiguration>%(_MSBuildProjectReferenceExistent.SetConfiguration);Configuration=$(Configuration)</SetConfiguration>
+        <SetConfiguration>%(_MSBuildProjectReferenceExistent.SetConfiguration);Configuration=$(Configuration)$(_RbfxTargetRidProperty)</SetConfiguration>
         <GlobalPropertiesToRemove>TargetFramework;RuntimeIdentifier;SelfContained</GlobalPropertiesToRemove>
       </_MSBuildProjectReferenceExistent>
     </ItemGroup>

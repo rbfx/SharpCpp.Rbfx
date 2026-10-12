@@ -6,10 +6,9 @@ Unlike the other examples in `Rbfx.Examples`, this example builds from source wi
 
 ## Parts
 
-- `include/RbfxNativeHost/Spinner.hpp`, `src/Spinner.cpp`: user C++ types. `rbfx_csharp_add_usercode()` wraps them as `Rbfx.NativeHost.Bindings`.
+- `include/RbfxNativeHost/Spinner.hpp`, `src/Spinner.cpp`: user C++ types. `rbfx_csharp_add_usercode(Rbfx.NativeHost.Wrapped ...)` wraps them as `Rbfx.NativeHost.Bindings`. At configure time it also writes the managed bindings project below `build/native/dev/generated/usercode/Rbfx.NativeHost.Wrapped/`.
 - `src/main.cpp`: the executable. It includes `Urho3D/CSharp/DotNetHost.h` and uses `SharpCpp::RbfxHost` (`Urho3D::DotNetHost`) to load `Rbfx.NativeHost.Managed.dll` and to call `RbfxNativeHost.Entry.Run(int argc, char** argv)`.
-- `Rbfx.NativeHost.Bindings`: managed project that compiles the generated bindings of the wrapped types.
-- `Rbfx.NativeHost.Managed`: managed entry point. It creates an `Application`, a scene and a `Spinner`.
+- `Rbfx.NativeHost.Managed`: managed entry point. It creates an `Application`, a scene and a `Spinner`. It declares `<RbfxUserCodeReference Include="Rbfx.NativeHost.Wrapped" />`. MSBuild then builds the generated bindings project and references its assembly. The example has no hand-written bindings project.
 
 ## Build and run
 

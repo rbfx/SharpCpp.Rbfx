@@ -1,12 +1,4 @@
 <Project>
-  <!-- A project that consumes a library from rbfx_csharp_add_usercode() sets these two properties in its csproj:
-       RbfxWrappedGeneratedDirectory = GENERATED_DIRECTORY, RbfxWrappedLibraryName = LIBRARY_NAME. A generated <target>.props that sets RbfxConsumed* directly wins. Evaluated here because the csproj properties are not defined when the props file is imported. -->
-  <PropertyGroup Condition="'$(RbfxWrappedGeneratedDirectory)' != '' and '$(RbfxWrappedLibraryName)' != '' and '$(RbfxConsumedGeneratedDir)' == ''">
-    <RbfxConsumedGeneratedDir>$(RbfxGeneratedRoot)/$(RbfxWrappedGeneratedDirectory)</RbfxConsumedGeneratedDir>
-    <RbfxConsumedGeneratedStamp>$(RbfxConsumedGeneratedDir)/generate.stamp</RbfxConsumedGeneratedStamp>
-    <RbfxConsumedNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)$(RbfxWrappedLibraryName)$(RbfxSharedLibrarySuffix)</RbfxConsumedNativeLibraryPath>
-  </PropertyGroup>
-
   <PropertyGroup>
     <!-- Libraries are loaded through their host's dependency file; executables need their own
          so NuGet native runtime assets (libClangSharp) resolve. -->
@@ -24,6 +16,55 @@
                       PrivateAssets="all"
                       SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
+
+  <!-- A consumer project declares <RbfxUserCodeReference Include="<CMake target>" /> for each target of
+       rbfx_csharp_add_usercode(). The native project reference makes the native build and the generation
+       run first. They also write the managed bindings project below $(RbfxGeneratedRoot)/usercode/<target>/. -->
+  <ItemGroup Condition="'@(RbfxUserCodeReference)' != '' and '$(RbfxConsumedGeneratedDir)' == ''">
+    <ProjectReference Include="$(SharpCppRbfxRoot)/native/SharpCpp.Rbfx.Native/SharpCpp.Rbfx.Native.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <Target Name="RbfxResolveUserCodeReferences"
+          AfterTargets="ResolveProjectReferences"
+          BeforeTargets="ResolveAssemblyReferences"
+          Condition="'@(RbfxUserCodeReference)' != ''">
+    <ItemGroup>
+      <_RbfxUserCodeCandidate Include="$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)/*.csproj"
+                              RbfxUserCodeId="%(RbfxUserCodeReference.Identity)" />
+    </ItemGroup>
+    <Error Condition="'$(DesignTimeBuild)' != 'true' and !Exists('$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)')"
+           Text="The managed project directory of RbfxUserCodeReference '%(RbfxUserCodeReference.Identity)' is missing: '$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)'. Check that the CMake target calls rbfx_csharp_add_usercode()." />
+    <Error Condition="'$(DesignTimeBuild)' != 'true' and $([System.IO.Directory]::GetFiles('$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)', '*.csproj').Length) != 1"
+           Text="Expected exactly one *.csproj for RbfxUserCodeReference '%(RbfxUserCodeReference.Identity)' in '$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)'." />
+
+    <!-- Each Restore call uses its own session id. The generated project is not in the solution. -->
+    <MSBuild Projects="@(_RbfxUserCodeCandidate)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);RestoreRecursive=false;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
+             Condition="'$(DesignTimeBuild)' != 'true'" />
+    <MSBuild Projects="@(_RbfxUserCodeCandidate)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
+             Condition="'$(DesignTimeBuild)' != 'true'">
+      <Output TaskParameter="TargetOutputs" ItemName="_RbfxUserCodeAssembly" />
+    </MSBuild>
+    <MSBuild Projects="@(_RbfxUserCodeCandidate)"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
+             Condition="'$(DesignTimeBuild)' == 'true'">
+      <Output TaskParameter="TargetOutputs" ItemName="_RbfxUserCodeAssembly" />
+    </MSBuild>
+
+    <ItemGroup>
+      <Reference Include="@(_RbfxUserCodeAssembly)" Private="true" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="RbfxSetProjectReferenceProperties"
           AfterTargets="_SplitProjectReferencesByFileExistence"

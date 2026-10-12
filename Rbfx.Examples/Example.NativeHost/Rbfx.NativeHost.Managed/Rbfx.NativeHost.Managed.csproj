@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Rbfx.NativeHost.Bindings/Rbfx.NativeHost.Bindings.csproj" />
+    <RbfxUserCodeReference Include="Rbfx.NativeHost.Wrapped" />
     <ProjectReference Include="../../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
     <ProjectReference Include="../../../SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
                       OutputItemType="Analyzer"

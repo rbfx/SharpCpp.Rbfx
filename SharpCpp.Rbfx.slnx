@@ -16,7 +16,6 @@
   <Project Path="Rbfx.UserCode/Rbfx.UserCode.Generator/Rbfx.UserCode.Generator.csproj" />
   <Project Path="Rbfx.Examples/Example.NativeHost/Rbfx.NativeHost.Managed/Rbfx.NativeHost.Managed.csproj" />
   <Project Path="Rbfx.Examples/Example.Common/Example.Common.csproj" />
-  <Project Path="Rbfx.Application/Rbfx.Application.csproj" />
   <Project Path="SharpCpp.Rbfx.Tests.E2E/SharpCpp.Rbfx.Tests.E2E.csproj" />
   <Folder Name="/native/">
     <Project Path="native/SharpCpp.Rbfx.Native/SharpCpp.Rbfx.Native.csproj" />

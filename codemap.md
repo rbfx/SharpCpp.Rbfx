@@ -88,9 +88,6 @@ SharpCpp.Tool ───────────┘             |
    runsettings point Linux tests at the shared `build/bin/<Configuration>` native
    output directory.
 
-9. **Application Shell**: `Rbfx.Application` is an ordinary solution project
-   referencing both binding assemblies.
-
 ## Integration
 
 | Consumer | What it depends on | Mechanism |
@@ -101,7 +98,6 @@ SharpCpp.Tool ───────────┘             |
 | `Rbfx.UserCode.Generator` | Same pipeline libraries as rbfx generator | .NET project references |
 | `Rbfx.UserCode.Bindings` (generated, no csproj in the tree) | `SharpCpp.Support`, `SharpCpp.Rbfx.Bindings`, `SharpCpp.Native`, generated `*.g.cs` | .NET project references + late generated-source inclusion |
 | `SharpCppRbfxUserCode_Native` | `SharpCpp::NativeSupport`, `Urho3D`, user `.cpp` files, generated `.g.cpp` | CMake `target_link_libraries` + Unity build |
-| `Rbfx.Application` | `SharpCpp.Rbfx.Bindings`, `Rbfx.UserCode.Bindings` (generated) | project reference + `RbfxUserCodeReference` |
 | `SharpCpp.Rbfx.Tests.E2E` | `SharpCpp.Rbfx.Bindings`, xUnit, .NET Test SDK | .NET project + package references |
 | `rbfx/CMakeLists.txt` | `rbfx-sdk` installed at `RBFX_SDK_ROOT` | `find_package(Urho3D CONFIG)` |
 
@@ -115,6 +111,5 @@ SharpCpp.Tool ───────────┘             |
 | `Rbfx.UserCode/` | Phase-2 user-code generation + compilation (generator, bindings, native sources) |
 | `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h` |
 | `Rbfx.Examples/Example.NativeHost/` | Example: C++ executable hosts .NET, wraps user C++ via `rbfx_csharp_add_usercode()` |
-| `Rbfx.Application/` | Application shell composing rbfx + user-code bindings |
 | `CheckGeneratedStaleness.cmake` | Generator staleness checker (timestamp-based invalidation) |
 | `CopyRbfxRuntimeDependencies.cmake.in` | Runtime library deployment script template |

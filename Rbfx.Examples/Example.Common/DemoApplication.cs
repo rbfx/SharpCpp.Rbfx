@@ -1,208 +1,51 @@
-using Urho3D.Core;
-using Urho3D.Engine;
-using Urho3D.Graphics;
-using Urho3D.Scene;
-using Urho3D.Input;
-using Urho3D.Math;
-using Urho3D.Resource;
 using Ea;
 using ImGuiNet;
 using System.Globalization;
+using Urho3D.Core;
+using Urho3D.Engine;
+using Urho3D.Graphics;
+using Urho3D.Input;
+using Urho3D.Math;
+using Urho3D.Resource;
+using Urho3D.Scene;
 
-namespace SampleApplication;
+namespace Rbfx.Examples.Common;
 
-partial class DemoApplication : Application
+/// <summary>
+/// Demo application with a 3D scene, an RmlUI dashboard and a Dear ImGui window.
+/// The cube rotates with the native RotatingComponent when the user code is available.
+/// Otherwise the cube rotates in managed code, in the update event.
+/// </summary>
+public sealed partial class DemoApplication : Application
 {
     private const float CubeRotationSpeed = 45.0f;
-    private const string DemoDocumentMarkup = """
-        <rml>
-        <head>
-            <title>SharpCpp RmlUI Demo</title>
-            <style>
-                body {
-                    margin: 0;
-                    font-family: "Noto Sans";
-                    color: #f5f7fa;
-                }
+    private const float CameraAimOffset = 2.0f;
+    private const string NativeDriverText = "Native RotatingComponent";
+    private const string ManagedDriverText = "Managed OnUpdate";
 
-                .panel {
-                    display: block;
-                    position: absolute;
-                    top: 28px;
-                    left: 28px;
-                    width: 360px;
-                    padding: 20px 22px 18px;
-                    background-color: #182430dd;
-                }
-
-                .eyebrow {
-                    display: block;
-                    color: #8fc7ea;
-                    font-size: 13px;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    margin-bottom: 8px;
-                }
-
-                .title {
-                    display: block;
-                    margin-bottom: 12px;
-                    font-size: 27px;
-                    font-weight: bold;
-                }
-
-                .copy {
-                    display: block;
-                    margin-bottom: 16px;
-                    color: #d0d8e2;
-                    font-size: 16px;
-                }
-
-                .metrics {
-                    display: block;
-                    margin-bottom: 16px;
-                }
-
-                .metric {
-                    display: block;
-                    margin-bottom: 10px;
-                    padding: 9px 14px 10px;
-                    background-color: #223548;
-                }
-
-                .metric-label {
-                    display: block;
-                    color: #8ea9bf;
-                    font-size: 12px;
-                    margin-bottom: 3px;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                }
-
-                .metric-value {
-                    display: block;
-                    font-size: 21px;
-                    font-weight: bold;
-                }
-
-                .editor-label {
-                    display: block;
-                    margin-bottom: 6px;
-                    color: #8ea9bf;
-                    font-size: 12px;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                }
-
-                .note-input {
-                    display: block;
-                    width: 100%;
-                    margin-bottom: 10px;
-                    padding: 8px 10px;
-                    background-color: #0f1923;
-                    border: 1px solid #39556d;
-                    color: #f5f7fa;
-                    font-size: 15px;
-                }
-
-                .note-preview {
-                    display: block;
-                    margin-bottom: 14px;
-                    color: #d0d8e2;
-                    font-size: 14px;
-                }
-
-                .actions {
-                    display: block;
-                    margin-bottom: 14px;
-                }
-
-                .action-button {
-                    display: block;
-                    width: 100%;
-                    margin-bottom: 8px;
-                    padding: 9px 10px;
-                    background-color: #2b7ea1;
-                    border: 1px solid #54a9cd;
-                    color: #f5f7fa;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-
-                .action-button.secondary {
-                    margin-bottom: 0;
-                    background-color: #1b2c39;
-                    border-color: #39556d;
-                }
-
-                .hint {
-                    display: block;
-                    color: #8fc7ea;
-                    font-size: 14px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="panel" data-model="dashboard">
-                <div class="eyebrow">RmlUI Overlay</div>
-                <div class="title">Rbfx.Application</div>
-                <div class="copy">This document is created from memory and driven through Rml data-model callbacks implemented in C#.</div>
-
-                <div class="metrics">
-                    <div class="metric">
-                        <div class="metric-label">Elapsed</div>
-                        <div class="metric-value">{{elapsed}}</div>
-                    </div>
-                    <div class="metric">
-                        <div class="metric-label">Cube rotation</div>
-                        <div class="metric-value">{{rotation}}</div>
-                    </div>
-                    <div class="metric">
-                        <div class="metric-label">Frame rate</div>
-                        <div class="metric-value">{{fps}}</div>
-                    </div>
-                    <div class="metric">
-                        <div class="metric-label">Status</div>
-                        <div class="metric-value">{{status}}</div>
-                    </div>
-                </div>
-
-                <div class="editor-label">Operator note</div>
-                <input class="note-input" type="text" data-value="note"/>
-                <div class="note-preview">Echo: {{note}}</div>
-
-                <div class="actions">
-                    <button class="action-button" data-event-click="apply_note('Pinned from event callback')">Apply preset note</button>
-                    <button class="action-button secondary" data-event-click="apply_note('')">Clear note</button>
-                </div>
-
-                <div class="hint">Edit the note or press the buttons to exercise both `BindFunc` and `BindEventCallback` from C#.</div>
-            </div>
-        </body>
-        </rml>
-        """;
-
-    private readonly Ea.String _documentSource = new("memory://rbfx.application/demo.rml");
+    private readonly string? _logName;
+    private readonly Ea.String _documentSource = new(DemoDocument.Source);
     private readonly byte[] _imguiWindowTitle = "SharpCpp ImGui Demo"u8.ToArray();
     private readonly byte[] _imguiIntroHeader = "Dear ImGui"u8.ToArray();
     private readonly byte[] _imguiIntroText = "Generated from imgui.h through SharpCpp. This window uses source-driven Dear ImGui bindings."u8.ToArray();
     private readonly byte[] _imguiNoteHeader = "Operator note"u8.ToArray();
     private readonly byte[] _imguiToggleTooltip = "Toggles extra Dear ImGui details for this sample window."u8.ToArray();
 
-    private Viewport _viewport;
-    private Scene _scene;
-    private Node _camera;
-    private Node _cube;
-    private Node _light;
-    private Urho3D.RmlUI.RmlUI _ui;
-    private Rml.Context _rmlContext;
-    private Rml.DataModelConstructor _dataModelConstructor;
-    private Rml.DataModelHandle _dataModelHandle;
-    private Rml.ElementDocument _document;
+    private SceneSample? _sample;
+    private Viewport? _viewport;
+    private Node _cube = null!;
+    private Urho3D.RmlUI.RmlUI _ui = null!;
+    private Rml.Context _rmlContext = null!;
+    private Rml.DataModelConstructor? _dataModelConstructor;
+    private Rml.DataModelHandle? _dataModelHandle;
+    private Rml.ElementDocument? _document;
+    private bool _nativeRotation;
+    private float _managedAngle;
     private float _elapsedTime;
     private float _cubeRotation;
     private readonly Ea.String _elapsedText = new("0.0 s");
     private readonly Ea.String _rotationText = new("0 deg");
+    private readonly Ea.String _driverText = new(ManagedDriverText);
     private readonly Ea.String _fpsText = new("--");
     private readonly Ea.String _statusText = new("Initializing");
     private readonly Ea.String _noteText = new("Bindings online");
@@ -212,34 +55,36 @@ partial class DemoApplication : Application
     private bool _showImGuiDetails = true;
     private readonly Ea.String _imguiElapsedLabel = new(string.Empty);
     private readonly Ea.String _imguiRotationLabel = new(string.Empty);
+    private readonly Ea.String _imguiDriverLabel = new(string.Empty);
     private readonly Ea.String _imguiFpsLabel = new(string.Empty);
     private readonly Ea.String _imguiStatusLabel = new(string.Empty);
     private readonly Ea.String _imguiNoteValue = new(string.Empty);
     private readonly Ea.String _imguiToggleLabel = new(string.Empty);
     private readonly Ea.String _imguiDetailsText = new(string.Empty);
 
-    public DemoApplication(Context context) : base(context)
+    /// <summary>Creates the application.</summary>
+    /// <param name="context">The engine context.</param>
+    /// <param name="logName">Path of the log file, or null for the engine default.</param>
+    public DemoApplication(Context context, string? logName = null) : base(context)
     {
+        _logName = logName;
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
-            _document?.CloseDocument();
-            _document?.Dispose();
-            _dataModelHandle?.Dispose();
-            _dataModelConstructor?.Dispose();
-            _viewport?.Dispose();
-            _scene?.Dispose();
+            ReleaseSceneAndUi();
             _documentSource.Dispose();
             _elapsedText.Dispose();
             _rotationText.Dispose();
+            _driverText.Dispose();
             _fpsText.Dispose();
             _statusText.Dispose();
             _noteText.Dispose();
             _imguiElapsedLabel.Dispose();
             _imguiRotationLabel.Dispose();
+            _imguiDriverLabel.Dispose();
             _imguiFpsLabel.Dispose();
             _imguiStatusLabel.Dispose();
             _imguiNoteValue.Dispose();
@@ -252,51 +97,81 @@ partial class DemoApplication : Application
 
     public override void Setup()
     {
-        EngineParameters[EngineDefs.FullScreen] = false;
-        EngineParameters[EngineDefs.Borderless] = false;
+        EngineParameters[EngineDefs.WindowTitle] = "rbfx Examples - RmlUI + ImGui Demo";
+        EngineParameters[EngineDefs.ApplicationName] = "Rbfx.Examples";
         EngineParameters[EngineDefs.WindowWidth] = 1280;
         EngineParameters[EngineDefs.WindowHeight] = 720;
-        EngineParameters[EngineDefs.WindowTitle] = "SharpCpp RmlUI + ImGui Demo";
+        EngineParameters[EngineDefs.FullScreen] = false;
+        EngineParameters[EngineDefs.Borderless] = false;
         EngineParameters[EngineDefs.EngineAutoLoadScripts] = false;
+        EngineParameters[EngineDefs.ResourcePrefixPaths] = AppContext.BaseDirectory;
+        EngineParameters[EngineDefs.ResourcePaths] = "CoreData;Data";
+        if (_logName != null)
+        {
+            EngineParameters[EngineDefs.LogName] = _logName;
+        }
     }
 
     public override void Start()
     {
-        var input = Context.GetSubsystem<Input>();
+        var context = GetContext();
+        var input = Require(context.GetSubsystem<Input>(), "input");
         input.SetMouseMode(MouseMode.MmFree);
         input.SetMouseVisible(true);
 
-        _scene = new Scene(Context);
-        _scene.CreateComponent<Octree>();
+        _sample = new SceneSample(context);
+        var scene = _sample.Scene;
+        _cube = _sample.PrimaryNode;
+        _nativeRotation = _sample.UserCodeDescription != null;
+        _driverText.Assign(_nativeRotation ? NativeDriverText : ManagedDriverText);
+        Console.WriteLine(UserCodeSupport.IsAvailable
+            ? $"Example.UserCode is active: {_sample.UserCodeDescription ?? "the native component was not created"}"
+            : "Example.UserCode is not available in this build.");
 
-        _camera = _scene.CreateChild("Camera");
-        _viewport = new Viewport(Context)
+        scene.CreateComponent<Octree>();
+        var cache = Require(context.GetSubsystem<ResourceCache>(), "resource cache");
+        var model = Require(_cube.CreateComponent<StaticModel>(), "cube model component");
+        model.SetModel(Require(cache.GetResource<Model>("Models/Box.mdl"), "box model"));
+        model.SetMaterial(0, Require(cache.GetResource<Material>("Materials/StoneTiled.xml"), "stone material"));
+
+        var camera = Require(scene.CreateChild("Camera"), "camera node");
+        camera.Position = _cube.Position + new Vector3(0, 1.5f, -4);
+        // Aim left of the cube. The cube appears on the right, beside the UI panels.
+        camera.LookAt(_cube.Position + new Vector3(-CameraAimOffset, 0, 0));
+        _viewport = new Viewport(context)
         {
-            Scene = _scene,
-            Camera = _camera.CreateComponent<Camera>()
+            Scene = scene,
+            Camera = Require(camera.CreateComponent<Camera>(), "camera component")
         };
-
-        var renderer = Context.GetSubsystem<Renderer>();
+        var renderer = Require(context.GetSubsystem<Renderer>(), "renderer");
         renderer.SetViewport(0, _viewport);
-        renderer.DefaultZone.FogColor = new Color(0.5f, 0.5f, 0.7f);
+        renderer.DefaultZone.FogColor = new Color(0.15f, 0.2f, 0.3f);
 
-        _camera.Position = new Vector3(0, 2, -2);
-        _camera.LookAt(Vector3.Zero);
-
-        _cube = _scene.CreateChild("Cube");
-        var model = _cube.CreateComponent<StaticModel>();
-        var resourceCache = Context.GetSubsystem<ResourceCache>();
-        model.SetModel(resourceCache.GetResource<Model>("Models/Box.mdl"));
-        model.SetMaterial(0, resourceCache.GetResource<Material>("Materials/Stone.xml"));
-
-        _light = _scene.CreateChild("Light");
-        _light.CreateComponent<Light>();
-        _light.Position = new Vector3(0, 2, -1);
-        _light.LookAt(Vector3.Zero);
+        var light = Require(scene.CreateChild("Light"), "light node");
+        light.Position = _cube.Position + new Vector3(0, 3, -3);
+        light.LookAt(_cube.Position);
+        light.CreateComponent<Light>();
 
         InitializeRmlUi();
 
         SubscribeToEvent(CoreEvents.Update, OnUpdate);
+    }
+
+    public override void Stop() => ReleaseSceneAndUi();
+
+    private void ReleaseSceneAndUi()
+    {
+        _document?.CloseDocument();
+        _document?.Dispose();
+        _document = null;
+        _dataModelHandle?.Dispose();
+        _dataModelHandle = null;
+        _dataModelConstructor?.Dispose();
+        _dataModelConstructor = null;
+        _viewport?.Dispose();
+        _viewport = null;
+        _sample?.Dispose();
+        _sample = null;
     }
 
     private void OnUpdate(Urho3D.Core.Object sender, StringHash eventType, Ea.UnorderedMap<StringHash, Variant> eventData)
@@ -304,13 +179,18 @@ partial class DemoApplication : Application
         var timeStep = eventData.TryGetValue(CoreEvents.Update.TimeStep, out var value)
             ? value.Float
             : 0.0f;
+        if (!_nativeRotation)
+        {
+            _managedAngle = (_managedAngle + CubeRotationSpeed * timeStep) % 360.0f;
+            _cube.Rotation = new Quaternion(0, _managedAngle, 0);
+        }
+
         UpdateDashboard(timeStep);
     }
 
     private void InitializeRmlUi()
     {
-        _ui = Context.GetSubsystem<Urho3D.RmlUI.RmlUI>()
-            ?? throw new InvalidOperationException("Rbfx RmlUI subsystem is not available.");
+        _ui = Require(GetContext().GetSubsystem<Urho3D.RmlUI.RmlUI>(), "RmlUI subsystem");
 
         if (!_ui.LoadFont("Fonts/NotoSans-Condensed.ttf") || !_ui.LoadFont("Fonts/NotoSans-CondensedBold.ttf"))
         {
@@ -320,9 +200,8 @@ partial class DemoApplication : Application
         _rmlContext = _ui.RmlContext;
         InitializeDataModel();
 
-        using var documentMarkup = new Ea.String(DemoDocumentMarkup);
-        _document = _rmlContext.LoadDocumentFromMemory(documentMarkup, _documentSource)
-            ?? throw new InvalidOperationException("Failed to create the in-memory RmlUI document.");
+        using var documentMarkup = new Ea.String(DemoDocument.Markup);
+        _document = Require(_rmlContext.LoadDocumentFromMemory(documentMarkup, _documentSource), "in-memory RmlUI document");
 
         _document.Show();
         UpdateImGuiTextState();
@@ -330,41 +209,43 @@ partial class DemoApplication : Application
 
     private void InitializeDataModel()
     {
-        using var modelName = new Ea.String("dashboard");
+        using var modelName = new Ea.String(DemoDocument.DataModelName);
         using var elapsedName = new Ea.String("elapsed");
         using var rotationName = new Ea.String("rotation");
+        using var driverName = new Ea.String("driver");
         using var fpsName = new Ea.String("fps");
         using var statusName = new Ea.String("status");
         using var noteName = new Ea.String("note");
         using var applyNoteName = new Ea.String("apply_note");
 
-        _dataModelConstructor = _rmlContext.CreateDataModel(modelName)
-            ?? throw new InvalidOperationException("Failed to create the RmlUI data model.");
+        var constructor = Require(_rmlContext.CreateDataModel(modelName), "RmlUI data model");
+        _dataModelConstructor = constructor;
 
         BindTextValue(elapsedName, _elapsedText);
         BindTextValue(rotationName, _rotationText);
+        BindTextValue(driverName, _driverText);
         BindTextValue(fpsName, _fpsText);
         BindTextValue(statusName, _statusText);
         BindMutableTextValue(noteName, _noteText);
         BindRequired(applyNoteName, ApplyNoteFromEvent);
 
-        _dataModelHandle = _dataModelConstructor.GetModelHandle()
-            ?? throw new InvalidOperationException("Failed to retrieve the RmlUI data model handle.");
+        _dataModelHandle = Require(constructor.GetModelHandle(), "RmlUI data model handle");
     }
 
     private void UpdateDashboard(float timeStep)
     {
         _elapsedTime += timeStep;
-        _cubeRotation = (_cubeRotation + CubeRotationSpeed * timeStep) % 360.0f;
-        _cube.Yaw(CubeRotationSpeed * timeStep);
+        // The native RotatingComponent starts with the first update and uses the same speed.
+        // The angle is computed. It is not read from Node.Rotation.
+        _cubeRotation = _nativeRotation ? _elapsedTime * CubeRotationSpeed % 360.0f : _managedAngle;
 
-        UpdateModelValue(_elapsedText, $"{_elapsedTime.ToString("0.0")} s", "elapsed");
-        UpdateModelValue(_rotationText, $"{_cubeRotation.ToString("0")} deg", "rotation");
+        UpdateModelValue(_elapsedText, $"{_elapsedTime.ToString("0.0", CultureInfo.InvariantCulture)} s", "elapsed");
+        UpdateModelValue(_rotationText, $"{_cubeRotation.ToString("0", CultureInfo.InvariantCulture)} deg", "rotation");
         _hasFrameRate = timeStep > 0.0f;
         _framesPerSecond = _hasFrameRate ? 1.0f / timeStep : 0.0f;
 
         UpdateModelValue(_fpsText, _hasFrameRate
-            ? $"{_framesPerSecond.ToString("0")} fps"
+            ? $"{_framesPerSecond.ToString("0", CultureInfo.InvariantCulture)} fps"
             : "--",
             "fps");
 
@@ -381,10 +262,10 @@ partial class DemoApplication : Application
         DrawImGui();
     }
 
-    unsafe private void DrawImGui()
+    private void DrawImGui()
     {
         ImGui.SetNextWindowPos(new Vector2(430.0f, 28.0f), ImGuiCond.Once);
-        ImGui.SetNextWindowSize(new Vector2(380.0f, 248.0f), ImGuiCond.Once);
+        ImGui.SetNextWindowSize(new Vector2(380.0f, 270.0f), ImGuiCond.Once);
 
         var renderBody = ImGui.Begin(_imguiWindowTitle, out _);
 
@@ -408,6 +289,7 @@ partial class DemoApplication : Application
 
             ImGui.TextUnformatted(_imguiElapsedLabel);
             ImGui.TextUnformatted(_imguiRotationLabel);
+            ImGui.TextUnformatted(_imguiDriverLabel);
             ImGui.TextUnformatted(_imguiFpsLabel);
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.56f, 0.78f, 0.92f, 1.0f));
             try
@@ -472,6 +354,7 @@ partial class DemoApplication : Application
     {
         _imguiElapsedLabel.Format($"Elapsed: {_elapsedTime:F1} s");
         _imguiRotationLabel.Format($"Rotation: {_cubeRotation:F0} deg");
+        _imguiDriverLabel.Format($"Rotation driver: {_driverText}");
         if (_hasFrameRate)
         {
             _imguiFpsLabel.Format($"Frame rate: {_framesPerSecond:F0} fps");
@@ -490,7 +373,7 @@ partial class DemoApplication : Application
 
     private void BindRequired(Ea.String name, Action<Rml.Variant> getFunc)
     {
-        if (!_dataModelConstructor.BindFunc(name, getFunc))
+        if (!Constructor.BindFunc(name, getFunc))
         {
             throw new InvalidOperationException($"Failed to bind RmlUI data-model variable '{name}'.");
         }
@@ -498,7 +381,7 @@ partial class DemoApplication : Application
 
     private void BindRequired(Ea.String name, Action<Rml.Variant> getFunc, Action<Rml.Variant> setFunc)
     {
-        if (!_dataModelConstructor.BindFunc(name, getFunc, setFunc))
+        if (!Constructor.BindFunc(name, getFunc, setFunc))
         {
             throw new InvalidOperationException($"Failed to bind RmlUI data-model variable '{name}'.");
         }
@@ -506,7 +389,7 @@ partial class DemoApplication : Application
 
     private void BindRequired(Ea.String name, Action<Rml.DataModelHandle, Rml.Event, Ea.Vector<Rml.Variant>> eventFunc)
     {
-        if (!_dataModelConstructor.BindEventCallback(name, eventFunc))
+        if (!Constructor.BindEventCallback(name, eventFunc))
         {
             throw new InvalidOperationException($"Failed to bind RmlUI data-model event '{name}'.");
         }
@@ -563,17 +446,9 @@ partial class DemoApplication : Application
 
     private static bool IsNullOrWhiteSpace(Ea.String value)
         => string.IsNullOrWhiteSpace(value.ToString());
-}
+    private Rml.DataModelConstructor Constructor
+        => _dataModelConstructor ?? throw new InvalidOperationException("The RmlUI data model is not created.");
 
-internal class Program
-{
-    static int Main(string[] args)
-    {
-        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
-
-        using var context = new Context();
-
-        using var app = new DemoApplication(context);
-        return app.Run();
-    }
+    private static T Require<T>(T? value, string name) where T : class
+        => value ?? throw new InvalidOperationException($"Could not create or load {name}.");
 }

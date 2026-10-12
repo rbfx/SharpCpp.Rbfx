@@ -1,0 +1,5 @@
+<Project>
+  <!-- MSBuild imports only the nearest Directory.Build.props. Common is a source build, so it uses the
+       repository-root file and not the NuGet-only file of Rbfx.Examples. -->
+  <Import Project="$(MSBuildThisFileDirectory)../../Directory.Build.props" />
+</Project>

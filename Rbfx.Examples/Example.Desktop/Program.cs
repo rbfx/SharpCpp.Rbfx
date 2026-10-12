@@ -54,6 +54,9 @@ internal partial class CubeApplication : Application
         _sample = new SceneSample(GetContext());
         _scene = _sample.Scene;
         _cube = _sample.PrimaryNode;
+        Console.WriteLine(UserCodeSupport.IsAvailable
+            ? $"Example.UserCode is active: {_sample.UserCodeDescription ?? "the native component was not created"}"
+            : "Example.UserCode is not available in this build.");
 
         _scene.CreateComponent<Octree>();
         var cache = Require(GetContext().GetSubsystem<ResourceCache>(), "resource cache");
@@ -80,6 +83,12 @@ internal partial class CubeApplication : Application
 
     private void OnUpdate(Urho3D.Core.Object sender, StringHash eventType, Ea.UnorderedMap<StringHash, Variant> data)
     {
+        // The native RotatingComponent rotates the cube when the user code is active.
+        if (_sample?.UserCodeDescription != null)
+        {
+            return;
+        }
+
         var timeStep = data.TryGetValue(CoreEvents.Update.TimeStep, out var value) ? value.Float : 0f;
         _angle += 45f * timeStep;
         _cube!.Rotation = new Quaternion(0, _angle, 0);

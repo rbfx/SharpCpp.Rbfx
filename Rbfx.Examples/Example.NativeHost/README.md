@@ -2,7 +2,7 @@
 
 Example of a C++ executable that hosts the .NET runtime and runs rbfx application code written in C#.
 
-Unlike the other examples in `Rbfx.Examples`, this example builds from source with the main CMake project of this repository. It is not part of `Rbfx.Examples.slnx`. It uses no NuGet packages. The local `Directory.Build.props` and `Directory.Build.targets` import the repository-root files, because MSBuild uses only the nearest file.
+Like Example.Desktop and Example.Common, this example builds from source with the main CMake project of this repository. It is not part of `Rbfx.Examples.slnx`. It uses no NuGet packages. The local `Directory.Build.props` and `Directory.Build.targets` import the repository-root files, because MSBuild uses only the nearest file.
 
 ## Parts
 

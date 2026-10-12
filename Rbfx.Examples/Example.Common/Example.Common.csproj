@@ -1,10 +1,37 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Source build of Common with user code. Example.Desktop uses it. The mobile examples use
+       Example.Common.NuGet, which compiles the same sources against the NuGet package. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Example.Common</AssemblyName>
     <RootNamespace>Rbfx.Examples.Common</RootNamespace>
+    <DefineConstants>$(DefineConstants);RBFX_USERCODE</DefineConstants>
   </PropertyGroup>
+
+  <!-- Do not add the SharpCpp.Rbfx.Bindings package here: two bindings assemblies would load. -->
   <ItemGroup>
-    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />
+    <RbfxUserCodeReference Include="Example.UserCode" />
+    <ProjectReference Include="../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
+    <ProjectReference Include="../../SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <!-- An app that references Common gets the native runtime of this source build in its output
+       folder: bindings library, engine library and the native library of Example.UserCode. -->
+  <Target Name="RbfxExposeNativeRuntime"
+          BeforeTargets="GetCopyToOutputDirectoryItems">
+    <ItemGroup>
+      <_RbfxNativeRuntime Include="$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.Native$(RbfxSharedLibrarySuffix)" />
+      <_RbfxNativeRuntime Include="$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)Urho3D$(RbfxSharedLibrarySuffix)" />
+      <_RbfxNativeRuntime Include="$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)Example.UserCode.Native$(RbfxSharedLibrarySuffix)" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(_RbfxNativeRuntime.FullPath)')"
+           Text="The native library '%(_RbfxNativeRuntime.FullPath)' is missing. Build the native code first with RBFX_SDK_ROOT set. Example.UserCode.Native needs the CMake option RBFX_BUILD_USERCODE (ON by default)." />
+    <ItemGroup>
+      <AllItemsFullPathWithTargetPath Include="@(_RbfxNativeRuntime->'%(FullPath)')"
+                                      TargetPath="%(Filename)%(Extension)"
+                                      CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
 </Project>

@@ -10,6 +10,6 @@
     <BuildIpa>false</BuildIpa>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
+    <ProjectReference Include="../Example.Common.NuGet/Example.Common.NuGet.csproj" />
   </ItemGroup>
 </Project>

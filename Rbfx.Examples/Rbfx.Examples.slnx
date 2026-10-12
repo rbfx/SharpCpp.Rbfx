@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Example.Common/Example.Common.csproj" />
+  <Project Path="Example.Common.NuGet/Example.Common.NuGet.csproj" />
   <Project Path="Example.Desktop/Example.Desktop.csproj" />
   <Project Path="Example.Android/Example.Android.csproj" />
   <Project Path="Example.Ios/Example.Ios.csproj" />

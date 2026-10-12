@@ -1,13 +1,23 @@
 # rbfx NuGet examples
 
-These examples restore published packages from NuGet.org. They have no project
-references to the binding generator and need no local rbfx SDK or SharpCpp checkout.
+The Android, iOS, browser WebAssembly, and UWP examples restore published packages from
+NuGet.org. They have no project references to the binding generator and need no local rbfx
+SDK or SharpCpp checkout. They use `Example.Common.NuGet`, which compiles the sources of
+`Example.Common` against the `SharpCpp.Rbfx.Bindings` package. `UserCodeSupport.IsAvailable`
+is `false` there.
 Requires .NET 10. The desktop example supports `linux-x64`, `osx-arm64`, and `win-x64`.
 `Example.Common` owns the shared rbfx scene and node logic; each platform project
 contains its entry point and platform UI or engine host. Android, iOS, browser
 WebAssembly, and UWP require the matching .NET workload or Windows UWP tools.
 
-`Example.NativeHost` is an exception. It builds from source with the main CMake project and is not part of `Rbfx.Examples.slnx`. See its README.
+`Example.Desktop` and `Example.Common` are different. They are a source build: `Example.Common`
+references the bindings project and the generated `Example.UserCode.Bindings` assembly, so the
+desktop cube also shows the native `RotatingComponent`. They need `RBFX_SDK_ROOT` and the
+native build (CMake option `RBFX_BUILD_USERCODE`, ON by default). See `Example.UserCode/README.md`.
+To build `Example.Desktop` from NuGet packages only, pass `-p:RbfxExamplesNuGetOnly=true`.
+Desktop then uses `Example.Common.NuGet` and shows no user code. CI does this.
+
+`Example.NativeHost` is also an exception. It builds from source with the main CMake project and is not part of `Rbfx.Examples.slnx`. See its README.
 
 From the SharpCpp.Rbfx repository root:
 

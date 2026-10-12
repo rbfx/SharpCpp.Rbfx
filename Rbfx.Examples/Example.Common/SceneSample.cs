@@ -14,10 +14,14 @@ public sealed class SceneSample : IDisposable
     public Node LastNode { get; private set; } = null!;
     public uint NodeCount => _nextNodeId;
 
+    /// <summary>Description of the user code component on the primary node, or null if there is none.</summary>
+    public string? UserCodeDescription { get; }
+
     public SceneSample(Context context)
     {
         Scene = new Scene(context);
         PrimaryNode = AddNode();
+        UserCodeDescription = UserCodeSupport.AddRotatingComponent(PrimaryNode);
     }
 
     public Node AddNode()

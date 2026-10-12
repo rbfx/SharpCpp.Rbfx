@@ -58,14 +58,6 @@ internal static class Program
 
     private static readonly ILogger Logger = SharpCppLog.For(nameof(Program));
 
-    private const string ProjectName = "Rbfx.UserCode.Bindings";
-    private const string ManagedNamespace = "RbfxUserCode";
-    private const string ManagedClassName = "Bindings";
-    private const string NativeLibraryName = "SharpCpp.Rbfx.UserCode.Native";
-    private const string GeneratedFileStem = "Rbfx.UserCode";
-    private const string EntryPointPrefix = "scrbfxuc";
-    private const string HeaderIncludePath = "RbfxUserCode/RotatingComponent.hpp";
-
     public static int Main(string[] args)
     {
         var options = GeneratorOptions.Parse(args);
@@ -80,13 +72,14 @@ internal static class Program
             var includeRoot = Path.Combine(sdkRoot, "include");
             var sharpCppIncludeRoot = Path.GetFullPath(options.SharpCppIncludeRoot);
             var rbfxIncludeRoot = Path.GetFullPath(options.RbfxIncludeRoot);
-            var userCodeRoot = Path.GetFullPath(options.UserCodeRoot);
-            var userIncludeRoot = Path.Combine(userCodeRoot, "include");
-            var headerPath = Path.Combine(userIncludeRoot, HeaderIncludePath);
+            var userIncludeRoots = options.IncludeDirectories.Select(Path.GetFullPath).ToArray();
+            var headerPath = Path.GetFullPath(options.HeaderPath);
             if (!File.Exists(headerPath))
             {
                 throw new InvalidOperationException($"User code header was not found at '{headerPath}'.");
             }
+
+            var headerIncludePath = GetHeaderIncludePath(headerPath, userIncludeRoots);
 
             var marshallerConfigurationFiles = new[]
             {
@@ -96,7 +89,7 @@ internal static class Program
 
             Logger.LogInformation("rbfx SDK root: {SdkRoot}", sdkRoot);
             Logger.LogInformation("Flags file: {FlagsFilePath}", options.FlagsFilePath);
-            Logger.LogInformation("User code root: {UserCodeRoot}", userCodeRoot);
+            Logger.LogInformation("User code header: {HeaderPath}", headerPath);
             Logger.LogInformation("Generated output root: {GeneratedRoot}", options.GeneratedRoot);
 
             var importedBindings = BindingMetadataImportCatalog.Load(options.ImportedBindingMetadataFiles);
@@ -106,20 +99,20 @@ internal static class Program
             }
 
             var sdkFlags = SdkParseFlags.Load(options.FlagsFilePath);
-            var clangArguments = BuildClangArguments([sharpCppIncludeRoot, rbfxIncludeRoot], includeRoot, userIncludeRoot, sdkFlags);
+            var clangArguments = BuildClangArguments([sharpCppIncludeRoot, rbfxIncludeRoot], includeRoot, userIncludeRoots, sdkFlags);
             var parser = new ClangSharpHeaderParser();
             var compilation = parser.Parse(
                 new ClangSharpParseRequest(
-                    ProjectName,
-                    ManagedNamespace,
-                    ManagedClassName,
-                    NativeLibraryName,
+                    options.AssemblyName,
+                    options.ManagedNamespace,
+                    options.BindingsClassName,
+                    options.LibraryName,
                     headerPath,
-                    HeaderIncludePath,
+                    headerIncludePath,
                     clangArguments,
                     marshallerConfigurationFiles,
-                    EntryPointPrefix,
-                    OwnedFileRoots: new[] { userIncludeRoot },
+                    options.SymbolPrefix,
+                    OwnedFileRoots: userIncludeRoots,
                     ImportedBindingMetadata: importedBindings));
 
             compilation.NamespaceMappings = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -134,19 +127,19 @@ internal static class Program
 
             BindingCompilationBootstrapPipeline.Apply(compilation, marshallerConfigurationFiles, clangArguments);
 
-            var renderedBindings = BindingOutputRenderer.Render(compilation, GeneratedFileStem);
+            var renderedBindings = BindingOutputRenderer.Render(compilation, options.FileStem);
             var metadataDocument = BindingMetadataExporter.Export(
                 compilation,
                 new BindingMetadataExportOptions(
-                    PackageId: ProjectName,
-                    Phase2ClosureHash: "rbfx-usercode-phase2",
+                    PackageId: options.AssemblyName,
+                    Phase2ClosureHash: $"{options.FileStem}-phase2",
                     ClangArgsHash: "rbfx-usercode-clang",
                     Imports: importedBindings.Imports));
 
             Directory.CreateDirectory(options.GeneratedRoot);
             renderedBindings.WriteToDirectory(options.GeneratedRoot);
             File.WriteAllText(
-                Path.Combine(options.GeneratedRoot, $"{GeneratedFileStem}.Bindings.json"),
+                Path.Combine(options.GeneratedRoot, $"{options.FileStem}.Bindings.json"),
                 BindingMetadataSerializer.Serialize(metadataDocument));
 
             Logger.LogInformation("Generated user-code bindings for {Retained} retained local record(s).", compilation.Records.Count(record => !record.IsIgnored() && !record.GetMetadata<bool>(MetadataKeys.SuppressEmission)));
@@ -160,14 +153,35 @@ internal static class Program
         }
     }
 
-    private static IReadOnlyList<string> BuildClangArguments(IReadOnlyList<string> projectIncludeRoots, string sdkIncludeRoot, string userIncludeRoot, SdkParseFlags sdkFlags)
+    private static string GetHeaderIncludePath(string headerPath, IReadOnlyList<string> includeRoots)
+    {
+        foreach (var includeRoot in includeRoots)
+        {
+            var relativePath = Path.GetRelativePath(includeRoot, headerPath);
+            var escapes = relativePath == ".."
+                || relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                || relativePath.StartsWith("../", StringComparison.Ordinal);
+            if (!escapes && !Path.IsPathRooted(relativePath))
+            {
+                return relativePath.Replace('\\', '/');
+            }
+        }
+
+        throw new InvalidOperationException($"Header '{headerPath}' is not inside any --include-directory.");
+    }
+
+    private static IReadOnlyList<string> BuildClangArguments(IReadOnlyList<string> projectIncludeRoots, string sdkIncludeRoot, IReadOnlyList<string> userIncludeRoots, SdkParseFlags sdkFlags)
     {
         var arguments = new List<string>
         {
             "-xc++",
             $"-std={sdkFlags.LanguageStandard}",
-            $"-I{userIncludeRoot}"
         };
+
+        foreach (var userIncludeRoot in userIncludeRoots)
+        {
+            arguments.Add($"-I{userIncludeRoot}");
+        }
 
         arguments.AddRange(ParseWarningDisableArguments.Where(argument => !arguments.Contains(argument, StringComparer.Ordinal)));
 

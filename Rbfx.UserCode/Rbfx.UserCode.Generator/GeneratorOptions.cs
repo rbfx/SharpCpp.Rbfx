@@ -6,7 +6,21 @@ internal sealed class GeneratorOptions
 
     public required string FlagsFilePath { get; init; }
 
-    public required string UserCodeRoot { get; init; }
+    public required string HeaderPath { get; init; }
+
+    public IReadOnlyList<string> IncludeDirectories { get; init; } = Array.Empty<string>();
+
+    public required string AssemblyName { get; init; }
+
+    public required string ManagedNamespace { get; init; }
+
+    public string BindingsClassName { get; init; } = "Bindings";
+
+    public required string LibraryName { get; init; }
+
+    public required string FileStem { get; init; }
+
+    public required string SymbolPrefix { get; init; }
 
     public required string SharpCppIncludeRoot { get; init; }
 
@@ -28,7 +42,14 @@ internal sealed class GeneratorOptions
 
         var sdkRoot = GetRequiredOption(args, "--sdk-root");
         var flagsFilePath = GetRequiredOption(args, "--flags-file");
-        var userCodeRoot = GetRequiredOption(args, "--user-code-root");
+        var headerPath = GetRequiredOption(args, "--header");
+        var includeDirectories = GetRepeatedPathOption(args, "--include-directory");
+        var assemblyName = GetRequiredValueOption(args, "--assembly-name");
+        var managedNamespace = GetRequiredValueOption(args, "--namespace");
+        var bindingsClassName = GetOptionalValueOption(args, "--bindings-class") ?? "Bindings";
+        var libraryName = GetRequiredValueOption(args, "--library-name");
+        var fileStem = GetRequiredValueOption(args, "--file-stem");
+        var symbolPrefix = GetRequiredValueOption(args, "--symbol-prefix");
         var sharpCppIncludeRoot = GetRequiredOption(args, "--sharpcpp-include");
         var rbfxIncludeRoot = GetRequiredOption(args, "--rbfx-include");
         var generatedRoot = GetRequiredOption(args, "--generated-root");
@@ -37,9 +58,14 @@ internal sealed class GeneratorOptions
 
         ValidatePath(sdkRoot, isDirectory: true, "--sdk-root");
         ValidatePath(flagsFilePath, isDirectory: false, "--flags-file");
-        ValidatePath(userCodeRoot, isDirectory: true, "--user-code-root");
+        ValidatePath(headerPath, isDirectory: false, "--header");
         ValidatePath(sharpCppIncludeRoot, isDirectory: true, "--sharpcpp-include");
         ValidatePath(rbfxIncludeRoot, isDirectory: true, "--rbfx-include");
+
+        foreach (var includeDirectory in includeDirectories)
+        {
+            ValidatePath(includeDirectory, isDirectory: true, "--include-directory");
+        }
 
         foreach (var metadataFile in importedBindingMetadataFiles)
         {
@@ -50,7 +76,14 @@ internal sealed class GeneratorOptions
         {
             SdkRoot = sdkRoot,
             FlagsFilePath = flagsFilePath,
-            UserCodeRoot = userCodeRoot,
+            HeaderPath = headerPath,
+            IncludeDirectories = includeDirectories,
+            AssemblyName = assemblyName,
+            ManagedNamespace = managedNamespace,
+            BindingsClassName = bindingsClassName,
+            LibraryName = libraryName,
+            FileStem = fileStem,
+            SymbolPrefix = symbolPrefix,
             SharpCppIncludeRoot = sharpCppIncludeRoot,
             RbfxIncludeRoot = rbfxIncludeRoot,
             GeneratedRoot = generatedRoot,
@@ -64,7 +97,7 @@ internal sealed class GeneratorOptions
         Console.WriteLine(
             """
             Usage:
-              dotnet Rbfx.UserCode.Generator.dll --sdk-root <path> --flags-file <path> --user-code-root <path> --sharpcpp-include <path> --rbfx-include <path> --generated-root <path> [--import-binding-metadata <path> ...] [--log-file <path>]
+              dotnet Rbfx.UserCode.Generator.dll --sdk-root <path> --flags-file <path> --header <path> [--include-directory <path> ...] --assembly-name <name> --namespace <ns> [--bindings-class <name>] --library-name <name> --file-stem <stem> --symbol-prefix <prefix> --sharpcpp-include <path> --rbfx-include <path> --generated-root <path> [--import-binding-metadata <path> ...] [--log-file <path>]
             """);
     }
 
@@ -79,6 +112,25 @@ internal sealed class GeneratorOptions
         }
 
         throw new ArgumentException($"Missing required option '{optionName}'.");
+    }
+
+    private static string GetRequiredValueOption(IReadOnlyList<string> args, string optionName)
+    {
+        return GetOptionalValueOption(args, optionName)
+            ?? throw new ArgumentException($"Missing required option '{optionName}'.");
+    }
+
+    private static string? GetOptionalValueOption(IReadOnlyList<string> args, string optionName)
+    {
+        for (var index = 0; index < args.Count - 1; index++)
+        {
+            if (string.Equals(args[index], optionName, StringComparison.Ordinal))
+            {
+                return args[index + 1];
+            }
+        }
+
+        return null;
     }
 
     private static string? GetOptionalPathOption(IReadOnlyList<string> args, string optionName)

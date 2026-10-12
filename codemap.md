@@ -74,7 +74,7 @@ SharpCpp.Tool ───────────┘             |
    `SharpCpp.Rbfx.Bindings.csproj` includes generated `.g.cs` files immediately
    before compilation.
 
-6. **Phase 2 Generation**: `Rbfx.UserCode.Generator.dll` is invoked with `--sdk-root`, `--flags-file`, `--user-code-root`, `--generated-root`, `--import-binding-metadata` (pointing to phase 1 metadata). It:
+6. **Phase 2 Generation**: `Rbfx.UserCode.Generator.dll` is invoked with `--sdk-root`, `--flags-file`, `--header`, `--include-directory`, `--assembly-name`, `--namespace`, `--library-name`, `--file-stem`, `--symbol-prefix`, `--generated-root`, `--import-binding-metadata` (pointing to phase 1 metadata). It:
    - Loads phase-1 binding metadata as imports
    - Parses `RbfxUserCode/RotatingComponent.hpp` (and future headers)
    - Applies the bootstrap pipeline with phase-1 types available as imported references

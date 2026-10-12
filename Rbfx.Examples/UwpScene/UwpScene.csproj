@@ -18,8 +18,6 @@
   </PropertyGroup>
   <ItemGroup>
     <None Remove="App.xaml;MainPage.xaml" />
-    <ApplicationDefinition Include="App.xaml" />
-    <Page Include="MainPage.xaml" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxPackageVersion)" />

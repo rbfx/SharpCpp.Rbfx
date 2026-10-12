@@ -3,18 +3,34 @@
     <SharpCppRbfxRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</SharpCppRbfxRoot>
     <!-- SharpCpp is consumed as a sibling checkout; override SharpCppRoot to use another one. -->
     <SharpCppRoot Condition="'$(SharpCppRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../SharpCpp'))</SharpCppRoot>
-    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RBFX_SDK_ROOT)' != ''">$(RBFX_SDK_ROOT)</RbfxSdkRoot>
-    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and Exists('$(SharpCppRbfxRoot)/../../rbfx-sdk')">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../../rbfx-sdk'))</RbfxSdkRoot>
+    <!-- RbfxTargetRid is the one axis of the layout. It stays unset for the host build; RbfxIsCrossRid is true only when it differs from the host RID. -->
+    <RbfxHostArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant())</RbfxHostArch>
+    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Linux`))">linux-$(RbfxHostArch)</RbfxHostRid>
+    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`OSX`))">osx-$(RbfxHostArch)</RbfxHostRid>
+    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Windows`))">win-$(RbfxHostArch)</RbfxHostRid>
+    <RbfxIsCrossRid Condition="'$(RbfxTargetRid)' != '' and '$(RbfxTargetRid)' != '$(RbfxHostRid)'">true</RbfxIsCrossRid>
+    <RbfxIsCrossRid Condition="'$(RbfxIsCrossRid)' == ''">false</RbfxIsCrossRid>
+
+    <!-- SDK root chain: explicit, RBFX_SDK_ROOT (host only), build/sdk/<target rid>, build/sdk/<host rid> (host only), legacy ../../rbfx-sdk (host only). -->
+    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and '$(RBFX_SDK_ROOT)' != ''">$(RBFX_SDK_ROOT)</RbfxSdkRoot>
+    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxTargetRid)' != '' and Exists('$(SharpCppRbfxRoot)/build/sdk/$(RbfxTargetRid)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(SharpCppRbfxRoot)/build/sdk/$(RbfxTargetRid)</RbfxSdkRoot>
+    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)</RbfxSdkRoot>
+    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/../../rbfx-sdk')">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../../rbfx-sdk'))</RbfxSdkRoot>
 
     <!-- Same build-root rule as SharpCpp so referenced SharpCpp projects share the tree. -->
+    <RbfxBuildRootIsExplicit Condition="'$(SharpCppBuildRoot)' != ''">true</RbfxBuildRootIsExplicit>
     <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == '' and '$(SolutionDir)' != ''">$([System.IO.Path]::GetFullPath('$(SolutionDir)/build'))</SharpCppBuildRoot>
     <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/build'))</SharpCppBuildRoot>
+    <!-- Host build root: shared restore dir for every RID, taken before the cross override. -->
+    <RbfxHostBuildRoot>$(SharpCppBuildRoot)</RbfxHostBuildRoot>
+    <SharpCppBuildRoot Condition="'$(RbfxIsCrossRid)' == 'true' and '$(RbfxBuildRootIsExplicit)' != 'true'">$(SharpCppRbfxRoot)/build/cross/$(RbfxTargetRid)</SharpCppBuildRoot>
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <SharpCppManagedOutputRoot Condition="'$(SharpCppManagedOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppManagedOutputRoot>
     <SharpCppOutputDir Condition="'$(SharpCppOutputDir)' == ''">$(SharpCppManagedOutputRoot)/$(Configuration)</SharpCppOutputDir>
     <SharpCppNativeOutputRoot Condition="'$(SharpCppNativeOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppNativeOutputRoot>
     <SharpCppIntermediateRoot Condition="'$(SharpCppIntermediateRoot)' == ''">$(SharpCppBuildRoot)/obj/managed/$(Configuration)</SharpCppIntermediateRoot>
 
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxIsCrossRid)' == 'true'">$(RbfxTargetRid)</RbfxNativePreset>
     <RbfxNativePreset Condition="'$(RbfxNativePreset)' == ''">dev</RbfxNativePreset>
     <RbfxCMakeCommand Condition="'$(RbfxCMakeCommand)' == ''">cmake</RbfxCMakeCommand>
     <RbfxNativeBuildDir Condition="'$(RbfxNativeBuildDir)' == ''">$(SharpCppBuildRoot)/native/$(RbfxNativePreset)</RbfxNativeBuildDir>
@@ -50,7 +66,7 @@
     <OutputPath Condition="'$(RbfxIsTestProject)' != 'true'">$(SharpCppOutputDir)/</OutputPath>
     <OutputPath Condition="'$(RbfxIsTestProject)' == 'true'">$(SharpCppOutputDir)/SharpCpp.Tests/$(MSBuildProjectName)/</OutputPath>
     <BaseIntermediateOutputPath>$(SharpCppIntermediateRoot)/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>$(SharpCppBuildRoot)/obj/restore/$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
+    <MSBuildProjectExtensionsPath>$(RbfxHostBuildRoot)/obj/restore/$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(SharpCppBuildRoot)/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>

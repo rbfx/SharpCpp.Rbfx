@@ -7,6 +7,8 @@ Requires .NET 10. The desktop example supports `linux-x64`, `osx-arm64`, and `wi
 contains its entry point and platform UI or engine host. Android, iOS, browser
 WebAssembly, and UWP require the matching .NET workload or Windows UWP tools.
 
+`Example.NativeHost` is an exception. It builds from source with the main CMake project and is not part of `Rbfx.Examples.slnx`. See its README.
+
 From the SharpCpp.Rbfx repository root:
 
 ```sh

@@ -1,4 +1,4 @@
-#include "SharpCpp/Rbfx/DotNetHost.hpp"
+#include "Urho3D/CSharp/DotNetHost.h"
 
 #include <coreclr_delegates.h>
 #include <hostfxr.h>
@@ -21,7 +21,7 @@
 #include <dlfcn.h>
 #endif
 
-namespace SharpCpp::Rbfx
+namespace Urho3D
 {
 
 namespace
@@ -341,4 +341,4 @@ void DotNetHost::Close()
     // hostfxr stays loaded. The runtime cannot be unloaded from the process.
 }
 
-} // namespace SharpCpp::Rbfx
+} // namespace Urho3D

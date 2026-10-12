@@ -8,8 +8,8 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 
 - `SharpCpp.Rbfx.Generator/` - phase-1 generator for the installed rbfx SDK headers.
 - `Rbfx.UserCode/` - phase-2 user-code generator, sample user code and bindings.
-- `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). `cmake/FindNetHost.cmake` finds nethost.
-- `Rbfx.NativeHost/` - example: C++ executable that hosts .NET and uses a wrapped C++ type. `rbfx_csharp_add_usercode()` is in `cmake/RbfxCSharpAddUsercode.cmake`.
+- `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). Public headers are `Urho3D/CSharp/DotNetHost.h` and `DotNetHostExport.h` (`namespace Urho3D`). `cmake/FindNetHost.cmake` finds nethost.
+- `Rbfx.Examples/Example.NativeHost/` - example: C++ executable that hosts .NET and uses a wrapped C++ type. `rbfx_csharp_add_usercode()` is in `cmake/RbfxCSharpAddUsercode.cmake`.
 - `SharpCpp.Rbfx.Bindings/` - generated rbfx wrapper assembly and hand-written runtime glue.
 - `SharpCpp.Ea/`, `SharpCpp.Rbfx.SourceGenerator/` - EASTL containers and Roslyn helpers.
 - `SharpCpp.Rbfx.Tests.E2E/` - round-trip tests against the generated rbfx wrappers.

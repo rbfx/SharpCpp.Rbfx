@@ -16,9 +16,9 @@ target_link_libraries(
     ${CMAKE_DL_LIBS})
 
 if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
-  target_compile_definitions(sharpcpp-rbfx-host PUBLIC SHARPCPP_RBFX_HOST_STATIC)
+  target_compile_definitions(sharpcpp-rbfx-host PUBLIC URHO3D_DOTNETHOST_STATIC)
 else()
-  target_compile_definitions(sharpcpp-rbfx-host PRIVATE SHARPCPP_RBFX_HOST_EXPORTS)
+  target_compile_definitions(sharpcpp-rbfx-host PRIVATE URHO3D_DOTNETHOST_EXPORTS)
 endif()
 
 # Build-tree fallback of the dotnet root. The build tree is not committed.

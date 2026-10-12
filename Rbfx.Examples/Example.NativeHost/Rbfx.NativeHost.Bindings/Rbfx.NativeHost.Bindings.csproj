@@ -8,10 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../SharpCpp.Ea/SharpCpp.Ea.csproj" />
+    <ProjectReference Include="../../../SharpCpp.Ea/SharpCpp.Ea.csproj" />
     <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Std/SharpCpp.Std.csproj" />
     <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Support/SharpCpp.Support.csproj" />
-    <ProjectReference Include="../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
+    <ProjectReference Include="../../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,12 +1,12 @@
 #pragma once
 
-#include "SharpCpp/Rbfx/HostExport.hpp"
+#include "Urho3D/CSharp/DotNetHostExport.h"
 
 #include <filesystem>
 #include <string>
 #include <string_view>
 
-namespace SharpCpp::Rbfx
+namespace Urho3D
 {
 
 /// Options of DotNetHost::Initialize.
@@ -21,7 +21,7 @@ struct DotNetHostOptions
 /// Hosts the .NET runtime in the current process through hostfxr.
 /// No function throws across the library boundary. Errors are returned as text.
 /// The runtime stays loaded in the process after Close(). .NET cannot unload it.
-class SHARPCPP_RBFX_HOST_API DotNetHost
+class URHO3D_DOTNETHOST_API DotNetHost
 {
 public:
     DotNetHost();
@@ -67,4 +67,4 @@ private:
     void* loadAssemblyFunction_{};
 };
 
-} // namespace SharpCpp::Rbfx
+} // namespace Urho3D

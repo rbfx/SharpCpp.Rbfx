@@ -217,7 +217,7 @@ if(RBFX_BUILD_HOST)
   add_subdirectory(Rbfx.Host)
 endif()
 if(RBFX_BUILD_EXAMPLES)
-  add_subdirectory(Rbfx.NativeHost)
+  add_subdirectory(Rbfx.Examples/Example.NativeHost)
 endif()
 
 add_custom_target(sharpcpp-rbfx-generate DEPENDS sharpcpp-generate-rbfx)

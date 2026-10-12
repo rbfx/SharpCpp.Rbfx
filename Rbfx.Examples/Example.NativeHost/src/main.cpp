@@ -1,4 +1,4 @@
-#include <SharpCpp/Rbfx/DotNetHost.hpp>
+#include <Urho3D/CSharp/DotNetHost.h>
 
 #include <filesystem>
 #include <iostream>
@@ -53,8 +53,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    SharpCpp::Rbfx::DotNetHost host;
-    SharpCpp::Rbfx::DotNetHostOptions options;
+    Urho3D::DotNetHost host;
+    Urho3D::DotNetHostOptions options;
     options.runtimeConfigPath = directory / "Rbfx.NativeHost.Managed.runtimeconfig.json";
 
     std::string error;

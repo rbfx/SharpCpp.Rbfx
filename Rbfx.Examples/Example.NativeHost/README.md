@@ -2,10 +2,12 @@
 
 Example of a C++ executable that hosts the .NET runtime and runs rbfx application code written in C#.
 
+Unlike the other examples in `Rbfx.Examples`, this example builds from source with the main CMake project of this repository. It is not part of `Rbfx.Examples.slnx`. It uses no NuGet packages. The local `Directory.Build.props` and `Directory.Build.targets` import the repository-root files, because MSBuild uses only the nearest file.
+
 ## Parts
 
 - `include/RbfxNativeHost/Spinner.hpp`, `src/Spinner.cpp`: user C++ types. `rbfx_csharp_add_usercode()` wraps them as `Rbfx.NativeHost.Bindings`.
-- `src/main.cpp`: the executable. It uses `SharpCpp::RbfxHost` (`DotNetHost`) to load `Rbfx.NativeHost.Managed.dll` and to call `RbfxNativeHost.Entry.Run(int argc, char** argv)`.
+- `src/main.cpp`: the executable. It includes `Urho3D/CSharp/DotNetHost.h` and uses `SharpCpp::RbfxHost` (`Urho3D::DotNetHost`) to load `Rbfx.NativeHost.Managed.dll` and to call `RbfxNativeHost.Entry.Run(int argc, char** argv)`.
 - `Rbfx.NativeHost.Bindings`: managed project that compiles the generated bindings of the wrapped types.
 - `Rbfx.NativeHost.Managed`: managed entry point. It creates an `Application`, a scene and a `Spinner`.
 

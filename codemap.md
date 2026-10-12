@@ -113,8 +113,8 @@ SharpCpp.Tool ───────────┘             |
 | `SharpCpp.Rbfx.Bindings/` | Phase-1 managed assembly container (generated C# consumed via wildcard) |
 | `SharpCpp.Rbfx.Tests.E2E/` | End-to-end xUnit tests exercising generated SDK wrappers |
 | `Rbfx.UserCode/` | Phase-2 user-code generation + compilation (generator, bindings, native sources) |
-| `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost` |
-| `Rbfx.NativeHost/` | Example: C++ executable hosts .NET, wraps user C++ via `rbfx_csharp_add_usercode()` |
+| `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h` |
+| `Rbfx.Examples/Example.NativeHost/` | Example: C++ executable hosts .NET, wraps user C++ via `rbfx_csharp_add_usercode()` |
 | `Rbfx.Application/` | Application shell composing rbfx + user-code bindings |
 | `CheckGeneratedStaleness.cmake` | Generator staleness checker (timestamp-based invalidation) |
 | `CopyRbfxRuntimeDependencies.cmake.in` | Runtime library deployment script template |

@@ -1,0 +1,4 @@
+<Project>
+  <!-- See Directory.Build.props: import the repository-root targets explicitly. -->
+  <Import Project="$(MSBuildThisFileDirectory)../../Directory.Build.targets" />
+</Project>

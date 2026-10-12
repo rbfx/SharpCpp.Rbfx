@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- The shared sources of Example.Common compile as part of this project. -->
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Do not add the SharpCpp.Rbfx.Bindings package here: two bindings assemblies would load. -->
+    <Compile Include="../Example.Common/**/*.cs"
+             Exclude="../Example.Common/obj/**;../Example.Common/bin/**"
+             LinkBase="Common" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RbfxUserCodeReference Include="Example.UserCode" />
+    <ProjectReference Include="../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
+    <ProjectReference Include="../../SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

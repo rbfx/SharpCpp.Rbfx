@@ -231,7 +231,7 @@ copy_built_runtime_dependencies() {
   shopt -s nullglob
   for file in $pattern; do
     case "$(basename "$file")" in
-      *SharpCpp.Rbfx.Native.*|*SharpCpp.Rbfx.UserCode.Native.*) ;;
+      *SharpCpp.Rbfx.Native.*|*Example.UserCode.Native.*) ;;
       *) cp -a "$file" "$destination/" ;;
     esac
   done

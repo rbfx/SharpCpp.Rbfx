@@ -1,0 +1,5 @@
+<Project>
+  <!-- MSBuild imports only the nearest Directory.Build.props. Import the repository-root file
+       explicitly, so this example does not use the NuGet-only props of Rbfx.Examples. -->
+  <Import Project="$(MSBuildThisFileDirectory)../../Directory.Build.props" />
+</Project>

@@ -66,5 +66,11 @@ dotnet build SharpCpp.Rbfx.slnx --configuration Debug -maxcpucount
 dotnet test SharpCpp.Rbfx.Tests.E2E --configuration Debug --no-build --no-restore
 ```
 
+Fetch a prebuilt rbfx SDK with `eng/fetch-rbfx-sdk.sh --rid <rid>` (default: the host RID).
+It needs `curl`, `jq` and `7z`. It extracts the SDK into `build/sdk/<rid>` and does nothing if the
+SDK is current. Set `RBFX_SDK_ROOT="$(eng/fetch-rbfx-sdk.sh --rid linux-x64 --print-root)"` before
+CMake or MSBuild. `--print-cache-key` prints the CI cache key. `browser-wasm` comes from the
+SharpCpp.Rbfx release `latest`. See `--help` for all options.
+
 Coherent local commits after validation are authorized; publishing requires explicit
 task authorization.

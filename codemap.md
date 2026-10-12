@@ -41,7 +41,7 @@ SharpCpp.Tool ───────────┘             |
                                       v
                               sharpcpp-native (CMake)
                                /       |        \
-              SharpCppTestsE2E_Native  |  sharpcpp-generate-rbfx-usercode
+              SharpCppTestsE2E_Native  |  sharpcpp-generate-SharpCppRbfxUserCode_Native
                                        v        |
                           sharpcpp-generate-rbfx v
                                        |  SharpCppRbfxUserCode_Native

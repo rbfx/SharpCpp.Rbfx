@@ -21,9 +21,7 @@
     <RbfxNativeLockFile Condition="'$(RbfxNativeLockFile)' == ''">$(RbfxNativeBuildDir)/sharpcpp-rbfx-native.lock</RbfxNativeLockFile>
     <RbfxGeneratedRoot>$(RbfxNativeBuildDir)/generated</RbfxGeneratedRoot>
     <RbfxGeneratedDir>$(RbfxGeneratedRoot)/rbfx</RbfxGeneratedDir>
-    <RbfxUserCodeGeneratedDir>$(RbfxGeneratedRoot)/rbfx-usercode</RbfxUserCodeGeneratedDir>
     <RbfxGeneratedStamp>$(RbfxGeneratedDir)/generate.stamp</RbfxGeneratedStamp>
-    <RbfxUserCodeGeneratedStamp>$(RbfxUserCodeGeneratedDir)/generate.stamp</RbfxUserCodeGeneratedStamp>
 
     <RbfxSharedLibraryPrefix Condition="$([MSBuild]::IsOSPlatform(`Linux`)) or $([MSBuild]::IsOSPlatform(`OSX`))">lib</RbfxSharedLibraryPrefix>
     <RbfxSharedLibrarySuffix Condition="$([MSBuild]::IsOSPlatform(`Linux`))">.so</RbfxSharedLibrarySuffix>
@@ -35,7 +33,6 @@
     <DefineConstants Condition="'$(RbfxTargetRid)' == 'ios-arm64'">$(DefineConstants);SHARPCPP_STATIC_RUNTIME</DefineConstants>
     <DefineConstants Condition="'$(RbfxTargetRid)' == 'browser-wasm'">$(DefineConstants);SHARPCPP_STATIC_RUNTIME;SHARPCPP_BROWSER_WASM</DefineConstants>
     <RbfxNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.Native$(RbfxSharedLibrarySuffix)</RbfxNativeLibraryPath>
-    <RbfxUserCodeNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.UserCode.Native$(RbfxSharedLibrarySuffix)</RbfxUserCodeNativeLibraryPath>
     <RbfxRunSettingsPath>$(SharpCppOutputDir)/SharpCpp.Rbfx.Tests.runsettings</RbfxRunSettingsPath>
 
     <SharpCppSdkVersion>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('$(MSBuildSDKsPath)'))))</SharpCppSdkVersion>
@@ -63,10 +60,5 @@
     <RbfxConsumedGeneratedDir>$(RbfxGeneratedDir)</RbfxConsumedGeneratedDir>
     <RbfxConsumedGeneratedStamp>$(RbfxGeneratedStamp)</RbfxConsumedGeneratedStamp>
     <RbfxConsumedNativeLibraryPath>$(RbfxNativeLibraryPath)</RbfxConsumedNativeLibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Rbfx.UserCode.Bindings'">
-    <RbfxConsumedGeneratedDir>$(RbfxUserCodeGeneratedDir)</RbfxConsumedGeneratedDir>
-    <RbfxConsumedGeneratedStamp>$(RbfxUserCodeGeneratedStamp)</RbfxConsumedGeneratedStamp>
-    <RbfxConsumedNativeLibraryPath>$(RbfxUserCodeNativeLibraryPath)</RbfxConsumedNativeLibraryPath>
   </PropertyGroup>
 </Project>

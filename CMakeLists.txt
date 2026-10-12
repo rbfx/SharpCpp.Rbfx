@@ -194,6 +194,8 @@ file(GLOB_RECURSE RBFX_SDK_INPUT_HEADERS CONFIGURE_DEPENDS
   "${RBFX_SDK_ROOT}/include/ImGui/*.h"
   "${RBFX_SDK_ROOT}/include/ImGui/*.hpp")
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SharpCppRbfxWrap.cmake")
+
 add_subdirectory(SharpCpp.Rbfx.Generator)
 add_subdirectory(SharpCpp.Rbfx.Bindings)
 if(RBFX_BUILD_USERCODE)
@@ -202,9 +204,10 @@ endif()
 
 add_custom_target(sharpcpp-rbfx-generate DEPENDS sharpcpp-generate-rbfx)
 add_custom_target(sharpcpp-rbfx-native DEPENDS sharpcpp-rbfx-runtime)
-if(RBFX_BUILD_USERCODE)
-  add_dependencies(sharpcpp-rbfx-generate sharpcpp-generate-rbfx-usercode)
-  add_dependencies(sharpcpp-rbfx-native SharpCppRbfxUserCode_Native)
-endif()
+get_property(_sharpcpp_rbfx_wrap_targets GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS)
+foreach(_wrap_target IN LISTS _sharpcpp_rbfx_wrap_targets)
+  add_dependencies(sharpcpp-rbfx-generate sharpcpp-generate-${_wrap_target})
+  add_dependencies(sharpcpp-rbfx-native ${_wrap_target})
+endforeach()
 
 add_custom_target(sharpcpp-rbfx-native-all ALL DEPENDS sharpcpp-rbfx-native)

@@ -1,11 +1,9 @@
-set(RBFX_USERCODE_NATIVE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/RotatingComponent.cpp")
-set(RBFX_USERCODE_GENERATED_ROOT "${SHARPCPP_GENERATED_ROOT}/rbfx-usercode")
-set(RBFX_USERCODE_GENERATED_STAMP "${RBFX_USERCODE_GENERATED_ROOT}/generate.stamp")
-set(RBFX_USERCODE_GENERATOR_LOG_FILE "${RBFX_USERCODE_GENERATED_ROOT}/generator.log")
-
-file(GLOB_RECURSE RBFX_USERCODE_INPUT_HEADERS CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp")
-
-add_subdirectory(Rbfx.UserCode.Generator)
-add_subdirectory(Rbfx.UserCode.Bindings)
+sharpcpp_rbfx_wrap(SharpCppRbfxUserCode_Native
+  HEADERS include/RbfxUserCode/RotatingComponent.hpp
+  SOURCES src/RotatingComponent.cpp
+  INCLUDE_DIRECTORIES include
+  NAMESPACE RbfxUserCode
+  ASSEMBLY_NAME Rbfx.UserCode.Bindings
+  LIBRARY_NAME SharpCpp.Rbfx.UserCode.Native
+  SYMBOL_PREFIX scrbfxuc
+  GENERATED_DIRECTORY rbfx-usercode)

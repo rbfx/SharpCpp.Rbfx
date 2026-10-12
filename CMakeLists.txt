@@ -206,6 +206,27 @@ file(GLOB_RECURSE RBFX_SDK_INPUT_HEADERS CONFIGURE_DEPENDS
   "${RBFX_SDK_ROOT}/include/ImGui/*.h"
   "${RBFX_SDK_ROOT}/include/ImGui/*.hpp")
 
+set(
+  RBFX_CSHARP_BINDINGS_PROJECTS
+  "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Ea/SharpCpp.Ea.csproj;${SHARPCPP_ROOT}/src/SharpCpp.Std/SharpCpp.Std.csproj;${SHARPCPP_ROOT}/src/SharpCpp.Support/SharpCpp.Support.csproj;${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj"
+  CACHE STRING
+  "Managed projects that the bindings project written by rbfx_csharp_add_usercode() references.")
+set(
+  RBFX_CSHARP_BINDINGS_PACKAGE_VERSION
+  ""
+  CACHE STRING
+  "When set, the written bindings project references the SharpCpp.Rbfx.Bindings package of this version instead of the projects.")
+set(
+  RBFX_CSHARP_MSBUILD_PROPS
+  "${PROJECT_SOURCE_DIR}/Directory.Build.props"
+  CACHE FILEPATH
+  "MSBuild props file that the written Directory.Build.props imports.")
+set(
+  RBFX_CSHARP_MSBUILD_TARGETS
+  "${PROJECT_SOURCE_DIR}/Directory.Build.targets"
+  CACHE FILEPATH
+  "MSBuild targets file that the written Directory.Build.targets imports.")
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUsercode.cmake")
 
 add_subdirectory(SharpCpp.Rbfx.Generator)

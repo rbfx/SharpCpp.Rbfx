@@ -1,7 +1,7 @@
 <Project>
   <!-- A project that consumes a library from rbfx_csharp_add_usercode() sets these two properties in its csproj:
-       RbfxWrappedGeneratedDirectory = GENERATED_DIRECTORY, RbfxWrappedLibraryName = LIBRARY_NAME. Evaluated here because the csproj properties are not defined when the props file is imported. -->
-  <PropertyGroup Condition="'$(RbfxWrappedGeneratedDirectory)' != '' and '$(RbfxWrappedLibraryName)' != ''">
+       RbfxWrappedGeneratedDirectory = GENERATED_DIRECTORY, RbfxWrappedLibraryName = LIBRARY_NAME. A generated <target>.props that sets RbfxConsumed* directly wins. Evaluated here because the csproj properties are not defined when the props file is imported. -->
+  <PropertyGroup Condition="'$(RbfxWrappedGeneratedDirectory)' != '' and '$(RbfxWrappedLibraryName)' != '' and '$(RbfxConsumedGeneratedDir)' == ''">
     <RbfxConsumedGeneratedDir>$(RbfxGeneratedRoot)/$(RbfxWrappedGeneratedDirectory)</RbfxConsumedGeneratedDir>
     <RbfxConsumedGeneratedStamp>$(RbfxConsumedGeneratedDir)/generate.stamp</RbfxConsumedGeneratedStamp>
     <RbfxConsumedNativeLibraryPath>$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)$(RbfxWrappedLibraryName)$(RbfxSharedLibrarySuffix)</RbfxConsumedNativeLibraryPath>

@@ -1,13 +1,48 @@
-# rbfx_csharp_add_usercode(<target> ...)
+# rbfx_csharp_add_usercode(<target> HEADERS <header>... [keywords])
 #
 # Generates C# bindings for user C++ headers that use the rbfx SDK and builds
 # the native library with the generated wrapper code. See build/PLAN-dotnet-hosting.md, section 3.3.
+# The function also writes the managed bindings project at configure time. It never runs MSBuild.
+#
+# Keywords with one value:
+#   NAMESPACE            C# namespace of the bindings. Default: <target> without "." and "-".
+#   ASSEMBLY_NAME        Name of the managed assembly. Default: <target>.
+#   LIBRARY_NAME         Name of the native library without prefix and suffix. Default: <target>.Native.
+#   SYMBOL_PREFIX        Prefix of the exported native symbols. Default: lower-case <target> with letters and digits only.
+#   GENERATED_DIRECTORY  Directory below SHARPCPP_GENERATED_ROOT for the generated sources. Default: <target>.
+#   LIBRARY_TYPE         SHARED or STATIC. Default: RBFX_NATIVE_LIBRARY_TYPE.
+#   CSPROJ               Path of a managed project that the user maintains. The function does not write
+#                        a project file when this keyword is present. The project files that the function
+#                        writes are the same, except the csproj.
+# Keywords with a list of values:
+#   HEADERS              Header files to wrap. Required.
+#   SOURCES              Additional native source files of the library.
+#   INCLUDE_DIRECTORIES  Include directories of the headers.
+#   LINK_LIBRARIES       Additional libraries to link.
+#
+# Files written to ${SHARPCPP_GENERATED_ROOT}/usercode/<target>/ (only when the content changes):
+#   Directory.Build.props, Directory.Build.targets  Import RBFX_CSHARP_MSBUILD_PROPS and RBFX_CSHARP_MSBUILD_TARGETS.
+#   <target>.props                                  MSBuild properties of the wrapped library.
+#   <ASSEMBLY_NAME>.csproj                          Managed bindings project (not written when CSPROJ is given).
+#
+# Target properties set on <target>:
+#   SHARPCPP_RBFX_MANAGED_PROJECT   Path of the managed project (the CSPROJ value, or the written csproj).
+#   SHARPCPP_RBFX_MANAGED_PROPS     Path of <target>.props.
+#   SHARPCPP_RBFX_MANAGED_ASSEMBLY  Path of the managed assembly (a generator expression).
+#
+# Cache variables (defined by the top-level CMakeLists.txt):
+#   RBFX_CSHARP_BINDINGS_PROJECTS         Projects that the written csproj references (one ProjectReference for each path).
+#   RBFX_CSHARP_BINDINGS_PACKAGE_VERSION  When set, the csproj references the package SharpCpp.Rbfx.Bindings
+#                                         of this version instead of the projects.
+#   RBFX_CSHARP_MSBUILD_PROPS, RBFX_CSHARP_MSBUILD_TARGETS  Files that the written Directory.Build.* files import.
 #
 # Required variables (defined by the top-level CMakeLists.txt before this file is included):
-#   SHARPCPP_ROOT, SHARPCPP_GENERATED_ROOT, DOTNET_EXECUTABLE, SHARPCPP_CLANG_RESOURCE_DIRECTORY,
+#   SHARPCPP_ROOT, SHARPCPP_GENERATED_ROOT, SHARPCPP_NATIVE_OUTPUT_ROOT, SHARPCPP_MANAGED_OUTPUT_ROOT,
+#   DOTNET_EXECUTABLE, SHARPCPP_CLANG_RESOURCE_DIRECTORY,
 #   RBFX_SDK_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_GENERATED_STAMP, RBFX_GENERATED_ROOT, RBFX_METADATA_FILE,
 #   RBFX_SDK_INPUT_HEADERS, RBFX_NATIVE_LIBRARY_TYPE, RBFX_RUNTIME_RPATH, RBFX_URHO3D_TARGET,
-#   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL.
+#   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL, RBFX_CSHARP_BINDINGS_PROJECTS, RBFX_CSHARP_BINDINGS_PACKAGE_VERSION,
+#   RBFX_CSHARP_MSBUILD_PROPS, RBFX_CSHARP_MSBUILD_TARGETS.
 
 define_property(GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS
   BRIEF_DOCS "Targets created by rbfx_csharp_add_usercode()"
@@ -17,7 +52,7 @@ function(rbfx_csharp_add_usercode target)
   cmake_parse_arguments(
     WRAP
     ""
-    "NAMESPACE;ASSEMBLY_NAME;LIBRARY_NAME;SYMBOL_PREFIX;GENERATED_DIRECTORY;LIBRARY_TYPE"
+    "NAMESPACE;ASSEMBLY_NAME;LIBRARY_NAME;SYMBOL_PREFIX;GENERATED_DIRECTORY;LIBRARY_TYPE;CSPROJ"
     "HEADERS;SOURCES;INCLUDE_DIRECTORIES;LINK_LIBRARIES"
     ${ARGN})
 
@@ -38,6 +73,13 @@ function(rbfx_csharp_add_usercode target)
   if(NOT WRAP_LIBRARY_NAME)
     set(WRAP_LIBRARY_NAME "${target}.Native")
   endif()
+
+  # Two calls with the same assembly name share MSBuild obj and output paths.
+  get_property(_existing_assemblies GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_ASSEMBLIES)
+  if("${WRAP_ASSEMBLY_NAME}" IN_LIST _existing_assemblies)
+    message(FATAL_ERROR "rbfx_csharp_add_usercode(${target}): ASSEMBLY_NAME '${WRAP_ASSEMBLY_NAME}' is already used by another call.")
+  endif()
+  set_property(GLOBAL APPEND PROPERTY SHARPCPP_RBFX_WRAP_ASSEMBLIES "${WRAP_ASSEMBLY_NAME}")
   if(NOT WRAP_SYMBOL_PREFIX)
     string(TOLOWER "${target}" WRAP_SYMBOL_PREFIX)
     string(REGEX REPLACE "[^a-z0-9]" "" WRAP_SYMBOL_PREFIX "${WRAP_SYMBOL_PREFIX}")
@@ -56,6 +98,54 @@ function(rbfx_csharp_add_usercode target)
   set(generated_stamp "${generated_root}/generate.stamp")
   set(generator_log "${generated_root}/generator.log")
   set(generated_cpp "${generated_root}/${file_stem}.Bindings.g.cpp")
+
+  # Managed bindings project. The files are written at configure time only. MSBuild builds them later.
+  set(usercode_directory "${SHARPCPP_GENERATED_ROOT}/usercode/${target}")
+  set(managed_props "${usercode_directory}/${target}.props")
+  if(WRAP_CSPROJ)
+    cmake_path(ABSOLUTE_PATH WRAP_CSPROJ BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE OUTPUT_VARIABLE managed_project)
+  else()
+    set(managed_project "${usercode_directory}/${WRAP_ASSEMBLY_NAME}.csproj")
+  endif()
+  if(WRAP_LIBRARY_TYPE STREQUAL "STATIC")
+    set(native_library_prefix "${CMAKE_STATIC_LIBRARY_PREFIX}")
+    set(native_library_suffix "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  else()
+    set(native_library_prefix "${CMAKE_SHARED_LIBRARY_PREFIX}")
+    set(native_library_suffix "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  endif()
+  set(WRAP_TARGET "${target}")
+  set(WRAP_GENERATED_ROOT "${generated_root}")
+  set(WRAP_GENERATED_STAMP "${generated_stamp}")
+  set(WRAP_NATIVE_LIBRARY_PATH
+      "${SHARPCPP_NATIVE_OUTPUT_ROOT}/$(Configuration)/${native_library_prefix}${WRAP_LIBRARY_NAME}${native_library_suffix}")
+  if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
+    set(RBFX_CSHARP_MANAGED_REFERENCES
+        "    <PackageReference Include=\"SharpCpp.Rbfx.Bindings\" Version=\"${RBFX_CSHARP_BINDINGS_PACKAGE_VERSION}\" />")
+  else()
+    set(references)
+    foreach(reference IN LISTS RBFX_CSHARP_BINDINGS_PROJECTS)
+      list(APPEND references "    <ProjectReference Include=\"${reference}\" />")
+    endforeach()
+    list(JOIN references "\n" RBFX_CSHARP_MANAGED_REFERENCES)
+  endif()
+  set(templates_directory "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/templates")
+  set(managed_files
+      "UserCodeDirectory.Build.props.in|${usercode_directory}/Directory.Build.props"
+      "UserCodeDirectory.Build.targets.in|${usercode_directory}/Directory.Build.targets"
+      "UserCode.props.in|${managed_props}")
+  if(NOT WRAP_CSPROJ)
+    list(APPEND managed_files "UserCode.csproj.in|${managed_project}")
+  endif()
+  foreach(managed_file IN LISTS managed_files)
+    string(REPLACE "|" ";" managed_file "${managed_file}")
+    list(GET managed_file 0 template_name)
+    list(GET managed_file 1 output_path)
+    set(template_path "${templates_directory}/${template_name}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${template_path}")
+    file(READ "${template_path}" template_content)
+    file(CONFIGURE OUTPUT "${output_path}" CONTENT "${template_content}" @ONLY NEWLINE_STYLE UNIX)
+  endforeach()
 
   # Resolve relative paths against the calling directory.
   set(headers)
@@ -181,7 +271,10 @@ function(rbfx_csharp_add_usercode target)
       SHARPCPP_RBFX_GENERATED_DIR "${generated_root}"
       SHARPCPP_RBFX_GENERATED_STAMP "${generated_stamp}"
       SHARPCPP_RBFX_ASSEMBLY_NAME "${WRAP_ASSEMBLY_NAME}"
-      SHARPCPP_RBFX_LIBRARY_NAME "${WRAP_LIBRARY_NAME}")
+      SHARPCPP_RBFX_LIBRARY_NAME "${WRAP_LIBRARY_NAME}"
+      SHARPCPP_RBFX_MANAGED_PROJECT "${managed_project}"
+      SHARPCPP_RBFX_MANAGED_PROPS "${managed_props}"
+      SHARPCPP_RBFX_MANAGED_ASSEMBLY "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/${WRAP_ASSEMBLY_NAME}.dll")
   target_include_directories(
     ${target}
     PRIVATE

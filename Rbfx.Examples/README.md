@@ -50,7 +50,7 @@ host must enable cross-origin isolation for the multithreaded WebAssembly runtim
 `uap-x64` to the Windows x64 runtime while allowing NuGet to select the
 UWP-specific native engine package.
 
-`Directory.Build.props` pins the published package version for all examples.
+`Directory.Build.props` pins the published package version for the NuGet-only examples.
 To try another published version, edit `RbfxPackageVersion` or pass
 `-p:RbfxPackageVersion=VERSION`. Select another RID with `-r osx-arm64` or `-r win-x64`.
 

@@ -13,7 +13,8 @@
          RbfxUserCode    true for the library of a RbfxUserCodeReference (optional).
        The consumer RID is RbfxTargetRid, or else RuntimeIdentifier. Only the items with this RID are mapped.
 
-       Android: every *.so (this includes libc++_shared.so) becomes AndroidNativeLibraryNoJniPreload.
+       Android: every *.so (this includes libc++_shared.so) becomes AndroidNativeLibraryNoJniPreload. The library of a
+                RbfxUserCodeReference also becomes AndroidNativeLibrary with an Abi.
        iOS:     every *.a becomes a static NativeReference. libSharpCpp.Rbfx.Native.a also carries the
                 link flags and the frameworks.
        Wasm:    every *.a becomes NativeFileReference. Every *.js is collected in RbfxNativeJsLibrary and
@@ -36,6 +37,17 @@
   <ItemGroup Condition="'$(AndroidApplication)' == 'true'">
     <AndroidNativeLibraryNoJniPreload Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('Extension', '.so'))" />
     <AndroidNativeLibraryNoJniPreload Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('Extension', '.so'))" />
+    <!-- NoJniPreload does not put a file into the APK. The libraries of a runtime package arrive through the
+         NuGet native assets. The library of a RbfxUserCodeReference does not, so it needs AndroidNativeLibrary with an Abi. -->
+    <AndroidNativeLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm64')->WithMetadataValue('Extension', '.so'))" />
+    <AndroidNativeLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm64')->WithMetadataValue('Extension', '.so'))" Abi="arm64-v8a" />
+    <AndroidNativeLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm')->WithMetadataValue('Extension', '.so'))" />
+    <AndroidNativeLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm')->WithMetadataValue('Extension', '.so'))" Abi="armeabi-v7a" />
+    <AndroidNativeLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-x64')->WithMetadataValue('Extension', '.so'))" />
+    <AndroidNativeLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-x64')->WithMetadataValue('Extension', '.so'))" Abi="x86_64" />
+    <AndroidNativeLibraryNoJniPreload Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxNativeRid', 'android-arm64')->WithMetadataValue('Extension', '.so'))" Abi="arm64-v8a" />
+    <AndroidNativeLibraryNoJniPreload Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxNativeRid', 'android-arm')->WithMetadataValue('Extension', '.so'))" Abi="armeabi-v7a" />
+    <AndroidNativeLibraryNoJniPreload Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxNativeRid', 'android-x64')->WithMetadataValue('Extension', '.so'))" Abi="x86_64" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(_RbfxNativeConsumerRid)' == 'ios-arm64' and '$(TargetPlatformIdentifier)' == 'ios'">
@@ -70,7 +82,7 @@
   <!-- A property cannot read an item at evaluation, so a target adds the flags. Every import defines this
        target with the same content. MSBuild keeps one definition and runs it once. -->
   <Target Name="RbfxMapNativeJsLibraries"
-          BeforeTargets="CoreCompile;_BrowserWasmLinkDotNet"
+          BeforeTargets="CoreCompile;_BrowserWasmWriteRspForLinking;_WasmWriteRspForLinking;_BrowserWasmLinkDotNet"
           Condition="'@(RbfxNativeJsLibrary)' != '' and '$(_RbfxNativeJsFlagsApplied)' != 'true'">
     <PropertyGroup>
       <_RbfxNativeJsFlagsApplied>true</_RbfxNativeJsFlagsApplied>

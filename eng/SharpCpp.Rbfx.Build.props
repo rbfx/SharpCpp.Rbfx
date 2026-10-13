@@ -25,9 +25,10 @@
     <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/build'))</SharpCppBuildRoot>
     <!-- Restore files stay under the host build root. RbfxRestoreRid adds a folder for a target RID, so builds of
          different RIDs never write the same project.assets.json. It comes from a global property, because
-         restore of a referenced project sees only global properties. It follows a global RuntimeIdentifier. -->
+         restore of a referenced project sees only global properties. It follows a global RuntimeIdentifier. An app folder sets RbfxDefaultRestoreRid in a Directory.Build.rsp file for builds without a RID. -->
     <RbfxHostBuildRoot>$(SharpCppBuildRoot)</RbfxHostBuildRoot>
     <RbfxRestoreRid Condition="'$(RbfxRestoreRid)' == ''">$(RuntimeIdentifier)</RbfxRestoreRid>
+    <RbfxRestoreRid Condition="'$(RbfxRestoreRid)' == ''">$(RbfxDefaultRestoreRid)</RbfxRestoreRid>
     <RbfxRestoreRoot>$(RbfxHostBuildRoot)/obj/restore</RbfxRestoreRoot>
     <RbfxRestoreRoot Condition="'$(RbfxRestoreRid)' != ''">$(RbfxHostBuildRoot)/obj/restore/$(RbfxRestoreRid)</RbfxRestoreRoot>
     <SharpCppBuildRoot Condition="'$(RbfxIsCrossRid)' == 'true' and '$(RbfxBuildRootIsExplicit)' != 'true'">$(SharpCppRbfxRoot)/build/cross/$(RbfxTargetRid)</SharpCppBuildRoot>

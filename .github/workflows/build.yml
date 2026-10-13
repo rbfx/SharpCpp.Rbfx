@@ -183,7 +183,7 @@ jobs:
         working-directory: SharpCpp.Rbfx
         run: >-
           dotnet run --file packaging/nuget/CrossPackage.cs -- create
-          --version "$PACKAGE_VERSION" --rid '${{ matrix.rid }}' --build-root build
+          --version "$PACKAGE_VERSION" --rid '${{ matrix.rid }}'
 
       - name: Upload Packages
         uses: actions/upload-artifact@v7
@@ -198,7 +198,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: managed-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/bin/Release/SharpCpp.Rbfx.Bindings.dll
+          path: SharpCpp.Rbfx/build/${{ (matrix.cross == true || matrix.rid == 'uap-x64') && format('cross/{0}/', matrix.rid) || '' }}bin/Release/SharpCpp.Rbfx.Bindings.dll
           if-no-files-found: error
 
       - name: Upload Managed Package Inputs
@@ -215,7 +215,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: generated-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/native/*/generated/
+          path: |
+            SharpCpp.Rbfx/build/native/*/generated/
+            SharpCpp.Rbfx/build/cross/*/native/*/generated/
           if-no-files-found: error
 
   Union:

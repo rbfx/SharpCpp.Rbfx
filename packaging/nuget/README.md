@@ -12,7 +12,7 @@ does not use new `.nuspec` files.
   for their RID. Applications must select one of the supported RIDs.
 - `SharpCpp.Rbfx.Bindings.runtime.<rid>` contains the managed implementation and native runtime files for one
   runtime identifier, including `SharpCpp.Rbfx.Native` and the copied rbfx native
-  dependencies from the shared `build/bin` output directory. On desktop RIDs it also contains
+  dependencies from the build output directory of the RID. On desktop RIDs it also contains
   the host library (`SharpCpp.Rbfx.Host`) and the shared nethost library that it needs (`libnethost.so`, `libnethost.dylib` or `nethost.dll`).
   The nethost linkage follows `BUILD_SHARED_LIBS`. UWP does not build the host library. In CI union packages,
   Linux x64 and Android x64 share one `runtime.unix-x64` package because NuGet's
@@ -42,7 +42,7 @@ property. Use `--target-framework TFM` only when explicitly overriding it.
 
 Use `--sdk-root PATH` to use an SDK that exists already. Use `--skip-fetch` when
 `build/sdk/<rid>/` already exists. Use `--rbfx-tag TAG` to select an rbfx release.
-Use `--skip-build` to package an already-built `build/bin/<Configuration>` tree.
+Use `--skip-build` to package an already-built tree. The tree is `build/bin/<Configuration>` for the host RID and `build/cross/<rid>/bin/<Configuration>` for another RID. `--build-root` selects another tree.
 Package staging, package output, and the local repository remain below
 `build/package/nuget/`. Downloaded SDKs are in `build/sdk/`.
 

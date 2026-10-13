@@ -366,6 +366,7 @@ pack_project() {
     -p:SharpCppRuntimeIdentifier="$rid" \
     -p:RbfxRestoreRid="$rid" \
     -p:SharpCppIntermediateRoot="$PACKAGE_ROOT/$rid/obj" \
+    -p:SharpCppManagedOutputRoot="$PACKAGE_ROOT/$rid/bin" \
     -p:SharpCppPackageTargetFramework="$target_framework"
 }
 
@@ -373,13 +374,13 @@ create_packages() {
   local version=""
   local rid=""
   local configuration="Release"
-  local configure_preset="dev"
+  local configure_preset=""
   local sdk_root=""
   local rbfx_tag=""
   local target_framework=""
   local skip_fetch=0
   local skip_build=0
-  local build_root="$REPO_ROOT/build"
+  local build_root=""
   local cmake_arguments=()
 
   while [ $# -gt 0 ]; do
@@ -468,6 +469,14 @@ EOF
   if [ -z "$rid" ]; then
     rid="$(default_rid)"
   fi
+
+  # A RID that is not the host RID builds in its own tree, so builds of different RIDs can run in parallel.
+  if [ "$rid" != "$(default_rid)" ]; then
+    : "${build_root:=$REPO_ROOT/build/cross/$rid}"
+    : "${configure_preset:=$rid}"
+  fi
+  : "${build_root:=$REPO_ROOT/build}"
+  : "${configure_preset:=dev}"
 
   STAGE_DIR="$PACKAGE_ROOT/$rid/stage"
   OUT_DIR="$PACKAGE_ROOT/$rid/out"

@@ -1,4 +1,3 @@
-using System.Text;
 using Urho3D.Core;
 using Urho3D.IO;
 using Urho3D.Scene;
@@ -12,8 +11,9 @@ public partial class Spinner : LogicComponent
 
     private int _updates;
 
-    /// <summary>Rotation speed in degrees per second.</summary>
-    public float Speed { get; set; }
+    /// <summary>Rotation speed in degrees per second. It is the engine attribute "Speed".</summary>
+    [SerializeField]
+    public float Speed { get; set; } = 45.0f;
 
     public Spinner(Context context)
         : base(context)
@@ -27,7 +27,7 @@ public partial class Spinner : LogicComponent
         GetNode().Yaw(Speed * timeStep, TransformSpace.TsLocal);
         if (_updates % LogInterval == 0)
         {
-            Urho3D.IO.Log.GetLogger().Write(LogLevel.LogInfo, Encoding.UTF8.GetBytes($"C# spinner: {_updates} updates"));
+            Log.Info($"C# spinner: {_updates} updates");
         }
     }
 }

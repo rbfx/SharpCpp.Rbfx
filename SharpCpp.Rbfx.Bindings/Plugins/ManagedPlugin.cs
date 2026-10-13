@@ -62,8 +62,9 @@ public abstract partial class ManagedPlugin : Plugin
             return;
         }
 
-        // Do not dispose the context: the property returns a shared wrapper.
-        var context = Context;
+        // GetContext returns a borrowed wrapper. The Context property returns an owning wrapper, and the engine caches
+        // it in the native context. That wrapper keeps the context alive, so the engine never shuts down.
+        var context = GetContext();
         var category = FactoryCategory;
 
         // A base type registers before its derived types, so that the derived types can copy its attributes.
@@ -87,7 +88,7 @@ public abstract partial class ManagedPlugin : Plugin
     /// <summary>Removes the reflections of the registered types in reverse order.</summary>
     protected void UnregisterManagedTypes()
     {
-        var context = Context;
+        var context = GetContext();
         for (var i = _registeredTypes.Count - 1; i >= 0; i--)
         {
             try

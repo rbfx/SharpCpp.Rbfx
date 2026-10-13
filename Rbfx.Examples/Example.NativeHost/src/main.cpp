@@ -11,19 +11,13 @@
 #include <Urho3D/Graphics/StaticModel.h>
 #include <Urho3D/IO/FileSystem.h>
 #include <Urho3D/IO/Log.h>
+#include <Urho3D/Plugins/PluginManager.h>
 #include <Urho3D/Resource/ResourceCache.h>
 #include <Urho3D/Scene/Node.h>
 #include <Urho3D/Scene/Scene.h>
 
 #include <filesystem>
 #include <string>
-
-namespace
-{
-
-using AttachSpinnerFunction = void (*)(Urho3D::Node*, float);
-
-} // namespace
 
 /// Plain rbfx application. It starts the .NET runtime and uses a C# component as a script.
 class NativeHostApp : public Urho3D::Application
@@ -56,12 +50,11 @@ public:
             return;
         }
 
-        const auto attachSpinner = host_.GetFunction<AttachSpinnerFunction>(
-            directory / "Rbfx.NativeHost.Managed.dll", "RbfxNativeHost.Scripting, Rbfx.NativeHost.Managed",
-            "AttachSpinner", {}, error);
-        if (!attachSpinner)
+        // The engine creates the plugin manager in Engine::Initialize, before Start().
+        // The plugin registers the C# Spinner component, so the code below can create it by name.
+        if (!host_.LoadPlugin(GetSubsystem<Urho3D::PluginManager>(), directory / "Rbfx.NativeHost.Managed.dll", error))
         {
-            ErrorExit(("Cannot find the managed function: " + error).c_str());
+            ErrorExit(("Cannot load the C# plugin: " + error).c_str());
             return;
         }
 
@@ -73,7 +66,13 @@ public:
         model->SetModel(cache->GetResource<Urho3D::Model>("Models/Box.mdl"));
         model->SetMaterial(cache->GetResource<Urho3D::Material>("Materials/DefaultGrey.xml"));
 
-        attachSpinner(box_, 90.0f);
+        Urho3D::Component* spinner = box_->CreateComponent("Spinner");
+        if (!spinner)
+        {
+            ErrorExit("Cannot create the C# Spinner component.");
+            return;
+        }
+        spinner->SetAttribute("Speed", 90.0f);
 
         SubscribeToEvent(Urho3D::E_UPDATE, URHO3D_HANDLER(NativeHostApp, HandleUpdate));
     }

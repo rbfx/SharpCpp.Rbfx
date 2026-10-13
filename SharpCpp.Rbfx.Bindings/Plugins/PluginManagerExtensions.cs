@@ -54,6 +54,37 @@ public static class PluginManagerExtensions
         return plugin;
     }
 
+    /// <summary>
+    /// Registers the plugin of the assembly at the path, adds its name to the loaded plugins and commits.
+    /// The plugin is loaded when the method returns, so its types can be created by name.
+    /// A later call to <see cref="PluginManager.SetPluginsLoaded"/> must keep the name, else the plugin unloads.
+    /// </summary>
+    public static Plugin LoadManagedPlugin(this PluginManager manager, string assemblyPath, string? name = null)
+    {
+        ArgumentNullException.ThrowIfNull(manager);
+        var plugin = manager.RegisterManagedPlugin(assemblyPath, name);
+        var pluginName = plugin.PluginName.ToString();
+
+        var loaded = new List<Ea.String>();
+        using (var current = manager.LoadedPlugins)
+        {
+            foreach (var item in current)
+            {
+                loaded.Add(item.ToString());
+            }
+        }
+
+        loaded.Add(pluginName);
+        manager.SetPluginsLoaded(new Ea.Vector<Ea.String>(loaded));
+        manager.Commit();
+        if (!plugin.IsLoaded)
+        {
+            throw new InvalidOperationException($"The plugin manager did not load the plugin '{pluginName}'.");
+        }
+
+        return plugin;
+    }
+
     // These queries do not load plugins. EnumerateLoadedModules lists all static plugins and the loaded dynamic plugins.
     // GetDynamicPlugin with ignoreUnloaded finds a dynamic plugin that is not loaded and creates nothing.
     // A null native result comes back as a wrapper with a null handle.

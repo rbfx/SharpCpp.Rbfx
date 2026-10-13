@@ -9,6 +9,8 @@
 namespace Urho3D
 {
 
+class PluginManager;
+
 /// Options of DotNetHost::Initialize.
 struct DotNetHostOptions
 {
@@ -16,6 +18,9 @@ struct DotNetHostOptions
     std::filesystem::path runtimeConfigPath;
     /// Root directory of the .NET installation. Optional. Empty means automatic lookup.
     std::filesystem::path dotnetRoot;
+    /// Path of SharpCpp.Rbfx.Bindings.dll. Optional. Empty means the file next to the runtime config.
+    /// LoadPlugin loads this assembly once, into the default load context of the runtime.
+    std::filesystem::path bindingsAssemblyPath;
 };
 
 /// Hosts the .NET runtime in the current process through hostfxr.
@@ -55,16 +60,36 @@ public:
         return reinterpret_cast<Fn>(GetFunctionPointer(assemblyPath, typeName, methodName, delegateTypeName, error));
     }
 
+    /// Loads a managed rbfx plugin assembly into the plugin manager of the engine.
+    /// The assembly references SharpCpp.Rbfx.Bindings and has a Plugin subclass, usually a ManagedPlugin.
+    /// The plugin registers its types, so C++ can create them by name, for example Node::CreateComponent("Spinner").
+    ///
+    /// Call order:
+    /// 1. Initialize().
+    /// 2. Engine::Initialize(). It creates the PluginManager. Application::Start() runs after it.
+    /// 3. LoadPlugin(). It registers the plugin, adds its name to PluginManager::SetPluginsLoaded and calls
+    ///    PluginManager::Commit(). The plugin is loaded when LoadPlugin returns.
+    /// 4. Create the managed types by name.
+    /// A later call to PluginManager::SetPluginsLoaded must keep the plugin name, else the plugin unloads.
+    /// A plugin name can be loaded only once. Returns false and fills error on failure.
+    bool LoadPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error);
+
     bool IsInitialized() const;
 
     /// Closes the host context. The runtime itself stays loaded.
     void Close();
 
 private:
+    bool LoadPluginEntryPoint(std::string& error);
+
     void* hostfxrLibrary_{};
     void* hostContext_{};
     void* closeFunction_{};
     void* loadAssemblyFunction_{};
+    void* loadAssemblyIntoDefaultFunction_{};
+    void* getFunctionPointerFunction_{};
+    void* loadPluginFunction_{};
+    std::filesystem::path bindingsAssemblyPath_;
 };
 
 } // namespace Urho3D

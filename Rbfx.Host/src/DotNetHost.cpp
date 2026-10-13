@@ -29,6 +29,18 @@ namespace
 
 using HostString = std::basic_string<char_t>;
 
+// The managed entry point of LoadPlugin. It is in SharpCpp.Rbfx.Bindings/Plugins/NativeHostEntryPoints.cs.
+constexpr std::string_view LoadPluginTypeName = "Urho3D.Plugins.NativeHostEntryPoints, SharpCpp.Rbfx.Bindings";
+constexpr std::string_view LoadPluginMethodName = "LoadPlugin";
+using ManagedErrorWriter = void (*)(void* state, const char* text, int length);
+using LoadPluginFunction = int (*)(void* pluginManager, const char* assemblyPath, ManagedErrorWriter writeError, void* state);
+
+void AppendManagedError(void* state, const char* text, int length)
+{
+    if (state && text && length > 0)
+        static_cast<std::string*>(state)->append(text, static_cast<std::size_t>(length));
+}
+
 #if defined(_WIN32)
 HostString ToHostString(std::string_view utf8)
 {
@@ -265,9 +277,22 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
             return false;
         }
 
+        // These delegates need .NET 8 or later. Only LoadPlugin needs them, so a failure is not an error here.
+        void* loadAssemblyIntoDefault = nullptr;
+        if (getDelegate(context, hdt_load_assembly, &loadAssemblyIntoDefault) != 0)
+            loadAssemblyIntoDefault = nullptr;
+        void* getFunctionPointer = nullptr;
+        if (getDelegate(context, hdt_get_function_pointer, &getFunctionPointer) != 0)
+            getFunctionPointer = nullptr;
+
         hostContext_ = context;
         closeFunction_ = reinterpret_cast<void*>(close);
         loadAssemblyFunction_ = loadAssembly;
+        loadAssemblyIntoDefaultFunction_ = loadAssemblyIntoDefault;
+        getFunctionPointerFunction_ = getFunctionPointer;
+        bindingsAssemblyPath_ = options.bindingsAssemblyPath.empty()
+            ? options.runtimeConfigPath.parent_path() / "SharpCpp.Rbfx.Bindings.dll"
+            : options.bindingsAssemblyPath;
         error.clear();
         return true;
     }
@@ -331,6 +356,86 @@ void* DotNetHost::GetFunctionPointer(
     }
 }
 
+bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error)
+{
+    error.clear();
+    try
+    {
+        if (!IsInitialized())
+        {
+            error = "The .NET host is not initialized.";
+            return false;
+        }
+        if (!pluginManager)
+        {
+            error = "The plugin manager is null. Call LoadPlugin after Engine::Initialize.";
+            return false;
+        }
+        if (!loadPluginFunction_ && !LoadPluginEntryPoint(error))
+            return false;
+
+        const std::u8string path = std::filesystem::absolute(assemblyPath).u8string();
+        const std::string utf8Path(path.begin(), path.end());
+        std::string managedError;
+        const auto loadPlugin = reinterpret_cast<LoadPluginFunction>(loadPluginFunction_);
+        if (loadPlugin(pluginManager, utf8Path.c_str(), &AppendManagedError, &managedError) == 0)
+        {
+            error = "Cannot load the managed plugin '" + assemblyPath.generic_string() + "': "
+                + (managedError.empty() ? std::string("unknown error.") : managedError);
+            return false;
+        }
+        return true;
+    }
+    catch (const std::exception& exception)
+    {
+        error = std::string("LoadPlugin failed: ") + exception.what();
+        return false;
+    }
+    catch (...)
+    {
+        error = "LoadPlugin failed with an unknown exception.";
+        return false;
+    }
+}
+
+bool DotNetHost::LoadPluginEntryPoint(std::string& error)
+{
+    if (!loadAssemblyIntoDefaultFunction_ || !getFunctionPointerFunction_)
+    {
+        error = "The runtime does not support load_assembly and get_function_pointer. LoadPlugin needs .NET 8 or later.";
+        return false;
+    }
+
+    ErrorCapture capture(hostfxrLibrary_, error);
+
+    // The default load context holds the bindings. Plugin load contexts share this copy, so the plugin and the
+    // entry point use the same wrapper types.
+    const HostString bindingsPath = PathToHostString(std::filesystem::absolute(bindingsAssemblyPath_));
+    const auto loadAssembly = reinterpret_cast<load_assembly_fn>(loadAssemblyIntoDefaultFunction_);
+    int rc = loadAssembly(bindingsPath.c_str(), nullptr, nullptr);
+    if (rc != 0)
+    {
+        AppendError(error, "load_assembly failed (" + FormatCode(rc) + ") for '" + bindingsAssemblyPath_.generic_string() + "'.");
+        return false;
+    }
+
+    const HostString type = ToHostString(LoadPluginTypeName);
+    const HostString method = ToHostString(LoadPluginMethodName);
+    void* result = nullptr;
+    const auto getFunctionPointer = reinterpret_cast<get_function_pointer_fn>(getFunctionPointerFunction_);
+    rc = getFunctionPointer(type.c_str(), method.c_str(), UNMANAGEDCALLERSONLY_METHOD, nullptr, nullptr, &result);
+    if (rc != 0 || result == nullptr)
+    {
+        AppendError(error, "get_function_pointer failed (" + FormatCode(rc) + ") for '" + std::string(LoadPluginTypeName)
+            + "." + std::string(LoadPluginMethodName) + "'.");
+        return false;
+    }
+
+    loadPluginFunction_ = result;
+    error.clear();
+    return true;
+}
+
 void DotNetHost::Close()
 {
     if (hostContext_ && closeFunction_)
@@ -338,6 +443,9 @@ void DotNetHost::Close()
     hostContext_ = nullptr;
     closeFunction_ = nullptr;
     loadAssemblyFunction_ = nullptr;
+    loadAssemblyIntoDefaultFunction_ = nullptr;
+    getFunctionPointerFunction_ = nullptr;
+    loadPluginFunction_ = nullptr;
     // hostfxr stays loaded. The runtime cannot be unloaded from the process.
 }
 

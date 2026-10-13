@@ -8,6 +8,8 @@
     <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Linux`))">linux-$(RbfxHostArch)</RbfxHostRid>
     <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`OSX`))">osx-$(RbfxHostArch)</RbfxHostRid>
     <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Windows`))">win-$(RbfxHostArch)</RbfxHostRid>
+    <!-- A global RuntimeIdentifier (-p:RuntimeIdentifier=<rid>) selects the target RID when RbfxTargetRid is empty. -->
+    <RbfxTargetRid Condition="'$(RbfxTargetRid)' == '' and '$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RbfxTargetRid>
     <RbfxIsCrossRid Condition="'$(RbfxTargetRid)' != '' and '$(RbfxTargetRid)' != '$(RbfxHostRid)'">true</RbfxIsCrossRid>
     <RbfxIsCrossRid Condition="'$(RbfxIsCrossRid)' == ''">false</RbfxIsCrossRid>
 
@@ -35,7 +37,7 @@
     <RbfxCMakeCommand Condition="'$(RbfxCMakeCommand)' == ''">cmake</RbfxCMakeCommand>
     <RbfxNativeBuildDir Condition="'$(RbfxNativeBuildDir)' == ''">$(SharpCppBuildRoot)/native/$(RbfxNativePreset)</RbfxNativeBuildDir>
     <RbfxNativeLockFile Condition="'$(RbfxNativeLockFile)' == ''">$(RbfxNativeBuildDir)/sharpcpp-rbfx-native.lock</RbfxNativeLockFile>
-    <!-- RbfxBindingsPackageVersion is set by consumers that build with the published packages. Unset means
+    <!-- RbfxBindingsPackageVersion is set by consumers that build with packages from a local feed (built by package.sh or CI). Unset means
          source build. When set, the user-code bindings project references the package SharpCpp.Rbfx.Bindings
          of this version and the native configure skips the host library. The version is part of the
          configure arguments, so a new version configures again. -->

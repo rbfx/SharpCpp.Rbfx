@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <RbfxExampleIsApp>true</RbfxExampleIsApp>
+    <RbfxTargetRid Condition="'$(RbfxTargetRid)' == '' and '$(RuntimeIdentifier)' == ''">browser-wasm</RbfxTargetRid>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.props" />
+</Project>

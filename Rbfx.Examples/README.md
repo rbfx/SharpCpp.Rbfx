@@ -1,24 +1,37 @@
 # rbfx NuGet examples
 
-The Android, iOS, browser WebAssembly, and UWP examples restore published packages from
-NuGet.org. They have no project references to the binding generator and need no local rbfx
-SDK or SharpCpp checkout. They use `Example.Common.NuGet`, which compiles the sources of
-`Example.Common` against the `SharpCpp.Rbfx.Bindings` package. `UserCodeSupport.IsAvailable`
-is `false` there.
+All examples share one project, `Example.Common`. It has two modes (see below). The desktop
+example builds from source by default. The Android, iOS, browser WebAssembly, and UWP examples
+build for their own RID, so they need the SDK of that RID (`build/sdk/<rid>`, see
+`eng/fetch-rbfx-sdk.sh`) and the package mode with packages that were built by `package.sh` or CI.
 Requires .NET 10. The desktop example supports `linux-x64`, `osx-arm64`, and `win-x64`.
 `Example.Common` owns the shared rbfx scene and node logic; each platform project
 contains its entry point and platform UI or engine host. Android, iOS, browser
 WebAssembly, and UWP require the matching .NET workload or Windows UWP tools.
 
-`Example.Desktop` and `Example.Common` are different. They are a source build: `Example.Common`
-references the bindings project and the generated `Example.UserCode.Bindings` assembly, so the
-desktop cube also shows the native `RotatingComponent`. They need `RBFX_SDK_ROOT` and the
-native build (CMake option `RBFX_BUILD_USERCODE`, ON by default). See `Example.UserCode/README.md`.
-`Example.Common` and `Rbfx.Examples.slnx` need the SDK. The first native build takes about 7 minutes.
-To build `Example.Desktop` from NuGet packages only, pass `-p:RbfxExamplesNuGetOnly=true`.
-Desktop then uses `Example.Common.NuGet` and shows no user code. CI does this.
+`Example.Common` and all the apps build the native user code `Example.UserCode`,
+so the cube also shows the native `RotatingComponent`. They need the native build (CMake option
+`RBFX_BUILD_USERCODE`, ON by default). See `Example.UserCode/README.md`. `Example.Common` is one project
+with two modes. The MSBuild property `RbfxBindingsPackageVersion` selects the mode:
 
-`Example.UserCode` is native only. Its generated `Example.UserCode.Bindings.dll` is used by `Example.Common`, and so by `Example.Desktop`.
+- Source mode (the property is empty, the default): `Example.Common` references the bindings source
+  projects and the generated `Example.UserCode.Bindings` assembly. It needs `RBFX_SDK_ROOT` (or the SDK
+  of the target RID in `build/sdk/<rid>`).
+- Package mode (for example `-p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION`):
+  `Example.Common` references the `SharpCpp.Rbfx.Bindings` package. The engine natives come from the
+  runtime package. Only the native library of `Example.UserCode` comes from the native build.
+
+`Example.Common` and `Rbfx.Examples.slnx` need the SDK. The first native build takes about 7 minutes.
+
+`Example.UserCode` is native only. Its generated `Example.UserCode.Bindings.dll` is used by `Example.Common`, and so by every app.
+Each app declares `<RbfxUserCodeReference Include="Example.UserCode" />` itself, because items do not flow
+through a project reference.
+
+`Example.Android`, `Example.Ios`, `Example.Wasm` and `Example.Uwp` have a `Directory.Build.props` that sets
+the default `RbfxTargetRid` (`android-arm64`, `ios-arm64`, `browser-wasm`, `uap-x64`). The RID selects the
+SDK, the native build tree `build/cross/<rid>` and the native items of the app. `-p:RuntimeIdentifier=<rid>`
+or `-p:RbfxTargetRid=<rid>` selects another RID. Each of these apps writes its output to `bin/<Configuration>/`
+in its own folder and does not treat warnings as errors.
 
 `Example.NativeHost` is also an exception. It builds from source with the main CMake project and is not part of `Rbfx.Examples.slnx`. See its README.
 
@@ -47,28 +60,26 @@ an Activity that calls the static `Program.Main` entry function.
 
 `Example.Ios` creates an rbfx scene and reports a node's position in a UIKit view.
 `Example.Wasm` creates the same native scene through the browser WebAssembly runtime;
-serve the `bin/Release/net10.0/publish/wwwroot` directory over HTTP to run it. The
+serve the `bin/Release/publish/wwwroot` directory over HTTP to run it. The
 host must enable cross-origin isolation for the multithreaded WebAssembly runtime.
 `Example.Uwp` is a small modern .NET UWP XAML app. Its custom runtime graph maps
 `uap-x64` to the Windows x64 runtime while allowing NuGet to select the
 UWP-specific native engine package.
 
-`Directory.Build.props` pins the published package version for the NuGet-only examples.
-To try another published version, edit `RbfxPackageVersion` or pass
-`-p:RbfxPackageVersion=VERSION`. Select another RID with `-r osx-arm64` or `-r win-x64`.
+`Directory.Build.props` imports the repository props and sets the default `RbfxPackageVersion` for the
+examples. The desktop and the data packages (`SharpCpp.Rbfx.CoreData`, `SharpCpp.Rbfx.Data`) use it.
+Select another RID with `-r osx-arm64` or `-r win-x64`.
 
-To test packages from the GitHub `latest` release before NuGet.org lists them,
-restore the project you want to test from a local feed, using the version in the
-downloaded package names:
+To run the examples in package mode, use packages that were built by `package.sh` or by CI, in a local
+feed. Use the version in the package names for both properties:
 
 ```sh
-gh release download latest --repo rbfx/SharpCpp.Rbfx --pattern '*.nupkg' --dir build/examples-release-feed
-dotnet restore Rbfx.Examples/Example.Desktop/Example.Desktop.csproj --source build/examples-release-feed -p:RbfxPackageVersion=VERSION
-dotnet run --project Rbfx.Examples/Example.Desktop --no-restore -p:RbfxPackageVersion=VERSION
+dotnet restore Rbfx.Examples/Example.Desktop/Example.Desktop.csproj --source PATH_TO_FEED -p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION
+dotnet run --project Rbfx.Examples/Example.Desktop --no-restore -p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION
 ```
 
 CI builds the desktop sample on Linux, macOS, and Windows, the Android sample for
-all three published Android RIDs, and the iOS, browser-Wasm, and UWP samples on
+all three Android RIDs, and the iOS, browser-Wasm, and UWP samples on
 their required build runners.
 
 On Ubuntu, the engine needs `libopengl0 libglx0 libx11-6 libdbus-1-3 libuuid1`.

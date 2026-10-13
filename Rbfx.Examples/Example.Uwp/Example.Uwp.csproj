@@ -5,7 +5,7 @@
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">uap-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(RbfxTargetRid)</RuntimeIdentifier>
     <RuntimeIdentifiers>uap-x64</RuntimeIdentifiers>
     <RuntimeIdentifierGraphPath>$(MSBuildProjectDirectory)/RuntimeIdentifierGraph.json</RuntimeIdentifierGraphPath>
     <UseRidGraph>true</UseRidGraph>
@@ -20,6 +20,9 @@
     <None Remove="App.xaml;MainPage.xaml" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../Example.Common.NuGet/Example.Common.NuGet.csproj" />
+    <!-- Items do not flow through ProjectReference. The app owns the item, so the native library of
+         Example.UserCode reaches the app (the default RbfxTargetRid is in Directory.Build.props). -->
+    <RbfxUserCodeReference Include="Example.UserCode" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

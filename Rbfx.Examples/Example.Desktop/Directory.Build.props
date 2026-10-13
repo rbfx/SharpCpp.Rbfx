@@ -1,8 +1,0 @@
-<Project>
-  <!-- MSBuild imports only the nearest Directory.Build.props, so import the parent file first. -->
-  <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.props" />
-  <!-- The source build needs the repository props: the native paths and the native runtime items
-       of the RbfxUserCodeReference. The build with the NuGet-only Common does not need them. -->
-  <Import Project="$(MSBuildThisFileDirectory)../../Directory.Build.props"
-          Condition="'$(RbfxExamplesNuGetOnly)' != 'true'" />
-</Project>

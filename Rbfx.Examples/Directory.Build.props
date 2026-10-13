@@ -1,5 +1,10 @@
 <Project>
-  <!-- Keep these NuGet consumers independent of the repository's native build. -->
+  <!-- MSBuild imports only the nearest Directory.Build.props, so import the repository file first.
+       The projects below Rbfx.Examples then see the repository settings (output folders, native
+       paths, the native runtime items of RbfxUserCodeReference). -->
+  <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.props" />
+
+  <!-- Settings that all examples share. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -8,5 +13,16 @@
     <RbfxPackageVersion Condition="'$(RbfxPackageVersion)' == ''">0.1.0-alpha.46</RbfxPackageVersion>
     <SelfContained>false</SelfContained>
     <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+
+  <!-- Example.Common and Example.Desktop keep the output folder of the repository props. Desktop reads
+       its native libraries from there. The Android, iOS, Wasm and UWP apps set RbfxExampleIsApp in their
+       own Directory.Build.props. Each of them gets its own output folder, so an app does not share
+       build/bin with the bindings assembly and Example.Common. The SDKs of these apps produce their
+       packages (apk, app, AppBundle, AppX) in this folder. Workload builds emit warnings, so these
+       apps do not treat warnings as errors. -->
+  <PropertyGroup Condition="'$(RbfxExampleIsApp)' == 'true'">
+    <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/</OutputPath>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

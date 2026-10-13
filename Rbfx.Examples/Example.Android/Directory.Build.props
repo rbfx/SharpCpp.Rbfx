@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <RbfxExampleIsApp>true</RbfxExampleIsApp>
+    <RbfxTargetRid Condition="'$(RbfxTargetRid)' == '' and '$(RuntimeIdentifier)' == ''">android-arm64</RbfxTargetRid>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.props" />
+</Project>

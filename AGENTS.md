@@ -10,8 +10,7 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 - `Rbfx.UserCode.Generator/` - the phase-2 user-code generator.
 - `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). Public headers are `Urho3D/CSharp/DotNetHost.h` and `DotNetHostExport.h` (`namespace Urho3D`). `cmake/FindNetHost.cmake` finds nethost. The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link uses `libnethost.so`, `libnethost.dylib` or `nethost.dll`, and the host build copies it next to the host library. A static link uses `libnethost.a`. MSVC always links the import library `nethost.lib` (the static `libnethost.lib` uses /MT and does not link with /MD). The top-level `CMakeLists.txt` sets `BUILD_SHARED_LIBS` from `RBFX_NATIVE_LIBRARY_TYPE`. The Android toolchains use `c++_shared` unless the command line sets `-DBUILD_SHARED_LIBS=OFF`. `-DRBFX_ANDROID_STL=c++_shared` or `c++_static` overrides both.
 - `Rbfx.Examples/Example.UserCode/` - example: native C++ component (`RotatingComponent`) and CMake. No managed project.
-- `Rbfx.Examples/Example.Common/` - shared demo source build. It uses `Example.UserCode.Bindings.dll`. `Example.Desktop` uses it.
-- `Rbfx.Examples/Example.Common.NuGet/` - NuGet-only twin of `Example.Common` (same sources). Android, iOS, Wasm and UWP use it. Desktop uses it with `-p:RbfxExamplesNuGetOnly=true` (CI).
+- `Rbfx.Examples/Example.Common/` - shared demo with the native user code `Example.UserCode`. One project with two modes. Source mode (default) references the bindings source projects. Package mode (`-p:RbfxBindingsPackageVersion=VERSION`) references the `SharpCpp.Rbfx.Bindings` package. `Example.Desktop`, `Example.Android`, `Example.Ios`, `Example.Wasm` and `Example.Uwp` use it.
 - `Rbfx.Examples/Example.NativeHost/` - example: C++ executable that hosts .NET and uses a wrapped C++ type.
 - `SharpCpp.Rbfx.Bindings/` - generated rbfx wrapper assembly and hand-written runtime glue.
 - `SharpCpp.Ea/`, `SharpCpp.Rbfx.SourceGenerator/` - EASTL containers and Roslyn helpers.
@@ -54,7 +53,7 @@ So the wrapped user code gives a dll that other modules use.
 
 ## Run the examples
 
-- `Example.Desktop` and `Example.Common` need `RBFX_SDK_ROOT` and the native build (about 7 minutes the first time).
+- `Example.Desktop`, `Example.Common` and the mobile and UWP apps need the native build of `Example.UserCode` (about 7 minutes the first time). Source mode needs `RBFX_SDK_ROOT`. Package mode (`-p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION`) restores the packages of that version, and the engine natives come from the runtime package.
 - `Rbfx.Examples.slnx` also needs the SDK now.
 - A Linux desktop run needs `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768`.
 
@@ -74,8 +73,8 @@ SDK is current. Set `RBFX_SDK_ROOT="$(eng/fetch-rbfx-sdk.sh --rid linux-x64 --pr
 CMake or MSBuild. `--print-cache-key` prints the CI cache key. `browser-wasm` comes from the
 SharpCpp.Rbfx release `latest`. See `--help` for all options.
 
-Set the MSBuild property `RbfxBindingsPackageVersion` to build the user code against the published
-packages. It adds `-DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=<version>` and `-DRBFX_BUILD_HOST=OFF` to
+Set the MSBuild property `RbfxBindingsPackageVersion` to build the user code against the built
+packages (from package.sh or CI, in a local feed). It adds `-DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=<version>` and `-DRBFX_BUILD_HOST=OFF` to
 `RbfxNativeConfigureArguments`. The generated bindings project then references the package
 `SharpCpp.Rbfx.Bindings`. Unset means source build.
 

@@ -15,15 +15,13 @@ Like `Example.NativeHost`, this example builds from source with the main CMake p
 
 ## How managed code uses the dll
 
-A managed project that wants the dll declares `<RbfxUserCodeReference Include="Example.UserCode" />`. MSBuild then builds the generated bindings project and references `Example.UserCode.Bindings.dll`. The project must also reference `SharpCpp.Rbfx.Bindings` as a project and not as a NuGet package, because two bindings assemblies would load.
+A managed project that wants the dll declares `<RbfxUserCodeReference Include="Example.UserCode" />`. MSBuild then builds the generated bindings project and references `Example.UserCode.Bindings.dll`. The project must reference `SharpCpp.Rbfx.Bindings` either as a project or as a NuGet package, and not both, because two bindings assemblies would load.
 
 `Rbfx.Examples/Example.Common` does this:
 
-- `Example.Common.csproj` declares the `RbfxUserCodeReference`, references the bindings and source generator projects, and defines `RBFX_USERCODE`.
+- `Example.Common.csproj` declares the `RbfxUserCodeReference` and defines `RBFX_USERCODE`. In source mode (`RbfxBindingsPackageVersion` is empty) it references the bindings and source generator projects. In package mode (`RbfxBindingsPackageVersion` is set) it references the `SharpCpp.Rbfx.Bindings` package.
 - `UserCodeSupport.cs` calls `RotatingComponent.RegisterObject(node.GetContext())` and then `node.CreateComponent<RotatingComponent>()`. It needs no `LibraryImport`. `SceneSample` calls `UserCodeSupport.AddRotatingComponent` for its primary node.
-- A target in `Example.Common.csproj` copies `libSharpCpp.Rbfx.Native`, `libUrho3D` and `libExample.UserCode.Native` to the output folder of each app that references Common. It gives an error if one file is missing.
-
-`Rbfx.Examples/Example.Common.NuGet` compiles the same sources against the `SharpCpp.Rbfx.Bindings` NuGet package. It has no `RBFX_USERCODE` constant, and `UserCodeSupport.IsAvailable` is `false`. The Android, iOS, Wasm and UWP examples reference it.
+- Each app (Desktop, Android, iOS, Wasm, UWP) declares its own `RbfxUserCodeReference`, because items do not flow through a project reference. The repository targets then copy the native libraries to the output folder of the desktop apps (an error shows if one file is missing). For Android, iOS and Wasm they add the platform items of the native library.
 
 ## Build and run
 

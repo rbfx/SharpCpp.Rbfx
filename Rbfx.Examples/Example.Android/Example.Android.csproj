@@ -6,9 +6,12 @@
     <ApplicationId>org.rbfx.examples.android</ApplicationId>
     <ApplicationTitle>rbfx Scene</ApplicationTitle>
     <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(RbfxTargetRid)</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Example.Common.NuGet/Example.Common.NuGet.csproj" />
+    <!-- Items do not flow through ProjectReference. The app owns the item, so the native library of
+         Example.UserCode reaches the app (the default RbfxTargetRid is in Directory.Build.props). -->
+    <RbfxUserCodeReference Include="Example.UserCode" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

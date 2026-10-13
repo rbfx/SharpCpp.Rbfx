@@ -47,8 +47,8 @@
     <_RbfxUserNativePrefix>lib</_RbfxUserNativePrefix>
     <_RbfxUserNativeSuffix>.so</_RbfxUserNativeSuffix>
     <_RbfxUserNativeSuffix Condition="$(_RbfxUserNativeRid.StartsWith('osx'))">.dylib</_RbfxUserNativeSuffix>
-    <_RbfxUserNativePrefix Condition="$(_RbfxUserNativeRid.StartsWith('win'))"></_RbfxUserNativePrefix>
-    <_RbfxUserNativeSuffix Condition="$(_RbfxUserNativeRid.StartsWith('win'))">.dll</_RbfxUserNativeSuffix>
+    <_RbfxUserNativePrefix Condition="$(_RbfxUserNativeRid.StartsWith('win')) or $(_RbfxUserNativeRid.StartsWith('uap'))"></_RbfxUserNativePrefix>
+    <_RbfxUserNativeSuffix Condition="$(_RbfxUserNativeRid.StartsWith('win')) or $(_RbfxUserNativeRid.StartsWith('uap'))">.dll</_RbfxUserNativeSuffix>
     <_RbfxUserNativeSuffix Condition="'$(_RbfxUserNativeKind)' == 'ios' or '$(_RbfxUserNativeKind)' == 'wasm'">.a</_RbfxUserNativeSuffix>
   </PropertyGroup>
 
@@ -66,16 +66,20 @@
   <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Consumer.targets" />
 
   <!-- Copies the native runtime of an application to its output folder. Only the desktop kind needs
-       it. The other kinds go to the platform items of SharpCpp.Rbfx.NativeItems.targets. Libraries do
-       not copy, so the files do not flow through the project references and the application owns them.
-       Source mode: the application also gets the bindings library and the engine library. -->
+       it. It applies to an application with the output type Exe or WinExe (the UWP app is WinExe). The other
+       kinds go to the platform items of SharpCpp.Rbfx.NativeItems.targets. Libraries do not copy, so the files do not flow through the project references and the application owns them.
+       Source mode: the application also gets the bindings library and the engine library. Package mode
+       (RbfxBindingsPackageVersion is set): only the user libraries are copied here. The engine natives
+       come from the runtime package. -->
   <Target Name="RbfxCopyNativeRuntimeToOutput"
           BeforeTargets="GetCopyToOutputDirectoryItems"
-          Condition="'$(OutputType)' == 'Exe' and '@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'desktop'))' != ''">
+          Condition="('$(OutputType)' == 'Exe' or '$(OutputType)' == 'WinExe') and '@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'desktop'))' != ''">
     <ItemGroup>
       <_RbfxDesktopNative Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'desktop'))" />
-      <_RbfxDesktopNative Include="$(SharpCppOutputDir)/$(_RbfxUserNativePrefix)SharpCpp.Rbfx.Native$(_RbfxUserNativeSuffix)" />
-      <_RbfxDesktopNative Include="$(SharpCppOutputDir)/$(_RbfxUserNativePrefix)Urho3D$(_RbfxUserNativeSuffix)" />
+      <_RbfxDesktopNative Include="$(SharpCppOutputDir)/$(_RbfxUserNativePrefix)SharpCpp.Rbfx.Native$(_RbfxUserNativeSuffix)"
+                          Condition="'$(RbfxBindingsPackageVersion)' == ''" />
+      <_RbfxDesktopNative Include="$(SharpCppOutputDir)/$(_RbfxUserNativePrefix)Urho3D$(_RbfxUserNativeSuffix)"
+                          Condition="'$(RbfxBindingsPackageVersion)' == ''" />
     </ItemGroup>
     <Error Condition="!Exists('%(_RbfxDesktopNative.FullPath)')"
            Text="The native library '%(_RbfxDesktopNative.FullPath)' is missing. Build the native code first with RBFX_SDK_ROOT set. The native library of a RbfxUserCodeReference needs the CMake option RBFX_BUILD_USERCODE (ON by default)." />

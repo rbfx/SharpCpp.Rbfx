@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Source build of Common with user code. Example.Desktop uses it. The mobile examples use
-       Example.Common.NuGet, which compiles the same sources against the NuGet package. -->
+  <!-- Common code of the examples, built with the native user code Example.UserCode. It has two modes.
+       Source mode (RbfxBindingsPackageVersion is empty): the project references the source projects of
+       SharpCpp.Rbfx.Bindings and of the source generator. It needs RBFX_SDK_ROOT.
+       Package mode (RbfxBindingsPackageVersion is set): the project references the NuGet package
+       SharpCpp.Rbfx.Bindings of that version. The package carries the source generator. The host
+       library is not built. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Example.Common</AssemblyName>
@@ -8,12 +12,18 @@
     <DefineConstants>$(DefineConstants);RBFX_USERCODE</DefineConstants>
   </PropertyGroup>
 
-  <!-- Do not add the SharpCpp.Rbfx.Bindings package here: two bindings assemblies would load. -->
   <ItemGroup>
     <RbfxUserCodeReference Include="Example.UserCode" />
+  </ItemGroup>
+
+  <!-- Only one bindings assembly may load, so the two modes exclude each other. -->
+  <ItemGroup Condition="'$(RbfxBindingsPackageVersion)' == ''">
     <ProjectReference Include="../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
     <ProjectReference Include="../../SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RbfxBindingsPackageVersion)' != ''">
+    <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxBindingsPackageVersion)" />
   </ItemGroup>
 </Project>

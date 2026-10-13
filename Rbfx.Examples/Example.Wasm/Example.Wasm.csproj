@@ -1,12 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk.WebAssembly">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">browser-wasm</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(RbfxTargetRid)</RuntimeIdentifier>
     <WasmEnableThreads>true</WasmEnableThreads>
     <WasmEnableExceptionHandling>true</WasmEnableExceptionHandling>
     <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Example.Common.NuGet/Example.Common.NuGet.csproj" />
+    <!-- Items do not flow through ProjectReference. The app owns the item, so the native library of
+         Example.UserCode reaches the app (the default RbfxTargetRid is in Directory.Build.props). -->
+    <RbfxUserCodeReference Include="Example.UserCode" />
+    <ProjectReference Include="../Example.Common/Example.Common.csproj" />
   </ItemGroup>
 </Project>

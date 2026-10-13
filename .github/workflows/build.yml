@@ -440,11 +440,17 @@ jobs:
       - name: Restore Example
         working-directory: SharpCpp.Rbfx
         shell: bash
-        run: >-
-          dotnet restore '${{ matrix.project }}' --configfile build/NuGet.Config
-          -p:RbfxBindingsPackageVersion="$PACKAGE_VERSION"
-          -p:RbfxPackageVersion="$PACKAGE_VERSION"
-          -p:RuntimeIdentifier='${{ matrix.rid }}'
+        run: |
+          # uap-x64 is no .NET RID. A global RuntimeIdentifier reaches the referenced projects,
+          # which do not know it. Example.Uwp selects its own RID from RbfxTargetRid (default uap-x64).
+          rid_args=()
+          if [[ '${{ matrix.rid }}' != 'uap-x64' ]]; then
+            rid_args+=(-p:RuntimeIdentifier='${{ matrix.rid }}')
+          fi
+          dotnet restore '${{ matrix.project }}' --configfile build/NuGet.Config \
+            -p:RbfxBindingsPackageVersion="$PACKAGE_VERSION" \
+            -p:RbfxPackageVersion="$PACKAGE_VERSION" \
+            "${rid_args[@]}"
       - name: Build Example
         if: matrix.rid != 'uap-x64'
         timeout-minutes: 60
@@ -475,7 +481,6 @@ jobs:
             '/p:Configuration=Release',
             "/p:RbfxBindingsPackageVersion=$env:PACKAGE_VERSION",
             "/p:RbfxPackageVersion=$env:PACKAGE_VERSION",
-            '/p:RuntimeIdentifier=uap-x64',
             '/p:EnableCodeSigning=false',
             '/p:BuildIpa=false'
           )

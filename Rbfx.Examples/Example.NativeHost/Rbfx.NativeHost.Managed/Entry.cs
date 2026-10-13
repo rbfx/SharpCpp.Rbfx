@@ -51,7 +51,6 @@ public static class Entry
 
 internal sealed partial class HostedApplication : Application
 {
-    private readonly Context _context;
     private readonly bool _headless;
     private readonly int _frames;
     private Scene _scene;
@@ -62,7 +61,6 @@ internal sealed partial class HostedApplication : Application
     public HostedApplication(Context context, bool headless, int frames)
         : base(context)
     {
-        _context = context;
         _headless = headless;
         _frames = frames;
     }
@@ -76,7 +74,7 @@ internal sealed partial class HostedApplication : Application
 
     public override void Start()
     {
-        _scene = new Scene(_context);
+        _scene = new Scene(Context);
         _node = _scene.CreateChild("Spinning node");
         _spinner = NativeMethods.AddSpinner(_node, 90.0f);
 

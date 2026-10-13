@@ -10,14 +10,18 @@
 #
 # Options:
 #   NETHOST_PREFER_SHARED  Use the shared nethost library instead of the static one.
-#                          The default is ON for MSVC and OFF for other compilers.
+#                          The default is ON for MSVC and when BUILD_SHARED_LIBS is ON.
+#                          Otherwise the default is OFF. The cached value of an existing
+#                          build tree is kept.
 #
 # The static libnethost.lib of the pack is built with /MT. It does not link with code that
 # uses /MD, so MSVC links the import library nethost.lib and needs nethost.dll at run time.
 #
 # Result variables:
 #   NetHost_FOUND, NETHOST_INCLUDE_DIR, NETHOST_LIBRARY, NETHOST_IS_STATIC, NETHOST_DOTNET_ROOT
-#   NETHOST_RUNTIME_LIBRARY  Path of nethost.dll. Set only for a shared link on Windows.
+#   NETHOST_RUNTIME_LIBRARY  Path of the shared library that is needed at run time. It is nethost.dll
+#                            on Windows, libnethost.so on Linux and libnethost.dylib on macOS.
+#                            Set only for a shared link.
 #
 # Imported target:
 #   NetHost::NetHost
@@ -25,7 +29,8 @@
 include(FindPackageHandleStandardArgs)
 
 set(NETHOST_ROOT "" CACHE PATH "Dotnet root or native directory of the Microsoft.NETCore.App.Host pack.")
-if(MSVC)
+# The linkage follows BUILD_SHARED_LIBS. MSVC always links the shared library: the static one uses /MT.
+if(MSVC OR BUILD_SHARED_LIBS)
   set(_nethost_prefer_shared_default ON)
 else()
   set(_nethost_prefer_shared_default OFF)
@@ -159,15 +164,20 @@ if(NetHost_FOUND)
   else()
     set(NETHOST_IS_STATIC FALSE)
   endif()
-  if(NOT NETHOST_IS_STATIC AND WIN32)
-    # The import library and nethost.dll are in the same pack directory.
-    get_filename_component(_nethost_library_dir "${NETHOST_LIBRARY}" DIRECTORY)
-    find_file(
-      NETHOST_RUNTIME_LIBRARY nethost.dll
-      PATHS "${_nethost_library_dir}"
-      NO_DEFAULT_PATH)
-    if(NOT NETHOST_RUNTIME_LIBRARY)
-      message(WARNING "nethost.dll was not found next to '${NETHOST_LIBRARY}'. It is not copied to the output.")
+  if(NOT NETHOST_IS_STATIC)
+    if(WIN32)
+      # The import library and nethost.dll are in the same pack directory.
+      get_filename_component(_nethost_library_dir "${NETHOST_LIBRARY}" DIRECTORY)
+      find_file(
+        NETHOST_RUNTIME_LIBRARY nethost.dll
+        PATHS "${_nethost_library_dir}"
+        NO_DEFAULT_PATH)
+      if(NOT NETHOST_RUNTIME_LIBRARY)
+        message(WARNING "nethost.dll was not found next to '${NETHOST_LIBRARY}'. It is not copied to the output.")
+      endif()
+    else()
+      # On Linux and macOS the found library is the run-time library.
+      set(NETHOST_RUNTIME_LIBRARY "${NETHOST_LIBRARY}" CACHE FILEPATH "Shared nethost library that is needed at run time." FORCE)
     endif()
   endif()
   if(MSVC AND NETHOST_IS_STATIC)

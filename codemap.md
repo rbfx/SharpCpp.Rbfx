@@ -117,7 +117,7 @@ SharpCpp.Tool ───────────┘             |
 | `Rbfx.UserCode/` | Phase-2 user-code generator only (`Rbfx.UserCode.Generator/`) |
 | `cmake/` | `RbfxCSharpAddUsercode.cmake` (`rbfx_csharp_add_usercode()`), `FindNetHost.cmake`, `ExportRbfxSdkParseFlags.cmake`, `templates/` |
 | `eng/` | Shared MSBuild targets, including `RbfxUserCodeReference` handling |
-| `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h`. Static `libnethost` on Linux and macOS. On MSVC it links `nethost.lib` and copies `nethost.dll` next to the host DLL (`NETHOST_PREFER_SHARED`). |
+| `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h`. The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link copies `libnethost.so`, `libnethost.dylib` or `nethost.dll` next to the host library. MSVC always links `nethost.lib`. |
 | `Rbfx.Examples/Example.UserCode/` | Example: native `RotatingComponent` + CMake; no managed project |
 | `Rbfx.Examples/Example.Common/` | Shared demo source build (`UserCodeSupport.cs`, `DemoApplication.cs`, `DemoDocument.cs`, `SceneSample.cs`); uses `Example.UserCode.Bindings.dll` |
 | `Rbfx.Examples/Example.Common.NuGet/` | NuGet-only twin of `Example.Common` (Android, iOS, Wasm, UWP; Desktop with `-p:RbfxExamplesNuGetOnly=true`) |

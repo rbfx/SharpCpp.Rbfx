@@ -12,8 +12,9 @@ does not use new `.nuspec` files.
   for their RID. Applications must select one of the supported RIDs.
 - `SharpCpp.Rbfx.Bindings.runtime.<rid>` contains the managed implementation and native runtime files for one
   runtime identifier, including `SharpCpp.Rbfx.Native` and the copied rbfx native
-  dependencies from the shared `build/bin` output directory. On Windows x64 it also contains
-  `SharpCpp.Rbfx.Host.dll` and the `nethost.dll` that it needs. UWP does not build the host library. In CI union packages,
+  dependencies from the shared `build/bin` output directory. On desktop RIDs it also contains
+  the host library (`SharpCpp.Rbfx.Host`) and the shared nethost library that it needs (`libnethost.so`, `libnethost.dylib` or `nethost.dll`).
+  The nethost linkage follows `BUILD_SHARED_LIBS`. UWP does not build the host library. In CI union packages,
   Linux x64 and Android x64 share one `runtime.unix-x64` package because NuGet's
   Android x64 RID fallback includes Linux x64. Their managed assets stay in
   RID-specific folders in that package. Linux native files use a private package
@@ -156,7 +157,7 @@ Android consumer verification accepts `--AndroidSdkDirectory` and
 `--JavaSdkDirectory`.
 
 iOS packages must be built on macOS. iOS and Wasm native glue use static libraries;
-Android uses shared `.so` files and includes `libc++_shared.so` from the selected NDK.
+Android uses shared `.so` files and includes `libc++_shared.so` from the selected NDK. The Android toolchains use `c++_shared` unless the command line sets `-DBUILD_SHARED_LIBS=OFF`.
 Its build targets defer rbfx native libraries until the binding calls them, because
 `libUrho3D.so`'s JNI startup expects SDL's Java activity. The Android x64 target also
 sets Tracy's `TRACY_NO_INVARIANT_CHECK` environment variable so Android emulators

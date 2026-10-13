@@ -36,11 +36,14 @@ set_target_properties(
     VISIBILITY_INLINES_HIDDEN ON
     POSITION_INDEPENDENT_CODE ON
     OUTPUT_NAME "SharpCpp.Rbfx.Host"
+    BUILD_WITH_INSTALL_RPATH ON
     BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
     INSTALL_RPATH "${RBFX_RUNTIME_RPATH}")
 sharpcpp_set_native_output(sharpcpp-rbfx-host)
 
-# A shared nethost on Windows needs nethost.dll next to the host library at run time.
+# A shared nethost needs its library next to the host library at run time. The host library
+# finds it there through the "$ORIGIN" or "@loader_path" rpath (RBFX_RUNTIME_RPATH) on Linux
+# and macOS, and through the directory of the DLL on Windows.
 if(NETHOST_RUNTIME_LIBRARY AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
   add_custom_command(
     TARGET sharpcpp-rbfx-host POST_BUILD

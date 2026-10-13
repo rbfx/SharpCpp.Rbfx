@@ -20,6 +20,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR EMSCRIPTEN)
 else()
   set(RBFX_NATIVE_LIBRARY_TYPE SHARED)
 endif()
+# The linkage of nethost follows this value. The Android toolchains read only a -DBUILD_SHARED_LIBS
+# cache value, because they run before this line.
+if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
+  set(BUILD_SHARED_LIBS OFF)
+else()
+  set(BUILD_SHARED_LIBS ON)
+endif()
 
 get_filename_component(_sharpcpp_default_root "${CMAKE_CURRENT_SOURCE_DIR}/../SharpCpp" ABSOLUTE)
 set(SHARPCPP_ROOT "${_sharpcpp_default_root}" CACHE PATH "Path to the SharpCpp checkout used to generate the bindings.")

@@ -293,12 +293,16 @@ stage_packages() {
       copy_built_runtime_dependencies "$bin_dir/*.so" "$STAGE_DIR/runtime/$rid/native"
       copy_built_runtime_dependencies "$bin_dir/*.so.*" "$STAGE_DIR/runtime/$rid/native"
       require_file "$STAGE_DIR/runtime/$rid/native/libUrho3D.so"
+      # The copy above also stages libSharpCpp.Rbfx.Host.so and the shared libnethost.so that
+      # the host build copies next to it.
       ;;
     osx-*)
       require_file "$bin_dir/libSharpCpp.Rbfx.Native.dylib"
       cp -a "$bin_dir/libSharpCpp.Rbfx.Native.dylib" "$STAGE_DIR/runtime/$rid/native/"
       copy_native_glob "$sdk_root/bin/*.dylib" "$STAGE_DIR/runtime/$rid/native" || true
       copy_built_runtime_dependencies "$bin_dir/*.dylib" "$STAGE_DIR/runtime/$rid/native"
+      # The copy above also stages libSharpCpp.Rbfx.Host.dylib and the shared libnethost.dylib that
+      # the host build copies next to it.
       ;;
     win-*|uap-*)
       require_file "$bin_dir/SharpCpp.Rbfx.Native.dll"

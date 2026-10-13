@@ -9,7 +9,12 @@ endif()
 
 set(ANDROID_ABI armeabi-v7a)
 set(ANDROID_PLATFORM android-21)
-set(ANDROID_STL c++_static)
+# The C++ runtime follows a -DBUILD_SHARED_LIBS cache value. Shared is the default for Android.
+if(DEFINED BUILD_SHARED_LIBS AND NOT BUILD_SHARED_LIBS)
+  set(ANDROID_STL c++_static)
+else()
+  set(ANDROID_STL c++_shared)
+endif()
 set(ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES ON)
 
 include("${_sharpcpp_ndk}/build/cmake/android.toolchain.cmake")

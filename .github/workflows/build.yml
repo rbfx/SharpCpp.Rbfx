@@ -33,7 +33,7 @@ jobs:
           fetch-tags: true
 
       # Tag v1.2.3 builds version 1.2.3.
-      # Other builds use the next patch version of the last v* tag: 1.2.4-dev.<short commit id>.
+      # Other builds use the next patch version of the last v* tag: 1.2.4-dev.g<short commit id>.
       - name: Compute Version
         id: version
         shell: bash
@@ -45,7 +45,7 @@ jobs:
             core="${last#v}"
             core="${core%%-*}"
             IFS=. read -r major minor patch <<< "$core"
-            version="$major.$minor.$((patch + 1))-dev.${GITHUB_SHA::7}"
+            version="$major.$minor.$((patch + 1))-dev.g${GITHUB_SHA::7}"
           fi
           echo "Version: $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"

@@ -9,12 +9,16 @@ endif()
 
 set(ANDROID_ABI x86_64)
 set(ANDROID_PLATFORM android-21)
-# The C++ runtime follows a -DBUILD_SHARED_LIBS cache value. Shared is the default for Android.
-if(DEFINED BUILD_SHARED_LIBS AND NOT BUILD_SHARED_LIBS)
+# RBFX_ANDROID_STL (c++_shared or c++_static) overrides the C++ runtime. Without it the runtime
+# follows a -DBUILD_SHARED_LIBS cache value. Shared is the default for Android.
+if(RBFX_ANDROID_STL)
+  set(ANDROID_STL "${RBFX_ANDROID_STL}")
+elseif(DEFINED BUILD_SHARED_LIBS AND NOT BUILD_SHARED_LIBS)
   set(ANDROID_STL c++_static)
 else()
   set(ANDROID_STL c++_shared)
 endif()
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES RBFX_ANDROID_STL BUILD_SHARED_LIBS)
 set(ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES ON)
 
 include("${_sharpcpp_ndk}/build/cmake/android.toolchain.cmake")

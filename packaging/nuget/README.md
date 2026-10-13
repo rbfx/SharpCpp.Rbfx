@@ -157,7 +157,7 @@ Android consumer verification accepts `--AndroidSdkDirectory` and
 `--JavaSdkDirectory`.
 
 iOS packages must be built on macOS. iOS and Wasm native glue use static libraries;
-Android uses shared `.so` files and includes `libc++_shared.so` from the selected NDK. The Android toolchains use `c++_shared` unless the command line sets `-DBUILD_SHARED_LIBS=OFF`.
+Android uses shared `.so` files and includes `libc++_shared.so` from the selected NDK. The Android toolchains use `c++_shared` unless the command line sets `-DBUILD_SHARED_LIBS=OFF`. `-DRBFX_ANDROID_STL=c++_shared` or `c++_static` overrides both.
 Its build targets defer rbfx native libraries until the binding calls them, because
 `libUrho3D.so`'s JNI startup expects SDL's Java activity. The Android x64 target also
 sets Tracy's `TRACY_NO_INVARIANT_CHECK` environment variable so Android emulators

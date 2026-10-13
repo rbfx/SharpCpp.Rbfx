@@ -36,13 +36,16 @@
 
   <!-- Each test plugin is a separate assembly. Only its dll goes to plugins/<name>/, away from the test assemblies. -->
   <ItemGroup>
-    <Compile Remove="TestPlugin/**;AttributePlugin/**" />
-    <None Remove="TestPlugin/**;AttributePlugin/**" />
+    <Compile Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**" />
+    <None Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**" />
     <ProjectReference Include="TestPlugin/SharpCpp.Rbfx.Tests.E2E.TestPlugin.csproj"
                       OutputItemType="E2ETestPluginAssembly"
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="AttributePlugin/SharpCpp.Rbfx.Tests.E2E.AttributePlugin.csproj"
                       OutputItemType="E2EAttributePluginAssembly"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="RetryPlugin/SharpCpp.Rbfx.Tests.E2E.RetryPlugin.csproj"
+                      OutputItemType="E2ERetryPluginAssembly"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
@@ -60,6 +63,13 @@
     <Copy SourceFiles="@(_E2EAttributePluginFile)"
           Condition="Exists('%(_E2EAttributePluginFile.FullPath)')"
           DestinationFolder="$(OutDir)plugins/AttributePlugin/"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <_E2ERetryPluginFile Include="@(E2ERetryPluginAssembly);@(E2ERetryPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_E2ERetryPluginFile)"
+          Condition="Exists('%(_E2ERetryPluginFile.FullPath)')"
+          DestinationFolder="$(OutDir)plugins/RetryPlugin/"
           SkipUnchangedFiles="true" />
   </Target>
 </Project>

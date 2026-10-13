@@ -59,30 +59,99 @@ public static class PluginManagerExtensions
     /// The plugin is loaded when the method returns, so its types can be created by name.
     /// A later call to <see cref="PluginManager.SetPluginsLoaded"/> must keep the name, else the plugin unloads.
     /// </summary>
+    /// <remarks>
+    /// On failure the method restores the previous loaded plugins and throws <see cref="InvalidOperationException"/>.
+    /// The engine has no API to remove a static plugin, so the failed plugin stays registered in the manager, but
+    /// it is not in the loaded plugins and the engine does not load it again. A later call with the same assembly
+    /// and name reuses that registered plugin and tries to load it again. A call with the same name and another
+    /// assembly fails, because the name is used.
+    /// </remarks>
     public static Plugin LoadManagedPlugin(this PluginManager manager, string assemblyPath, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(manager);
-        var plugin = manager.RegisterManagedPlugin(assemblyPath, name);
-        var pluginName = plugin.PluginName.ToString();
-
-        var loaded = new List<Ea.String>();
-        using (var current = manager.LoadedPlugins)
+        ArgumentException.ThrowIfNullOrEmpty(assemblyPath);
+        if (!File.Exists(assemblyPath))
         {
-            foreach (var item in current)
+            throw new FileNotFoundException($"The plugin assembly '{assemblyPath}' does not exist.", assemblyPath);
+        }
+
+        var assembly = PluginRuntime.Load(assemblyPath);
+        var pluginName = name ?? PluginRuntime.GetPluginName(assembly);
+        var plugin = FindFailedPlugin(manager, assembly, pluginName) ?? manager.RegisterManagedPlugin(assembly, pluginName);
+
+        return LoadRegistered(manager, plugin, pluginName, static m => m.Commit());
+    }
+
+    // The commit parameter lets a test inject a failure. A managed exception in a plugin callback ends the process.
+    private static Plugin LoadRegistered(PluginManager manager, Plugin plugin, string pluginName, Action<PluginManager> commit)
+    {
+        var previous = GetLoadedNames(manager);
+        var requested = new List<string>(previous) { pluginName };
+        Exception? failure = null;
+        try
+        {
+            SetLoadedNames(manager, requested);
+            commit(manager);
+            if (plugin.IsLoaded)
             {
-                loaded.Add(item.ToString());
+                return plugin;
             }
         }
-
-        loaded.Add(pluginName);
-        manager.SetPluginsLoaded(new Ea.Vector<Ea.String>(loaded));
-        manager.Commit();
-        if (!plugin.IsLoaded)
+        catch (Exception exception)
         {
-            throw new InvalidOperationException($"The plugin manager did not load the plugin '{pluginName}'.");
+            failure = exception;
         }
 
-        return plugin;
+        RestoreLoadedNames(manager, previous);
+        throw new InvalidOperationException(
+            $"The plugin manager did not load the plugin '{pluginName}'. The plugin stays registered, but not loaded.", failure);
+    }
+
+    // A plugin that failed to load stays registered and is not loaded. A retry reuses it, because it cannot be removed.
+    private static Plugin? FindFailedPlugin(PluginManager manager, Assembly assembly, string name)
+    {
+        if (!IsNameUsed(manager, name))
+        {
+            return null;
+        }
+
+        using var key = new Ea.String(name);
+        var existing = manager.GetPlugin(key, true);
+        if (existing is { IsInvalid: false, IsLoaded: false } && ((object)existing).GetType() == PluginRuntime.FindPluginType(assembly))
+        {
+            return existing;
+        }
+
+        return null;
+    }
+
+    private static List<string> GetLoadedNames(PluginManager manager)
+    {
+        var loaded = new List<string>();
+        using var current = manager.LoadedPlugins;
+        foreach (var item in current)
+        {
+            loaded.Add(item.ToString());
+        }
+
+        return loaded;
+    }
+
+    private static void SetLoadedNames(PluginManager manager, List<string> names) =>
+        manager.SetPluginsLoaded(new Ea.Vector<Ea.String>(names.Select(static item => new Ea.String(item)).ToList()));
+
+    // The restore must not hide the first error. A failed restore is only a best effort.
+    private static void RestoreLoadedNames(PluginManager manager, List<string> previous)
+    {
+        try
+        {
+            SetLoadedNames(manager, previous);
+            manager.Commit();
+        }
+        catch (Exception)
+        {
+            // The caller gets the first failure.
+        }
     }
 
     // These queries do not load plugins. EnumerateLoadedModules lists all static plugins and the loaded dynamic plugins.

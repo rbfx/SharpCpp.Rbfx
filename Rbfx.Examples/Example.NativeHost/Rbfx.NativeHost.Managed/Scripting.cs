@@ -18,6 +18,8 @@ public static class Scripting
                 Speed = speed
             };
             node.AddComponent(spinner, 0);
+            // The node owns the spinner now. The engine disposes the C# spinner when the node releases it.
+            spinner.TransferOwnershipToNative();
         }
         catch (Exception exception)
         {

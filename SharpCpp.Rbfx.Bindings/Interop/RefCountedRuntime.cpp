@@ -4,7 +4,7 @@
 
 #include <Urho3D/Container/RefCounted.h>
 
-#if !URHO3D_CSHARP
+#if !SHARPCPP_RBFX_SCRIPT_RUNTIME
 #include <Urho3D/Container/Ptr.h>
 #include <mutex>
 #include <unordered_map>

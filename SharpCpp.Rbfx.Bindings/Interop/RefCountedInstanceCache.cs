@@ -8,6 +8,12 @@ public sealed class RefCountedInstanceCache : INativeInstanceCache
 {
     public static RefCountedInstanceCache Shared { get; } = new();
 
+    // The engine must know the runtime API before the first wrapper handle is stored in a native object.
+    static RefCountedInstanceCache()
+    {
+        ScriptRuntime.EnsureInstalled();
+    }
+
     private RefCountedInstanceCache()
     {
     }
@@ -87,7 +93,7 @@ public sealed class RefCountedInstanceCache : INativeInstanceCache
 
     public void Unregister(NativeObject instance)
     {
-        if (instance.IsClosed || instance.IsInvalid)
+        if (instance.IsClosed || instance.IsInvalid || instance is RefCountedNativeObject { SkipsNativeUnregister: true })
         {
             return;
         }
@@ -125,13 +131,15 @@ public sealed class RefCountedInstanceCache : INativeInstanceCache
         }
     }
 
+    // SDKs without the engine script runtime have no destruction callback. There, each lookup frees the handles
+    // of destroyed native objects. With the script runtime, the ScriptRuntimeApi disposes wrappers and nothing expires here.
     private static nint GetScriptObjectHandle(nint handle)
     {
         var current = RefCountedRuntime.GetScriptObjectHandle(handle);
         while (RefCountedRuntime.TakeExpiredScriptObjectHandle() is var expired && expired != IntPtr.Zero)
         {
             var gcHandle = GCHandle.FromIntPtr(expired);
-            if (gcHandle.Target is RefCountedNativeObject instance) instance.DisposeFromNativeRuntime();
+            if (gcHandle.Target is RefCountedNativeObject instance) instance.DetachFromDestroyedNativeObject();
             gcHandle.Free();
         }
         return current;

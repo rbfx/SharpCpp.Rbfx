@@ -46,6 +46,8 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         var objectSymbol = compilation.GetTypeByMetadataName("Urho3D.Core.Object");
         var stringHashSymbol = compilation.GetTypeByMetadataName("Urho3D.Math.StringHash");
         var nativeObjectRegistrationSymbol = compilation.GetTypeByMetadataName("SharpCpp.Support.INativeObjectRegistration`1");
+        var contextSymbol = compilation.GetTypeByMetadataName("Urho3D.Core.Context");
+        var objectFactorySymbol = compilation.GetTypeByMetadataName("SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory`1");
         if (objectSymbol is null || stringHashSymbol is null || nativeObjectRegistrationSymbol is null)
         {
             return;
@@ -77,6 +79,12 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
                     candidate.TypeName));
                 continue;
             }
+
+            candidate.ImplementsObjectFactory = objectFactorySymbol is not null &&
+                contextSymbol is not null &&
+                !candidate.Symbol.IsAbstract &&
+                !ImplementsInterface(candidate.Symbol, objectFactorySymbol) &&
+                HasContextConstructor(candidate.Symbol, contextSymbol);
 
             context.AddSource(GetHintName(candidate), SourceText.From(Render(candidate), Encoding.UTF8));
         }
@@ -126,6 +134,34 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             hideStaticTypeNameMembers: !SymbolEqualityComparer.Default.Equals(typeSymbol.BaseType, objectSymbol),
             GetLocation(typeSymbol));
         return true;
+    }
+
+    private static bool ImplementsInterface(INamedTypeSymbol typeSymbol, INamedTypeSymbol interfaceDefinition)
+    {
+        foreach (var interfaceSymbol in typeSymbol.Interfaces)
+        {
+            if (SymbolEqualityComparer.Default.Equals(interfaceSymbol.OriginalDefinition, interfaceDefinition))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasContextConstructor(INamedTypeSymbol typeSymbol, INamedTypeSymbol contextSymbol)
+    {
+        foreach (var constructor in typeSymbol.InstanceConstructors)
+        {
+            if (constructor.DeclaredAccessibility == Accessibility.Public &&
+                constructor.Parameters.Length == 1 &&
+                SymbolEqualityComparer.Default.Equals(constructor.Parameters[0].Type, contextSymbol))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool DerivesFrom(INamedTypeSymbol typeSymbol, INamedTypeSymbol baseType)
@@ -307,7 +343,13 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             builder.AppendLine("{");
         }
 
-        builder.Append(indent).Append(candidate.Accessibility).Append(" partial class ").Append(candidate.Symbol.Name).AppendLine();
+        builder.Append(indent).Append(candidate.Accessibility).Append(" partial class ").Append(candidate.Symbol.Name);
+        if (candidate.ImplementsObjectFactory)
+        {
+            builder.Append(" : global::SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<").Append(candidate.Symbol.Name).Append('>');
+        }
+
+        builder.AppendLine();
         builder.Append(indent).AppendLine("{");
 
         builder.Append(memberIndent).AppendLine("public override global::Urho3D.Math.StringHash GetType()");
@@ -368,6 +410,17 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             .AppendLine(".GetTypeInfoStatic());");
         builder.Append(memberIndent).AppendLine("}");
 
+        if (candidate.ImplementsObjectFactory)
+        {
+            builder.AppendLine();
+            builder.Append(memberIndent).Append("static ").Append(candidate.Symbol.Name)
+                .Append(" global::SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<").Append(candidate.Symbol.Name)
+                .AppendLine(">.Create(global::Urho3D.Core.Context context)");
+            builder.Append(memberIndent).AppendLine("{");
+            builder.Append(bodyIndent).Append("return new ").Append(candidate.Symbol.Name).AppendLine("(context);");
+            builder.Append(memberIndent).AppendLine("}");
+        }
+
         builder.Append(indent).AppendLine("}");
 
         if (candidate.Namespace is not null)
@@ -416,5 +469,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         public bool HideStaticTypeNameMembers { get; }
 
         public Location Location { get; }
+
+        public bool ImplementsObjectFactory { get; set; }
     }
 }

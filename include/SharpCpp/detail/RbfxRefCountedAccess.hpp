@@ -2,9 +2,16 @@
 
 #include <Urho3D/Container/RefCounted.h>
 
+// The engine keeps the wrapper handle in RefCounted when it is built with its script runtime.
+#if (defined(URHO3D_CSHARP) && URHO3D_CSHARP) || (defined(URHO3D_SCRIPT_RUNTIME) && URHO3D_SCRIPT_RUNTIME)
+#define SHARPCPP_RBFX_SCRIPT_RUNTIME 1
+#else
+#define SHARPCPP_RBFX_SCRIPT_RUNTIME 0
+#endif
+
 namespace sharpcpp::interop::rbfx
 {
-#if URHO3D_CSHARP
+#if SHARPCPP_RBFX_SCRIPT_RUNTIME
 namespace detail
 {
 template <class Tag, typename Tag::type Member>
@@ -55,6 +62,7 @@ inline void ResetScriptObject(Urho3D::RefCounted* instance) noexcept
 {
     AssignScriptObject(instance, nullptr, false);
 }
+// The registered ScriptRuntimeApi disposes the wrapper when the native object dies. Nothing expires silently.
 inline void* TakeExpiredScriptObject() noexcept { return nullptr; }
 #else
 // SDKs without rbfx's optional C# runtime have no script fields in RefCounted.

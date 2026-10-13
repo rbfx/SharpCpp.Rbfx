@@ -51,6 +51,51 @@ public static partial class ManagedObjectFactory
         GC.KeepAlive(typeInfo);
     }
 
+    /// <summary>
+    /// Registers a factory for <paramref name="type"/> in the context and returns the type info of the type.
+    /// The type must derive from <see cref="global::Urho3D.Core.Object"/> and implement <see cref="IManagedObjectFactory{T}"/> for itself.
+    /// This overload is for types that are found at run time, for example by an assembly scan.
+    /// </summary>
+    public static global::Urho3D.Core.TypeInfo RegisterFactory(this global::Urho3D.Core.Context context, Type type, string category = "")
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(type);
+        if (!IsFactoryType(type))
+        {
+            throw new ArgumentException(
+                $"The type '{type}' must be a concrete Object that implements IManagedObjectFactory<{type.Name}>.", nameof(type));
+        }
+
+        var register = typeof(ManagedObjectFactory)
+            .GetMethod(nameof(RegisterFactoryAndGetTypeInfo), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .MakeGenericMethod(type);
+        try
+        {
+            return (global::Urho3D.Core.TypeInfo)register.Invoke(null, [context, category])!;
+        }
+        catch (System.Reflection.TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
+        }
+    }
+
+    /// <summary>Returns true when the type is a concrete Object that implements <see cref="IManagedObjectFactory{T}"/> for itself.</summary>
+    public static bool IsFactoryType(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return type.IsClass && !type.IsAbstract && !type.ContainsGenericParameters &&
+            typeof(global::Urho3D.Core.Object).IsAssignableFrom(type) &&
+            Array.Exists(type.GetInterfaces(), i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IManagedObjectFactory<>) && i.GenericTypeArguments[0] == type);
+    }
+
+    private static global::Urho3D.Core.TypeInfo RegisterFactoryAndGetTypeInfo<T>(global::Urho3D.Core.Context context, string category)
+        where T : global::Urho3D.Core.Object, IManagedObjectFactory<T>
+    {
+        context.RegisterFactory<T>(category);
+        return T.GetTypeInfoStatic();
+    }
+
     // Returns a native object that carries one counted reference of the managed wrapper.
     // The wrapper becomes non-owning here. Its strong GC handle stays in the instance cache until the native object dies.
     // The native trampoline then releases the counted reference after the engine holds its own reference.

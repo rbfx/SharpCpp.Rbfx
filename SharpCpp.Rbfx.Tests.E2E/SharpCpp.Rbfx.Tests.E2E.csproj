@@ -29,12 +29,15 @@
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- The test plugin is a separate assembly. Only its dll goes to plugins/TestPlugin/, away from the test assemblies. -->
+  <!-- Each test plugin is a separate assembly. Only its dll goes to plugins/<name>/, away from the test assemblies. -->
   <ItemGroup>
-    <Compile Remove="TestPlugin/**" />
-    <None Remove="TestPlugin/**" />
+    <Compile Remove="TestPlugin/**;AttributePlugin/**" />
+    <None Remove="TestPlugin/**;AttributePlugin/**" />
     <ProjectReference Include="TestPlugin/SharpCpp.Rbfx.Tests.E2E.TestPlugin.csproj"
                       OutputItemType="E2ETestPluginAssembly"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="AttributePlugin/SharpCpp.Rbfx.Tests.E2E.AttributePlugin.csproj"
+                      OutputItemType="E2EAttributePluginAssembly"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
@@ -45,6 +48,13 @@
     <Copy SourceFiles="@(_E2ETestPluginFile)"
           Condition="Exists('%(_E2ETestPluginFile.FullPath)')"
           DestinationFolder="$(OutDir)plugins/TestPlugin/"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <_E2EAttributePluginFile Include="@(E2EAttributePluginAssembly);@(E2EAttributePluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_E2EAttributePluginFile)"
+          Condition="Exists('%(_E2EAttributePluginFile.FullPath)')"
+          DestinationFolder="$(OutDir)plugins/AttributePlugin/"
           SkipUnchangedFiles="true" />
   </Target>
 </Project>

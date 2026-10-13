@@ -13,6 +13,7 @@ add_library(
   ${RBFX_NATIVE_LIBRARY_TYPE}
     ${RBFX_GENERATED_CPP_FILES}
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/WorkQueueRuntime.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Interop/ManagedAttributeAccessor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/ManagedObjectFactory.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/ManagedTypeInfoRegistry.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/RefCountedRuntime.cpp"

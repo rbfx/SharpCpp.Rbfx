@@ -114,7 +114,7 @@ SharpCpp.Tool ───────────┘             |
 | `SharpCpp.Rbfx.Generator/` | Phase-1 SDK binding generator (ClangSharp-based, pipeline-enabled) |
 | `SharpCpp.Rbfx.Bindings/` | Phase-1 managed assembly container (generated C# consumed via wildcard) |
 | `SharpCpp.Rbfx.Tests.E2E/` | End-to-end xUnit tests exercising generated SDK wrappers |
-| `Rbfx.UserCode/` | Phase-2 user-code generator only (`Rbfx.UserCode.Generator/`) |
+| `Rbfx.UserCode.Generator/` | Phase-2 user-code generator |
 | `cmake/` | `RbfxCSharpAddUsercode.cmake` (`rbfx_csharp_add_usercode()`), `FindNetHost.cmake`, `ExportRbfxSdkParseFlags.cmake`, `templates/` |
 | `eng/` | Shared MSBuild targets: `RbfxUserCodeReference` handling, `Consumer.targets` and `NativeItems.targets` (the one RID to native item mapping, also packed into the Android, iOS and Wasm runtime packages by `CrossPackage.cs targets`) |
 | `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h`. The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link copies `libnethost.so`, `libnethost.dylib` or `nethost.dll` next to the host library. MSVC always links `nethost.lib`. |

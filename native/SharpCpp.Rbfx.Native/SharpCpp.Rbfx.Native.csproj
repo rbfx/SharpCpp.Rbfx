@@ -12,7 +12,7 @@
                       ReferenceOutputAssembly="false"
                       Private="false"
                       PrivateAssets="all" />
-    <ProjectReference Include="../../Rbfx.UserCode/Rbfx.UserCode.Generator/Rbfx.UserCode.Generator.csproj"
+    <ProjectReference Include="../../Rbfx.UserCode.Generator/Rbfx.UserCode.Generator.csproj"
                       ReferenceOutputAssembly="false"
                       Private="false"
                       PrivateAssets="all" />

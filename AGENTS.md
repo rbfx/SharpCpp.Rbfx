@@ -7,7 +7,7 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 ## Layout
 
 - `SharpCpp.Rbfx.Generator/` - phase-1 generator for the installed rbfx SDK headers.
-- `Rbfx.UserCode/` - only `Rbfx.UserCode.Generator/`, the phase-2 user-code generator.
+- `Rbfx.UserCode.Generator/` - the phase-2 user-code generator.
 - `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). Public headers are `Urho3D/CSharp/DotNetHost.h` and `DotNetHostExport.h` (`namespace Urho3D`). `cmake/FindNetHost.cmake` finds nethost. The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link uses `libnethost.so`, `libnethost.dylib` or `nethost.dll`, and the host build copies it next to the host library. A static link uses `libnethost.a`. MSVC always links the import library `nethost.lib` (the static `libnethost.lib` uses /MT and does not link with /MD). The top-level `CMakeLists.txt` sets `BUILD_SHARED_LIBS` from `RBFX_NATIVE_LIBRARY_TYPE`. The Android toolchains use `c++_shared` unless the command line sets `-DBUILD_SHARED_LIBS=OFF`. `-DRBFX_ANDROID_STL=c++_shared` or `c++_static` overrides both.
 - `Rbfx.Examples/Example.UserCode/` - example: native C++ component (`RotatingComponent`) and CMake. No managed project.
 - `Rbfx.Examples/Example.Common/` - shared demo source build. It uses `Example.UserCode.Bindings.dll`. `Example.Desktop` uses it.

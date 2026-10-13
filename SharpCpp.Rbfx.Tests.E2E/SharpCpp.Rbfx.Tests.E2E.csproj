@@ -28,4 +28,23 @@
   <ItemGroup>
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- The test plugin is a separate assembly. Only its dll goes to plugins/TestPlugin/, away from the test assemblies. -->
+  <ItemGroup>
+    <Compile Remove="TestPlugin/**" />
+    <None Remove="TestPlugin/**" />
+    <ProjectReference Include="TestPlugin/SharpCpp.Rbfx.Tests.E2E.TestPlugin.csproj"
+                      OutputItemType="E2ETestPluginAssembly"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyE2ETestPlugin" AfterTargets="Build">
+    <ItemGroup>
+      <_E2ETestPluginFile Include="@(E2ETestPluginAssembly);@(E2ETestPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_E2ETestPluginFile)"
+          Condition="Exists('%(_E2ETestPluginFile.FullPath)')"
+          DestinationFolder="$(OutDir)plugins/TestPlugin/"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

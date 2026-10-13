@@ -174,7 +174,17 @@ struct [[sharpcpp::managed_type(
     using cpp_type = Urho3D::SharedPtr<TCpp, TRefCounted>;
     using abi_type = TCpp*;
 
-    abi_type ConvertToAbi(cpp_type value) noexcept
+    // An lvalue is owned by someone else, for example a native field. Keep its
+    // reference. The managed side adds its own reference.
+    abi_type ConvertToAbi(cpp_type& value) noexcept
+    {
+        return value.Get();
+    }
+
+    // Detach gives up the reference of a temporary without a delete. The managed side
+    // then adds its reference. A Detach on a copy is not correct: the source still
+    // releases its reference later and can delete the object.
+    abi_type ConvertToAbi(cpp_type&& value) noexcept
     {
         return value.Detach();
     }
@@ -362,7 +372,17 @@ struct [[sharpcpp::managed_type(
     using cpp_type = Urho3D::SharedPtr<Urho3D::RefCounted, Urho3D::RefCounted>;
     using abi_type = Urho3D::RefCounted*;
 
-    abi_type ConvertToAbi(cpp_type value) noexcept
+    // An lvalue is owned by someone else, for example a native field. Keep its
+    // reference. The managed side adds its own reference.
+    abi_type ConvertToAbi(cpp_type& value) noexcept
+    {
+        return value.Get();
+    }
+
+    // Detach gives up the reference of a temporary without a delete. The managed side
+    // then adds its reference. A Detach on a copy is not correct: the source still
+    // releases its reference later and can delete the object.
+    abi_type ConvertToAbi(cpp_type&& value) noexcept
     {
         return value.Detach();
     }

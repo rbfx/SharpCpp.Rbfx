@@ -117,9 +117,9 @@ SharpCpp.Tool ───────────┘             |
 | `Rbfx.UserCode.Generator/` | Phase-2 user-code generator |
 | `cmake/` | `RbfxCSharpAddUsercode.cmake` (`rbfx_csharp_add_usercode()`), `FindNetHost.cmake`, `ExportRbfxSdkParseFlags.cmake`, `templates/` |
 | `eng/` | Shared MSBuild targets: `RbfxUserCodeReference` handling, `Consumer.targets` and `NativeItems.targets` (the one RID to native item mapping, also packed into the Android, iOS and Wasm runtime packages by `CrossPackage.cs targets`) |
-| `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h`. The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link copies `libnethost.so`, `libnethost.dylib` or `nethost.dll` next to the host library. MSVC always links `nethost.lib`. |
+| `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h`. `DotNetHost::LoadPlugin` loads a managed plugin through `Urho3D.Plugins.NativeHostEntryPoints.LoadPlugin` (`SharpCpp.Rbfx.Bindings/Plugins/NativeHostEntryPoints.cs`). The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link copies `libnethost.so`, `libnethost.dylib` or `nethost.dll` next to the host library. MSVC always links `nethost.lib`. |
 | `Rbfx.Examples/Example.UserCode/` | Example: native `RotatingComponent` + CMake; no managed project |
 | `Rbfx.Examples/Example.Common/` | Shared demo (`UserCodeSupport.cs`, `DemoApplication.cs`, `DemoDocument.cs`, `SceneSample.cs`); one project, two modes by `RbfxBindingsPackageVersion` (empty: source projects, set: bindings package); uses `Example.UserCode.Bindings.dll` |
-| `Rbfx.Examples/Example.NativeHost/` | Example: plain C++ rbfx `Application` hosts .NET and adds a C# `LogicComponent` (`Spinner`) to a node |
+| `Rbfx.Examples/Example.NativeHost/` | Example: plain C++ rbfx `Application` hosts .NET, loads a C# `ManagedPlugin` with `DotNetHost::LoadPlugin` and creates the C# `LogicComponent` (`Spinner`) by name |
 | `CheckGeneratedStaleness.cmake` | Generator staleness checker (timestamp-based invalidation) |
 | `CopyRbfxRuntimeDependencies.cmake.in` | Runtime library deployment script template |

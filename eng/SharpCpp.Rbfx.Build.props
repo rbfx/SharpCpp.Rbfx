@@ -35,6 +35,11 @@
     <RbfxCMakeCommand Condition="'$(RbfxCMakeCommand)' == ''">cmake</RbfxCMakeCommand>
     <RbfxNativeBuildDir Condition="'$(RbfxNativeBuildDir)' == ''">$(SharpCppBuildRoot)/native/$(RbfxNativePreset)</RbfxNativeBuildDir>
     <RbfxNativeLockFile Condition="'$(RbfxNativeLockFile)' == ''">$(RbfxNativeBuildDir)/sharpcpp-rbfx-native.lock</RbfxNativeLockFile>
+    <!-- RbfxBindingsPackageVersion is set by consumers that build with the published packages. Unset means
+         source build. When set, the user-code bindings project references the package SharpCpp.Rbfx.Bindings
+         of this version and the native configure skips the host library. The version is part of the
+         configure arguments, so a new version configures again. -->
+    <RbfxNativeConfigureArguments Condition="'$(RbfxBindingsPackageVersion)' != ''">$(RbfxNativeConfigureArguments) -DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=$(RbfxBindingsPackageVersion) -DRBFX_BUILD_HOST=OFF</RbfxNativeConfigureArguments>
     <RbfxGeneratedRoot>$(RbfxNativeBuildDir)/generated</RbfxGeneratedRoot>
     <RbfxGeneratedDir>$(RbfxGeneratedRoot)/rbfx</RbfxGeneratedDir>
     <RbfxGeneratedStamp>$(RbfxGeneratedDir)/generate.stamp</RbfxGeneratedStamp>

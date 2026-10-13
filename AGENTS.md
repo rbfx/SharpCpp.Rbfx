@@ -74,5 +74,10 @@ SDK is current. Set `RBFX_SDK_ROOT="$(eng/fetch-rbfx-sdk.sh --rid linux-x64 --pr
 CMake or MSBuild. `--print-cache-key` prints the CI cache key. `browser-wasm` comes from the
 SharpCpp.Rbfx release `latest`. See `--help` for all options.
 
+Set the MSBuild property `RbfxBindingsPackageVersion` to build the user code against the published
+packages. It adds `-DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=<version>` and `-DRBFX_BUILD_HOST=OFF` to
+`RbfxNativeConfigureArguments`. The generated bindings project then references the package
+`SharpCpp.Rbfx.Bindings`. Unset means source build.
+
 Coherent local commits after validation are authorized; publishing requires explicit
 task authorization.

@@ -149,7 +149,7 @@ find_7z() {
 # curl with the optional GitHub token. The token stays out of the process list.
 curl_gh() {
   if [ -n "${GITHUB_TOKEN:-}" ]; then
-    curl --config <(printf 'header = "Authorization: Bearer %s"\n' "$GITHUB_TOKEN") "$@"
+    printf 'header = "Authorization: Bearer %s"\n' "$GITHUB_TOKEN" | curl --config - "$@"
   else
     curl "$@"
   fi

@@ -119,47 +119,10 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Install Dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            ninja-build p7zip-full \
-            libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev \
-            libxrandr-dev libxrender-dev libxss-dev libasound2-dev \
-            libpulse-dev libibus-1.0-dev libdbus-1-dev libreadline6-dev \
-            libudev-dev uuid-dev libtbb-dev
-
-      # package.sh needs bash 4 or later.
-      - name: Install Dependencies
-        if: runner.os == 'macOS'
-        run: brew install bash ninja
-
-      - name: Setup MSVC
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install Android NDK
-        if: startsWith(matrix.rid, 'android-')
-        shell: bash
-        run: |
-          rbfx_android_sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          rbfx_sdkmanager_path="$(find -L "$rbfx_android_sdk_root/cmdline-tools" -type f -name sdkmanager -print -quit)"
-          test -n "$rbfx_sdkmanager_path"
-          "$rbfx_sdkmanager_path" --install 'ndk;27.2.12479018'
-          rbfx_ndk_path="$rbfx_android_sdk_root/ndk/27.2.12479018"
-          test -f "$rbfx_ndk_path/build/cmake/android.toolchain.cmake"
-          echo "ANDROID_NDK_HOME=$rbfx_ndk_path" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=$rbfx_ndk_path" >> "$GITHUB_ENV"
-
-      - name: Setup Emscripten
-        if: matrix.rid == 'browser-wasm'
-        shell: bash
-        run: |
-          git clone --depth 1 https://github.com/emscripten-core/emsdk.git emsdk
-          ./emsdk/emsdk install 3.1.56
-          ./emsdk/emsdk activate 3.1.56
-          echo "EMSDK=$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_ENV"
+      - name: Install Native Toolchain
+        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
+        with:
+          rid: ${{ matrix.rid }}
 
       # Downloads or builds the matching rbfx SDK, generates and builds the wrappers, then packs them.
       - name: Build Packages
@@ -397,7 +360,7 @@ jobs:
             project: Rbfx.Examples/Example.Wasm/Example.Wasm.csproj
             verify: true
           - rid: uap-x64
-            runs_on: windows-latest
+            runs_on: windows-2022
             project: Rbfx.Examples/Example.Uwp/Example.Uwp.csproj
     steps:
       - name: Checkout SharpCpp.Rbfx
@@ -405,10 +368,22 @@ jobs:
         with:
           path: SharpCpp.Rbfx
           persist-credentials: false
+      # SharpCpp is consumed as a sibling checkout (SharpCppRoot defaults to ../SharpCpp).
+      # The build of the user library runs the generators of SharpCpp.
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          path: SharpCpp
+          persist-credentials: false
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.401
+      - name: Install Native Toolchain
+        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
+        with:
+          rid: ${{ matrix.rid }}
       - name: Install Platform Workload
         if: matrix.workload != ''
         run: dotnet workload install ${{ matrix.workload }} --version 10.0.401
@@ -417,13 +392,37 @@ jobs:
         with:
           name: union-nuget
           path: SharpCpp.Rbfx/build/cross-packages
+      # The build of the user library needs the rbfx SDK of the RID in build/sdk/<rid>.
+      - name: Get rbfx SDK Cache Key
+        id: sdk-key
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: |
+          key="$(./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}' --print-cache-key)"
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache rbfx SDK
+        uses: actions/cache@v4
+        with:
+          path: SharpCpp.Rbfx/build/sdk/${{ matrix.rid }}
+          key: rbfx-sdk-${{ runner.os }}-${{ steps.sdk-key.outputs.key }}
+      - name: Fetch rbfx SDK
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: ./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}'
       - name: Build Native Package Consumer
         if: matrix.verify == true
         working-directory: SharpCpp.Rbfx
         run: >-
           dotnet run --file packaging/nuget/CrossPackage.cs -- verify
           --rid '${{ matrix.rid }}' --version "$PACKAGE_VERSION" --packages build/cross-packages
-      - name: Restore Example
+      # The generated user bindings project restores from this file. NuGet finds the nearest
+      # NuGet.Config above build/. The source path is relative to the file.
+      - name: Write NuGet Config
         working-directory: SharpCpp.Rbfx
         shell: bash
         run: |
@@ -437,19 +436,28 @@ jobs:
             </packageSources>
           </configuration>
           EOF
-          dotnet restore '${{ matrix.project }}' --configfile build/NuGet.Config -p:RbfxPackageVersion="$PACKAGE_VERSION" -p:RuntimeIdentifier='${{ matrix.rid }}' -p:RbfxExamplesNuGetOnly=true
+      - name: Restore Example
+        working-directory: SharpCpp.Rbfx
+        shell: bash
+        run: >-
+          dotnet restore '${{ matrix.project }}' --configfile build/NuGet.Config
+          -p:RbfxBindingsPackageVersion="$PACKAGE_VERSION"
+          -p:RbfxPackageVersion="$PACKAGE_VERSION"
+          -p:RuntimeIdentifier='${{ matrix.rid }}'
       - name: Build Example
         if: matrix.rid != 'uap-x64'
+        timeout-minutes: 60
         working-directory: SharpCpp.Rbfx
         shell: bash
         run: >-
           dotnet build '${{ matrix.project }}' --configuration Release --no-restore --nologo
+          -p:RbfxBindingsPackageVersion="$PACKAGE_VERSION"
           -p:RbfxPackageVersion="$PACKAGE_VERSION"
           -p:RuntimeIdentifier='${{ matrix.rid }}'
-          -p:RbfxExamplesNuGetOnly=true
           -p:EnableCodeSigning=false -p:BuildIpa=false
       - name: Build UWP Example
         if: matrix.rid == 'uap-x64'
+        timeout-minutes: 60
         working-directory: SharpCpp.Rbfx
         shell: pwsh
         run: |
@@ -464,9 +472,9 @@ jobs:
             '/t:Build',
             '/nologo',
             '/p:Configuration=Release',
+            "/p:RbfxBindingsPackageVersion=$env:PACKAGE_VERSION",
             "/p:RbfxPackageVersion=$env:PACKAGE_VERSION",
             '/p:RuntimeIdentifier=uap-x64',
-            '/p:RbfxExamplesNuGetOnly=true',
             '/p:EnableCodeSigning=false',
             '/p:BuildIpa=false'
           )
@@ -477,7 +485,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: consumer-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/cross-consumer/${{ matrix.rid }}/obj/**/*.log
+          path: SharpCpp.Rbfx/build/**/obj/**/*.log
           if-no-files-found: warn
 
   Publish-NuGet:

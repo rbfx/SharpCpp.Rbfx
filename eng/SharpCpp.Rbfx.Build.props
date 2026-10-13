@@ -59,7 +59,9 @@
     <RbfxRunSettingsPath>$(SharpCppOutputDir)/SharpCpp.Rbfx.Tests.runsettings</RbfxRunSettingsPath>
 
     <SharpCppSdkVersion>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('$(MSBuildSDKsPath)'))))</SharpCppSdkVersion>
-    <TargetFramework Condition="'$(TargetFramework)' == ''">net$([System.Version]::Parse('$(SharpCppSdkVersion)').Major).0</TargetFramework>
+    <!-- A host that is not the dotnet CLI (for example Visual Studio MSBuild.exe) has no SDK version in this path. -->
+    <TargetFramework Condition="'$(TargetFramework)' == '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(SharpCppSdkVersion)', '^[0-9]+\.'))">net$([System.Version]::Parse('$(SharpCppSdkVersion)').Major).0</TargetFramework>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

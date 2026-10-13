@@ -1,0 +1,54 @@
+name: Native Toolchain
+description: Installs the native build tools that a runtime identifier (RID) needs.
+
+inputs:
+  rid:
+    description: Runtime identifier of the build, for example linux-x64, uap-x64, android-arm64 or browser-wasm.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          ninja-build p7zip-full \
+          libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev \
+          libxrandr-dev libxrender-dev libxss-dev libasound2-dev \
+          libpulse-dev libibus-1.0-dev libdbus-1-dev libreadline6-dev \
+          libudev-dev uuid-dev libtbb-dev
+
+    # package.sh needs bash 4 or later.
+    - name: Install Dependencies
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install bash ninja
+
+    - name: Setup MSVC
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install Android NDK
+      if: startsWith(inputs.rid, 'android-')
+      shell: bash
+      run: |
+        rbfx_android_sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+        rbfx_sdkmanager_path="$(find -L "$rbfx_android_sdk_root/cmdline-tools" -type f -name sdkmanager -print -quit)"
+        test -n "$rbfx_sdkmanager_path"
+        "$rbfx_sdkmanager_path" --install 'ndk;27.2.12479018'
+        rbfx_ndk_path="$rbfx_android_sdk_root/ndk/27.2.12479018"
+        test -f "$rbfx_ndk_path/build/cmake/android.toolchain.cmake"
+        echo "ANDROID_NDK_HOME=$rbfx_ndk_path" >> "$GITHUB_ENV"
+        echo "ANDROID_NDK_ROOT=$rbfx_ndk_path" >> "$GITHUB_ENV"
+
+    - name: Setup Emscripten
+      if: inputs.rid == 'browser-wasm'
+      shell: bash
+      run: |
+        git clone --depth 1 https://github.com/emscripten-core/emsdk.git emsdk
+        ./emsdk/emsdk install 3.1.56
+        ./emsdk/emsdk activate 3.1.56
+        echo "EMSDK=$GITHUB_WORKSPACE/emsdk" >> "$GITHUB_ENV"

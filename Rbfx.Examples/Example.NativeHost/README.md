@@ -24,4 +24,4 @@ The example builds when `RBFX_BUILD_EXAMPLES` is ON. The default is ON when `RBF
 
 - NuGet packaging of the host is out of scope. A C++ project consumes the host through CMake (the `SharpCpp::RbfxHost` target).
 - On Linux the executable links `libUrho3D.so` at startup. The runtime loads the binding libraries later with `dlopen`, and the TLS block of Urho3D does not fit then.
-- User-code bindings cannot yet pass `Context*`, `Node*` or the type information of `URHO3D_OBJECT` types. `Spinner` has no `URHO3D_OBJECT`. A small exported C function creates it on a node.
+- `Spinner` has no `URHO3D_OBJECT`, so a small exported C function creates it on a node. `Example.UserCode` shows the newer way: a `URHO3D_OBJECT` type that the managed side creates with `Node.CreateComponent<T>()`.

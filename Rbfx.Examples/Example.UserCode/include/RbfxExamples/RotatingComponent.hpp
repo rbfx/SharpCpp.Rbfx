@@ -7,11 +7,16 @@ namespace RbfxExamples
 {
 
 /// Logic component that rotates its node around the Y axis.
-/// The class has no URHO3D_OBJECT. The bindings of user code cannot wrap the type information
-/// accessors of that macro. The factory type RotatingComponentImpl in RotatingComponent.cpp adds them.
+/// The URHO3D_OBJECT type information gives the managed wrapper the static GetTypeStatic accessor,
+/// so the managed side creates the component with Node.CreateComponent<RotatingComponent>().
 class RotatingComponent : public Urho3D::LogicComponent
 {
+    URHO3D_OBJECT(RotatingComponent, Urho3D::LogicComponent);
+
 public:
+    /// Registers the object factory. The managed side calls this method once for a context.
+    static void RegisterObject(Urho3D::Context* context);
+
     explicit RotatingComponent(Urho3D::Context* context);
 
     void SetRotationSpeed(float degreesPerSecond);

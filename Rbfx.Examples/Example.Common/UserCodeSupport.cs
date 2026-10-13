@@ -1,8 +1,6 @@
 using Urho3D.Scene;
 #if RBFX_USERCODE
-using System.Runtime.InteropServices;
 using RbfxExamples;
-using SharpCpp.Support;
 #endif
 
 namespace Rbfx.Examples.Common;
@@ -11,37 +9,25 @@ namespace Rbfx.Examples.Common;
 /// Adds the native RotatingComponent of Example.UserCode to a node.
 /// Without the RBFX_USERCODE constant the user code is not available and every method does nothing.
 /// </summary>
-public static partial class UserCodeSupport
+public static class UserCodeSupport
 {
 #if RBFX_USERCODE
     public const bool IsAvailable = true;
 
-    // The generator does not wrap the factory: it is a global extern "C" function. The name follows the generated bindings.
-#if SHARPCPP_BROWSER_WASM
-    private const string NativeLibraryName = "libExample.UserCode.Native";
-#elif SHARPCPP_STATIC_RUNTIME
-    private const string NativeLibraryName = "__Internal";
-#else
-    private const string NativeLibraryName = "Example.UserCode.Native";
-#endif
-
-    [LibraryImport(NativeLibraryName, EntryPoint = "RbfxExamples_AddRotatingComponent")]
-    private static partial nint AddRotatingComponent(nint node, float degreesPerSecond);
-
     /// <summary>
-    /// Creates a RotatingComponent on the node.
-    /// Returns a description of the component, or null if the native call fails.
+    /// Registers the factory of RotatingComponent and creates the component on the node.
+    /// Returns a description of the component, or null if the creation fails.
     /// </summary>
     public static string? AddRotatingComponent(Node node, float degreesPerSecond = 45.0f)
     {
-        var handle = AddRotatingComponent(NativeObject.GetHandle(node), degreesPerSecond);
-        GC.KeepAlive(node);
-        if (handle == 0)
+        RotatingComponent.RegisterObject(node.GetContext());
+        var component = node.CreateComponent<RotatingComponent>();
+        if (component is null)
         {
             return null;
         }
 
-        var component = RotatingComponent.CreateManagedWrapper(handle, ownsHandle: false);
+        component.SetRotationSpeed(degreesPerSecond);
         return $"RotatingComponent speed {component.GetRotationSpeed()} degrees per second";
     }
 #else

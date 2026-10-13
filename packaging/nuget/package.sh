@@ -315,6 +315,13 @@ stage_packages() {
         done
       done
       require_file "$STAGE_DIR/runtime/$rid/native/Urho3D.dll"
+      # The host library links nethost.dll on MSVC. The host build copies it next to the host
+      # library. UWP does not build the host library.
+      if [ -f "$bin_dir/SharpCpp.Rbfx.Host.dll" ]; then
+        cp -a "$bin_dir/SharpCpp.Rbfx.Host.dll" "$STAGE_DIR/runtime/$rid/native/"
+        require_file "$bin_dir/nethost.dll"
+        cp -a "$bin_dir/nethost.dll" "$STAGE_DIR/runtime/$rid/native/"
+      fi
       ;;
     *)
       echo "Error: unsupported runtime identifier '$rid'." >&2

@@ -10,9 +10,14 @@
 #
 # Options:
 #   NETHOST_PREFER_SHARED  Use the shared nethost library instead of the static one.
+#                          The default is ON for MSVC and OFF for other compilers.
+#
+# The static libnethost.lib of the pack is built with /MT. It does not link with code that
+# uses /MD, so MSVC links the import library nethost.lib and needs nethost.dll at run time.
 #
 # Result variables:
 #   NetHost_FOUND, NETHOST_INCLUDE_DIR, NETHOST_LIBRARY, NETHOST_IS_STATIC, NETHOST_DOTNET_ROOT
+#   NETHOST_RUNTIME_LIBRARY  Path of nethost.dll. Set only for a shared link on Windows.
 #
 # Imported target:
 #   NetHost::NetHost
@@ -20,7 +25,12 @@
 include(FindPackageHandleStandardArgs)
 
 set(NETHOST_ROOT "" CACHE PATH "Dotnet root or native directory of the Microsoft.NETCore.App.Host pack.")
-option(NETHOST_PREFER_SHARED "Link the shared nethost library instead of the static one." OFF)
+if(MSVC)
+  set(_nethost_prefer_shared_default ON)
+else()
+  set(_nethost_prefer_shared_default OFF)
+endif()
+option(NETHOST_PREFER_SHARED "Link the shared nethost library instead of the static one." ${_nethost_prefer_shared_default})
 
 # Runtime identifier of the target platform.
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
@@ -118,6 +128,7 @@ endif()
 
 unset(NETHOST_INCLUDE_DIR CACHE)
 unset(NETHOST_LIBRARY CACHE)
+unset(NETHOST_RUNTIME_LIBRARY CACHE)
 if(_nethost_native_dir)
   find_path(NETHOST_INCLUDE_DIR nethost.h PATHS "${_nethost_native_dir}" NO_DEFAULT_PATH)
   set(_nethost_static_names libnethost.a libnethost.lib)
@@ -127,6 +138,7 @@ if(_nethost_native_dir)
   else()
     set(_nethost_library_names ${_nethost_static_names} ${_nethost_shared_names})
   endif()
+  # The name "nethost" matches nethost.lib (the import library) on MSVC. It does not match libnethost.lib.
   find_library(
     NETHOST_LIBRARY
     NAMES ${_nethost_library_names}
@@ -147,6 +159,20 @@ if(NetHost_FOUND)
   else()
     set(NETHOST_IS_STATIC FALSE)
   endif()
+  if(NOT NETHOST_IS_STATIC AND WIN32)
+    # The import library and nethost.dll are in the same pack directory.
+    get_filename_component(_nethost_library_dir "${NETHOST_LIBRARY}" DIRECTORY)
+    find_file(
+      NETHOST_RUNTIME_LIBRARY nethost.dll
+      PATHS "${_nethost_library_dir}"
+      NO_DEFAULT_PATH)
+    if(NOT NETHOST_RUNTIME_LIBRARY)
+      message(WARNING "nethost.dll was not found next to '${NETHOST_LIBRARY}'. It is not copied to the output.")
+    endif()
+  endif()
+  if(MSVC AND NETHOST_IS_STATIC)
+    message(WARNING "NetHost links the static library '${NETHOST_LIBRARY}'. It uses /MT and can mismatch /MD.")
+  endif()
   if(NOT TARGET NetHost::NetHost)
     if(NETHOST_IS_STATIC)
       add_library(NetHost::NetHost STATIC IMPORTED)
@@ -159,10 +185,14 @@ if(NetHost_FOUND)
         set_target_properties(NetHost::NetHost PROPERTIES IMPORTED_IMPLIB "${NETHOST_LIBRARY}")
       endif()
     endif()
+    set(_nethost_location "${NETHOST_LIBRARY}")
+    if(NETHOST_RUNTIME_LIBRARY)
+      set(_nethost_location "${NETHOST_RUNTIME_LIBRARY}")
+    endif()
     set_target_properties(
       NetHost::NetHost
       PROPERTIES
-        IMPORTED_LOCATION "${NETHOST_LIBRARY}"
+        IMPORTED_LOCATION "${_nethost_location}"
         INTERFACE_INCLUDE_DIRECTORIES "${NETHOST_INCLUDE_DIR}")
     if(NETHOST_IS_STATIC AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
       set_property(TARGET NetHost::NetHost APPEND PROPERTY INTERFACE_LINK_LIBRARIES "${CMAKE_DL_LIBS}")
@@ -170,4 +200,4 @@ if(NetHost_FOUND)
   endif()
 endif()
 
-mark_as_advanced(NETHOST_INCLUDE_DIR NETHOST_LIBRARY NETHOST_ROOT)
+mark_as_advanced(NETHOST_INCLUDE_DIR NETHOST_LIBRARY NETHOST_RUNTIME_LIBRARY NETHOST_ROOT)

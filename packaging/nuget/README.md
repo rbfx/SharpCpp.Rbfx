@@ -12,7 +12,8 @@ does not use new `.nuspec` files.
   for their RID. Applications must select one of the supported RIDs.
 - `SharpCpp.Rbfx.Bindings.runtime.<rid>` contains the managed implementation and native runtime files for one
   runtime identifier, including `SharpCpp.Rbfx.Native` and the copied rbfx native
-  dependencies from the shared `build/bin` output directory. In CI union packages,
+  dependencies from the shared `build/bin` output directory. On Windows x64 it also contains
+  `SharpCpp.Rbfx.Host.dll` and the `nethost.dll` that it needs. UWP does not build the host library. In CI union packages,
   Linux x64 and Android x64 share one `runtime.unix-x64` package because NuGet's
   Android x64 RID fallback includes Linux x64. Their managed assets stay in
   RID-specific folders in that package. Linux native files use a private package

@@ -8,7 +8,7 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 
 - `SharpCpp.Rbfx.Generator/` - phase-1 generator for the installed rbfx SDK headers.
 - `Rbfx.UserCode/` - only `Rbfx.UserCode.Generator/`, the phase-2 user-code generator.
-- `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). Public headers are `Urho3D/CSharp/DotNetHost.h` and `DotNetHostExport.h` (`namespace Urho3D`). `cmake/FindNetHost.cmake` finds nethost.
+- `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). Public headers are `Urho3D/CSharp/DotNetHost.h` and `DotNetHostExport.h` (`namespace Urho3D`). `cmake/FindNetHost.cmake` finds nethost. Linux and macOS link the static `libnethost`. MSVC links the import library `nethost.lib` (the static `libnethost.lib` uses /MT and does not link with /MD) and the host build copies `nethost.dll` next to `SharpCpp.Rbfx.Host.dll`.
 - `Rbfx.Examples/Example.UserCode/` - example: native C++ component (`RotatingComponent`) and CMake. No managed project.
 - `Rbfx.Examples/Example.Common/` - shared demo source build. It uses `Example.UserCode.Bindings.dll`. `Example.Desktop` uses it.
 - `Rbfx.Examples/Example.Common.NuGet/` - NuGet-only twin of `Example.Common` (same sources). Android, iOS, Wasm and UWP use it. Desktop uses it with `-p:RbfxExamplesNuGetOnly=true` (CI).

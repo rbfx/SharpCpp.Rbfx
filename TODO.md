@@ -5,7 +5,6 @@
 - Windows code paths of `rbfx_csharp_add_usercode()` are untested.
 - The multi-header umbrella path of `rbfx_csharp_add_usercode()` is untested.
 - `FindNetHost` has no musl RID handling.
-- On Windows, `nethost.dll` is not copied for a shared link.
 - User-code bindings cannot yet pass `Context*` or `Node*`. Components are created through an exported C factory that takes `void*`.
 - `HostInfo::Describe()` returns a reference. A by-value `ea::string` return does not compile in the generated C#.
 - `Application.Context` crashes under the host.

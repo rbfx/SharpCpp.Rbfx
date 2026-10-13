@@ -39,3 +39,13 @@ set_target_properties(
     BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
     INSTALL_RPATH "${RBFX_RUNTIME_RPATH}")
 sharpcpp_set_native_output(sharpcpp-rbfx-host)
+
+# A shared nethost on Windows needs nethost.dll next to the host library at run time.
+if(NETHOST_RUNTIME_LIBRARY AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
+  add_custom_command(
+    TARGET sharpcpp-rbfx-host POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${NETHOST_RUNTIME_LIBRARY}"
+      "$<TARGET_FILE_DIR:sharpcpp-rbfx-host>"
+    VERBATIM)
+endif()

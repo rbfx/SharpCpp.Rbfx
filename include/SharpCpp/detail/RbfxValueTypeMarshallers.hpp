@@ -682,9 +682,38 @@ struct [[sharpcpp::managed_type(
 Marshaller<Urho3D::BoundingBox>
 {
     using cpp_type = Urho3D::BoundingBox;
-    using abi_type = Urho3D::BoundingBox;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    // BoundingBox has a user-provided copy constructor, so the Itanium ABI passes and returns it
+    // in memory. Cross the boundary as a trivial struct that matches the managed layout.
+    using abi_type = BoundingBoxAbi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbi(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCpp(v); }
+};
+
+template <>
+struct Marshaller<Urho3D::BoundingBox&> : ProjectedValueReferenceMarshallerBase<Urho3D::BoundingBox> {};
+
+template <>
+struct Marshaller<const Urho3D::BoundingBox&>
+{
+    using cpp_type = const Urho3D::BoundingBox&;
+    using abi_type = const Urho3D::BoundingBox*;
+    abi_type ConvertToAbi(cpp_type v) noexcept { return &v; }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return *v; }
+};
+
+template <>
+struct Marshaller<Urho3D::BoundingBox*> : ProjectedValuePointerMarshallerBase<Urho3D::BoundingBox> {};
+
+template <>
+struct Marshaller<const Urho3D::BoundingBox*> : ProjectedValueConstPointerMarshallerBase<Urho3D::BoundingBox> {};
+
+template <>
+struct ReturnMarshaller<Urho3D::BoundingBox>
+{
+    using cpp_type = Urho3D::BoundingBox;
+    using abi_type = BoundingBoxAbi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbi(v); }
+    cpp_type ConvertToCpp(const abi_type& v) noexcept { return ToCpp(v); }
 };
 
 template <>
@@ -738,9 +767,38 @@ struct [[sharpcpp::managed_type(
 Marshaller<Urho3D::Matrix4>
 {
     using cpp_type = Urho3D::Matrix4;
-    using abi_type = Urho3D::Matrix4;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    // Matrix4 has a user-provided copy constructor, so the Itanium ABI passes and returns it
+    // in memory. Cross the boundary as a trivial struct that matches the managed layout.
+    using abi_type = Matrix4Abi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbi(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCpp(v); }
+};
+
+template <>
+struct Marshaller<Urho3D::Matrix4&> : ProjectedValueReferenceMarshallerBase<Urho3D::Matrix4> {};
+
+template <>
+struct Marshaller<const Urho3D::Matrix4&>
+{
+    using cpp_type = const Urho3D::Matrix4&;
+    using abi_type = const Urho3D::Matrix4*;
+    abi_type ConvertToAbi(cpp_type v) noexcept { return &v; }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return *v; }
+};
+
+template <>
+struct Marshaller<Urho3D::Matrix4*> : ProjectedValuePointerMarshallerBase<Urho3D::Matrix4> {};
+
+template <>
+struct Marshaller<const Urho3D::Matrix4*> : ProjectedValueConstPointerMarshallerBase<Urho3D::Matrix4> {};
+
+template <>
+struct ReturnMarshaller<Urho3D::Matrix4>
+{
+    using cpp_type = Urho3D::Matrix4;
+    using abi_type = Matrix4Abi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbi(v); }
+    cpp_type ConvertToCpp(const abi_type& v) noexcept { return ToCpp(v); }
 };
 
 template <>

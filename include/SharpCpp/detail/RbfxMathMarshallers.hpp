@@ -68,6 +68,55 @@ struct QuaternionAbi { float W; float X; float Y; float Z; };
 inline Urho3D::Quaternion ToCpp(const QuaternionAbi& v) { return {v.W, v.X, v.Y, v.Z}; }
 inline QuaternionAbi ToAbi(const Urho3D::Quaternion& v) { return {v.w_, v.x_, v.y_, v.z_}; }
 
+// ─── BoundingBox ─────────────────────────────────────────────────────
+
+// BoundingBox has a user-provided copy constructor, so it returns through sret. The layout matches
+// Urho3D::BoundingBox and the managed struct: Min, one padding float, Max, one padding float.
+struct BoundingBoxAbi
+{
+    float MinX; float MinY; float MinZ; float MinPad;
+    float MaxX; float MaxY; float MaxZ; float MaxPad;
+};
+static_assert(sizeof(BoundingBoxAbi) == 8 * sizeof(float), "BoundingBoxAbi must hold 8 floats");
+static_assert(sizeof(Urho3D::BoundingBox) == sizeof(BoundingBoxAbi), "BoundingBox layout differs from BoundingBoxAbi");
+inline Urho3D::BoundingBox ToCpp(const BoundingBoxAbi& v)
+{
+    return Urho3D::BoundingBox(Urho3D::Vector3(v.MinX, v.MinY, v.MinZ), Urho3D::Vector3(v.MaxX, v.MaxY, v.MaxZ));
+}
+inline BoundingBoxAbi ToAbi(const Urho3D::BoundingBox& v)
+{
+    return {v.min_.x_, v.min_.y_, v.min_.z_, 0.0f, v.max_.x_, v.max_.y_, v.max_.z_, 0.0f};
+}
+
+// ─── Matrix4 ─────────────────────────────────────────────────────────
+
+// Matrix4 has a user-provided copy constructor, so it returns through sret. 16 floats, row-major.
+struct Matrix4Abi
+{
+    float M00; float M01; float M02; float M03;
+    float M10; float M11; float M12; float M13;
+    float M20; float M21; float M22; float M23;
+    float M30; float M31; float M32; float M33;
+};
+static_assert(sizeof(Matrix4Abi) == 16 * sizeof(float), "Matrix4Abi must hold 16 floats");
+static_assert(sizeof(Urho3D::Matrix4) == sizeof(Matrix4Abi), "Matrix4 layout differs from Matrix4Abi");
+inline Urho3D::Matrix4 ToCpp(const Matrix4Abi& v)
+{
+    return Urho3D::Matrix4(
+        v.M00, v.M01, v.M02, v.M03,
+        v.M10, v.M11, v.M12, v.M13,
+        v.M20, v.M21, v.M22, v.M23,
+        v.M30, v.M31, v.M32, v.M33);
+}
+inline Matrix4Abi ToAbi(const Urho3D::Matrix4& v)
+{
+    return {
+        v.m00_, v.m01_, v.m02_, v.m03_,
+        v.m10_, v.m11_, v.m12_, v.m13_,
+        v.m20_, v.m21_, v.m22_, v.m23_,
+        v.m30_, v.m31_, v.m32_, v.m33_};
+}
+
 // ─── Color ───────────────────────────────────────────────────────────
 
 struct ColorAbi { float R; float G; float B; float A; };

@@ -26,16 +26,29 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      # Tag v1.2.3 builds version 1.2.3. Other builds use a prerelease version.
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # Tag v1.2.3 builds version 1.2.3.
+      # Other builds use the next patch version of the last v* tag: 1.2.4-dev.<short commit id>.
       - name: Compute Version
         id: version
         shell: bash
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            version="${GITHUB_REF_NAME#v}"
           else
-            echo "version=0.1.0-alpha.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            last="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo v0.0.0)"
+            core="${last#v}"
+            core="${core%%-*}"
+            IFS=. read -r major minor patch <<< "$core"
+            version="$major.$minor.$((patch + 1))-dev.${GITHUB_SHA::7}"
           fi
+          echo "Version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
   Package:
     name: ${{ matrix.rid }}

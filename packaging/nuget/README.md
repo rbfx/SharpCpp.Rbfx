@@ -95,7 +95,8 @@ On Ubuntu, CI installs `libopengl0 libglx0 libx11-6 libdbus-1-3 libuuid1` for th
 
 After the union checks and all native runtime checks pass, `build.yml` publishes
 the final `union-nuget` packages to NuGet.org only for builds of a `v*` tag.
-Tag `v1.2.3` builds version `1.2.3`. Master and pull request builds do not publish.
+Tag `v1.2.3` builds version `1.2.3`. Other builds use the next patch version of the
+last `v*` tag with a suffix, for example `1.2.4-dev.abc1234`. Master and pull request builds do not publish.
 Existing versions are skipped when a workflow is rerun.
 
 Every master or tag build uploads the packages to the rolling `latest` release.

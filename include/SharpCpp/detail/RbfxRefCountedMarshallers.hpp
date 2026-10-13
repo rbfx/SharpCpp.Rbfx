@@ -222,11 +222,12 @@ private:
     mutable Urho3D::SharedPtr<TCpp, TRefCounted> storage_{};
 };
 
+// A WeakPtr does not own its object. A WeakPtr return or field read gives a borrowed
+// wrapper, as a raw pointer does. An owning wrapper would keep the object alive.
 template <class TCpp, class TRefCounted>
 struct [[sharpcpp::managed_type(
     public_type = "{0}",
-    projection = true,
-    return_ownership = "owning"
+    projection = true
 )]] Marshaller<Urho3D::WeakPtr<TCpp, TRefCounted>>
 {
     using cpp_type = Urho3D::WeakPtr<TCpp, TRefCounted>;
@@ -234,7 +235,7 @@ struct [[sharpcpp::managed_type(
 
     abi_type ConvertToAbi(const cpp_type& value) noexcept
     {
-        return value.Lock().Detach();
+        return value.Get();
     }
 
     cpp_type ConvertToCpp(abi_type value) noexcept
@@ -417,8 +418,7 @@ private:
 template <>
 struct [[sharpcpp::managed_type(
     public_type = "global::Urho3D.Container.RefCounted",
-    projection = true,
-    return_ownership = "owning"
+    projection = true
 )]] Marshaller<Urho3D::WeakPtr<Urho3D::RefCounted, Urho3D::RefCounted>>
 {
     using cpp_type = Urho3D::WeakPtr<Urho3D::RefCounted, Urho3D::RefCounted>;
@@ -426,7 +426,7 @@ struct [[sharpcpp::managed_type(
 
     abi_type ConvertToAbi(const cpp_type& value) noexcept
     {
-        return value.Lock().Detach();
+        return value.Get();
     }
 
     cpp_type ConvertToCpp(abi_type value) noexcept

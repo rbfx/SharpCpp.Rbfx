@@ -13,10 +13,33 @@
 #include <EASTL/string_view.h>
 #include <EASTL/unordered_map.h>
 #include <EASTL/vector.h>
+#include <Urho3D/Container/FlagSet.h>
 #include <Urho3D/Core/Variant.h>
 
 namespace SharpCpp
 {
+
+// The generator lowers a by-value FlagSet<E> to the managed enum E.
+// The native side must use the ABI of E. The default marshaller passes a class by pointer.
+template <class E>
+struct Marshaller<Urho3D::FlagSet<E>>
+{
+    using cpp_type = Urho3D::FlagSet<E>;
+    using abi_type = detail::DefaultValueAbiType<E>;
+
+    constexpr abi_type ConvertToAbi(cpp_type value) noexcept
+    {
+        return static_cast<abi_type>(static_cast<typename cpp_type::Integer>(value));
+    }
+
+    constexpr cpp_type ConvertToCpp(abi_type value) noexcept
+    {
+        return cpp_type{static_cast<typename cpp_type::Integer>(value)};
+    }
+};
+
+template <class E>
+struct Marshaller<const Urho3D::FlagSet<E>> : Marshaller<Urho3D::FlagSet<E>> {};
 
 template <class TArray>
 struct SharedArrayMarshallerBase

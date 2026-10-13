@@ -87,7 +87,7 @@ public static class PluginManagerExtensions
 
     // These queries do not load plugins. EnumerateLoadedModules lists all static plugins and the loaded dynamic plugins.
     // GetDynamicPlugin with ignoreUnloaded finds a dynamic plugin that is not loaded and creates nothing.
-    // A null native result comes back as a wrapper with a null handle.
+    // A null native result is a null reference.
     private static bool IsNameUsed(PluginManager manager, string name)
     {
         using (var names = manager.EnumerateLoadedModules())

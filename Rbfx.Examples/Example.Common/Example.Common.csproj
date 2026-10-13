@@ -16,22 +16,4 @@
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
-
-  <!-- An app that references Common gets the native runtime of this source build in its output
-       folder: bindings library, engine library and the native library of Example.UserCode. -->
-  <Target Name="RbfxExposeNativeRuntime"
-          BeforeTargets="GetCopyToOutputDirectoryItems">
-    <ItemGroup>
-      <_RbfxNativeRuntime Include="$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.Native$(RbfxSharedLibrarySuffix)" />
-      <_RbfxNativeRuntime Include="$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)Urho3D$(RbfxSharedLibrarySuffix)" />
-      <_RbfxNativeRuntime Include="$(SharpCppOutputDir)/$(RbfxSharedLibraryPrefix)Example.UserCode.Native$(RbfxSharedLibrarySuffix)" />
-    </ItemGroup>
-    <Error Condition="!Exists('%(_RbfxNativeRuntime.FullPath)')"
-           Text="The native library '%(_RbfxNativeRuntime.FullPath)' is missing. Build the native code first with RBFX_SDK_ROOT set. Example.UserCode.Native needs the CMake option RBFX_BUILD_USERCODE (ON by default)." />
-    <ItemGroup>
-      <AllItemsFullPathWithTargetPath Include="@(_RbfxNativeRuntime->'%(FullPath)')"
-                                      TargetPath="%(Filename)%(Extension)"
-                                      CopyToOutputDirectory="PreserveNewest" />
-    </ItemGroup>
-  </Target>
 </Project>

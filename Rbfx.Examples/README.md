@@ -76,5 +76,5 @@ The launch profile reserves static TLS space for the Linux native SDK. When runn
 the built DLL directly on Linux, set it before starting the process:
 
 ```sh
-GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768 dotnet Rbfx.Examples/Example.Desktop/bin/Debug/net10.0/linux-x64/Example.Desktop.dll
+GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768 dotnet build/bin/Debug/Example.Desktop.dll
 ```

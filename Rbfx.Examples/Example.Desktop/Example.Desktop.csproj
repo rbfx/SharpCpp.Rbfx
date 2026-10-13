@@ -4,6 +4,9 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Items do not flow through ProjectReference. The app owns the item, so the native library of
+         Example.UserCode reaches the output folder (RbfxCopyNativeRuntimeToOutput). -->
+    <RbfxUserCodeReference Include="Example.UserCode" Condition="'$(RbfxExamplesNuGetOnly)' != 'true'" />
     <PackageReference Include="SharpCpp.Rbfx.CoreData" Version="$(RbfxPackageVersion)" />
     <PackageReference Include="SharpCpp.Rbfx.Data" Version="$(RbfxPackageVersion)" />
     <!-- Default: source build of Common with the native user code (needs RBFX_SDK_ROOT).

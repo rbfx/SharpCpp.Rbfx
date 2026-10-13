@@ -1,0 +1,4 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)../../Directory.Build.targets"
+          Condition="'$(RbfxExamplesNuGetOnly)' != 'true'" />
+</Project>

@@ -33,7 +33,7 @@ The build needs `RBFX_SDK_ROOT` and the native build (about 7 minutes the first 
 export RBFX_SDK_ROOT=<path of the installed rbfx SDK>
 dotnet build SharpCpp.Rbfx.slnx --configuration Debug
 dotnet build Rbfx.Examples/Example.Desktop --configuration Debug
-GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768 dotnet Rbfx.Examples/Example.Desktop/bin/Debug/net10.0/linux-x64/Example.Desktop.dll
+GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768 dotnet build/bin/Debug/Example.Desktop.dll
 ```
 
 The desktop example prints that `Example.UserCode` is active. On Linux the `GLIBC_TUNABLES` value reserves static TLS space for `libUrho3D.so`, which the runtime loads late with `dlopen`.

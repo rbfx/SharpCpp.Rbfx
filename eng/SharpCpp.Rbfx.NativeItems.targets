@@ -8,7 +8,9 @@
 
        Input: RbfxNativeRuntimeFile items. The item spec is the file path. Each item has the metadata
          RbfxNativeRid   The RID of the file, for example android-arm64.
-         RbfxNativeKind  android, ios or wasm.
+         RbfxNativeKind  desktop, android, ios or wasm. Kind desktop (linux, osx, win) maps to no platform
+                         item: RbfxCopyNativeRuntimeToOutput in SharpCpp.Rbfx.Build.targets copies it.
+         RbfxUserCode    true for the library of a RbfxUserCodeReference (optional).
        The consumer RID is RbfxTargetRid, or else RuntimeIdentifier. Only the items with this RID are mapped.
 
        Android: every *.so (this includes libc++_shared.so) becomes AndroidNativeLibraryNoJniPreload.
@@ -16,7 +18,7 @@
                 link flags and the frameworks.
        Wasm:    every *.a becomes NativeFileReference. Every *.js is collected in RbfxNativeJsLibrary and
                 becomes a js-library flag of emcc.
-       Other RIDs (desktop) are copied to the output by the project itself.
+       Kind desktop is copied to the output by the target RbfxCopyNativeRuntimeToOutput.
 
        Each ItemGroup removes its items first and then adds them. So a second import adds nothing new. -->
 
@@ -49,6 +51,12 @@
       <LinkerFlags>-lc++ -liconv</LinkerFlags>
       <Frameworks>CoreVideo CoreAudio AudioToolbox AVFoundation CoreBluetooth CoreGraphics CoreMotion Foundation Metal OpenGLES QuartzCore UIKit</Frameworks>
       <WeakFrameworks>GameController CoreHaptics</WeakFrameworks>
+    </NativeReference>
+    <!-- The static library of a RbfxUserCodeReference needs the same flags as the bindings library:
+         its exported symbols are found with __Internal, so the linker must keep all of it. -->
+    <NativeReference Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'ios')->WithMetadataValue('RbfxNativeRid', 'ios-arm64')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('Extension', '.a'))">
+      <ForceLoad>true</ForceLoad>
+      <IsCxx>true</IsCxx>
     </NativeReference>
   </ItemGroup>
 

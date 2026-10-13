@@ -75,6 +75,8 @@
   <ItemGroup Condition="'$(_RbfxNativeConsumerRid)' == 'browser-wasm'">
     <NativeFileReference Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.a'))" />
     <NativeFileReference Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.a'))" />
+    <!-- A source build has no runtime package, so the application links the static libraries of the SDK. -->
+    <NativeFileReference Include="$(RbfxSdkRoot)/lib/Release/*.a" Exclude="$(RbfxSdkRoot)/lib/Release/libPlayerLibrary.a;$(RbfxSdkRoot)/lib/Release/libSample.*" Condition="'$(RbfxBindingsPackageVersion)' == '' and '$(RbfxSdkRoot)' != ''" />
     <RbfxNativeJsLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.js'))" />
     <RbfxNativeJsLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.js'))" />
   </ItemGroup>

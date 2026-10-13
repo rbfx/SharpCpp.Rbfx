@@ -100,6 +100,11 @@
     <PropertyGroup>
       <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
       <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxRestoreRid)</_RbfxTargetRidProperty>
+      <!-- The generated projects of different trees share a project name. Each tree gets its own restore folder. -->
+      <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' == '' and '$(RbfxTargetRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
+      <!-- A restore folder of a tree holds the projects that the generated project references. -->
+      <_RbfxRestoreRecursive>false</_RbfxRestoreRecursive>
+      <_RbfxRestoreRecursive Condition="'$(RbfxRestoreRid)' != '' or '$(RbfxTargetRid)' != ''">true</_RbfxRestoreRecursive>
     </PropertyGroup>
     <ItemGroup>
       <_RbfxUserCodeCandidate Include="$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)/*.csproj"
@@ -113,7 +118,7 @@
     <!-- Each Restore call uses its own session id. The generated project is not in the solution. -->
     <MSBuild Projects="@(_RbfxUserCodeCandidate)"
              Targets="Restore"
-             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty);RestoreRecursive=false;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty);RestoreRecursive=$(_RbfxRestoreRecursive);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
              RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
              Condition="'$(DesignTimeBuild)' != 'true'" />
     <MSBuild Projects="@(_RbfxUserCodeCandidate)"

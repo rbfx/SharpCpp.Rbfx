@@ -84,7 +84,8 @@ static class CrossPackage
 
         // The CMake preset named like the RID carries the toolchain file; see CMakePresets.json and cmake/toolchains.
         var arguments = new List<string> { Path.Combine(Repo, "packaging/nuget/package.sh"), "create", "--rid", rid, "--configure-preset", rid,
-            "--version", version, "--build-root", Path.GetFullPath(options.GetValueOrDefault("build-root") ?? Path.Combine(Repo, "build/cross", rid)) };
+            "--version", version };
+        if (options.TryGetValue("build-root", out var buildRoot)) arguments.AddRange(["--build-root", Path.GetFullPath(buildRoot)]);
         if (options.TryGetValue("sdk-root", out var sdkRoot)) arguments.AddRange(["--sdk-root", Path.GetFullPath(sdkRoot), "--skip-fetch"]);
         foreach (var argument in cmake) arguments.AddRange(["--cmake-arg", argument]);
         Run("bash", arguments, environment: environment);

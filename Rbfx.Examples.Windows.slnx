@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Rbfx.Examples/Example.Common/Example.Common.csproj" />
+  <Project Path="Rbfx.Examples/Example.Uwp/Example.Uwp.csproj" />
+</Solution>

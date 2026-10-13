@@ -30,10 +30,14 @@ through a project reference.
 `Example.Android`, `Example.Ios`, `Example.Wasm` and `Example.Uwp` have a `Directory.Build.props` that sets
 the default `RbfxTargetRid` (`android-arm64`, `ios-arm64`, `browser-wasm`, `uap-x64`). The RID selects the
 SDK, the native build tree `build/cross/<rid>` and the native items of the app. `-p:RuntimeIdentifier=<rid>`
-or `-p:RbfxTargetRid=<rid>` selects another RID. Each of these apps writes its output to `bin/<Configuration>/`
+or `-p:RbfxTargetRid=<rid>` selects another RID. Each of these apps writes its output to `bin/<Configuration>/<rid>/`
 in its own folder and does not treat warnings as errors.
 
-`Example.NativeHost` is also an exception. It builds from source with the main CMake project and is not part of `Rbfx.Examples.slnx`. See its README.
+`dotnet build Rbfx.Examples.slnx` in the repository root builds Desktop, Android and Wasm in parallel. Each RID uses its
+own build tree, so no two projects write the same file. `Rbfx.Examples.Apple.slnx` (repository root) builds the iOS app and
+`Rbfx.Examples.Windows.slnx` builds the UWP app. Each RID needs its SDK in `build/sdk/<rid>`.
+
+`Example.NativeHost` is also an exception. It builds from source with the main CMake project and is not part of the example solutions. See its README.
 
 From the SharpCpp.Rbfx repository root:
 

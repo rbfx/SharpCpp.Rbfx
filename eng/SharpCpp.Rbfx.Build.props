@@ -24,11 +24,9 @@
     <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == '' and '$(SolutionDir)' != ''">$([System.IO.Path]::GetFullPath('$(SolutionDir)/build'))</SharpCppBuildRoot>
     <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/build'))</SharpCppBuildRoot>
     <!-- Restore files stay under the host build root. RbfxRestoreRid adds a folder for a target RID, so builds of
-         different RIDs never write the same project.assets.json. It comes from a global property, because
-         restore of a referenced project sees only global properties. It follows a global RuntimeIdentifier. An app folder sets RbfxDefaultRestoreRid in a Directory.Build.rsp file for builds without a RID. -->
+         different RIDs never write the same project.assets.json. It is an explicit global property, because
+         restore of a referenced project sees only global properties. A property set in a project file does not reach it. -->
     <RbfxHostBuildRoot>$(SharpCppBuildRoot)</RbfxHostBuildRoot>
-    <RbfxRestoreRid Condition="'$(RbfxRestoreRid)' == ''">$(RuntimeIdentifier)</RbfxRestoreRid>
-    <RbfxRestoreRid Condition="'$(RbfxRestoreRid)' == ''">$(RbfxDefaultRestoreRid)</RbfxRestoreRid>
     <RbfxRestoreRoot>$(RbfxHostBuildRoot)/obj/restore</RbfxRestoreRoot>
     <RbfxRestoreRoot Condition="'$(RbfxRestoreRid)' != ''">$(RbfxHostBuildRoot)/obj/restore/$(RbfxRestoreRid)</RbfxRestoreRoot>
     <SharpCppBuildRoot Condition="'$(RbfxIsCrossRid)' == 'true' and '$(RbfxBuildRootIsExplicit)' != 'true'">$(SharpCppRbfxRoot)/build/cross/$(RbfxTargetRid)</SharpCppBuildRoot>
@@ -47,7 +45,12 @@
          source build. When set, the user-code bindings project references the package SharpCpp.Rbfx.Bindings
          of this version and the native configure skips the host library. The version is part of the
          configure arguments, so a new version configures again. -->
+    <!-- A tree can hold a cache from another build of the same preset. User-code output is always on for builds of this project. -->
+    <RbfxNativeConfigureArguments>$(RbfxNativeConfigureArguments) -DRBFX_BUILD_USERCODE=ON</RbfxNativeConfigureArguments>
     <RbfxNativeConfigureArguments Condition="'$(RbfxBindingsPackageVersion)' != ''">$(RbfxNativeConfigureArguments) -DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=$(RbfxBindingsPackageVersion) -DRBFX_BUILD_HOST=OFF</RbfxNativeConfigureArguments>
+    <!-- A source build clears the package values that a package build left in the same tree. -->
+    <RbfxNativeConfigureArguments Condition="'$(RbfxBindingsPackageVersion)' == ''">$(RbfxNativeConfigureArguments) -DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=</RbfxNativeConfigureArguments>
+    <RbfxNativeConfigureArguments Condition="'$(RbfxBindingsPackageVersion)' == '' and '$(RbfxIsCrossRid)' != 'true'">$(RbfxNativeConfigureArguments) -DRBFX_BUILD_HOST=ON</RbfxNativeConfigureArguments>
     <RbfxGeneratedRoot>$(RbfxNativeBuildDir)/generated</RbfxGeneratedRoot>
     <RbfxGeneratedDir>$(RbfxGeneratedRoot)/rbfx</RbfxGeneratedDir>
     <RbfxGeneratedStamp>$(RbfxGeneratedDir)/generate.stamp</RbfxGeneratedStamp>

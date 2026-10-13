@@ -470,13 +470,13 @@ EOF
     rid="$(default_rid)"
   fi
 
-  # A RID that is not the host RID builds in its own tree, so builds of different RIDs can run in parallel.
+  # Each RID builds in its own tree below the package folder. Builds of different RIDs run in parallel, and
+  # the CMake cache of a package build never mixes with a build of the examples.
   if [ "$rid" != "$(default_rid)" ]; then
-    : "${build_root:=$REPO_ROOT/build/cross/$rid}"
     : "${configure_preset:=$rid}"
   fi
-  : "${build_root:=$REPO_ROOT/build}"
   : "${configure_preset:=dev}"
+  : "${build_root:=$PACKAGE_ROOT/$rid/build}"
 
   STAGE_DIR="$PACKAGE_ROOT/$rid/stage"
   OUT_DIR="$PACKAGE_ROOT/$rid/out"

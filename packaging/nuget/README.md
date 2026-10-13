@@ -42,7 +42,7 @@ property. Use `--target-framework TFM` only when explicitly overriding it.
 
 Use `--sdk-root PATH` to use an SDK that exists already. Use `--skip-fetch` when
 `build/sdk/<rid>/` already exists. Use `--rbfx-tag TAG` to select an rbfx release.
-Use `--skip-build` to package an already-built tree. The tree is `build/bin/<Configuration>` for the host RID and `build/cross/<rid>/bin/<Configuration>` for another RID. `--build-root` selects another tree.
+Use `--skip-build` to package an already-built tree. The tree is `build/package/nuget/<rid>/build/bin/<Configuration>`. `--build-root` selects another tree.
 Package staging, package output, and the local repository remain below
 `build/package/nuget/`. Downloaded SDKs are in `build/sdk/`.
 

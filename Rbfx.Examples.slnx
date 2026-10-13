@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Rbfx.Examples/Example.Common/Example.Common.csproj" />
+  <Project Path="Rbfx.Examples/Example.Desktop/Example.Desktop.csproj" />
+  <Project Path="Rbfx.Examples/Example.Android/Example.Android.csproj" />
+  <Project Path="Rbfx.Examples/Example.Wasm/Example.Wasm.csproj" />
+</Solution>

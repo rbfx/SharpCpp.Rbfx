@@ -26,6 +26,12 @@ internal sealed class SdkParseFlags
 
     public IReadOnlyList<string> AdditionalArguments { get; }
 
+    // Emscripten debug-info arguments. Plain clang does not know them.
+    private static bool IsEmscriptenDebugArgument(string value) =>
+        value.StartsWith("-gseparate-dwarf", StringComparison.Ordinal) ||
+        value.StartsWith("-gsource-map", StringComparison.Ordinal) ||
+        value.StartsWith("--source-map-base", StringComparison.Ordinal);
+
     public static SdkParseFlags Load(string filePath)
     {
         var compilerPath = string.Empty;
@@ -66,7 +72,8 @@ internal sealed class SdkParseFlags
                     break;
                 case "clang_argument":
                     if (!string.Equals(value, "/Zc:twoPhase-", StringComparison.OrdinalIgnoreCase) &&
-                        !(value.Length > 2 && value.StartsWith("-s", StringComparison.Ordinal) && char.IsUpper(value[2])))
+                        !(value.Length > 2 && value.StartsWith("-s", StringComparison.Ordinal) && char.IsUpper(value[2])) &&
+                        !IsEmscriptenDebugArgument(value))
                     {
                         additionalArguments.Add(value);
                     }

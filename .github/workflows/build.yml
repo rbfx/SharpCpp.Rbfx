@@ -198,7 +198,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: managed-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/${{ (matrix.cross == true || matrix.rid == 'uap-x64') && format('cross/{0}/', matrix.rid) || '' }}bin/Release/SharpCpp.Rbfx.Bindings.dll
+          path: SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/build/bin/Release/SharpCpp.Rbfx.Bindings.dll
           if-no-files-found: error
 
       - name: Upload Managed Package Inputs
@@ -216,8 +216,7 @@ jobs:
         with:
           name: generated-${{ matrix.rid }}
           path: |
-            SharpCpp.Rbfx/build/native/*/generated/
-            SharpCpp.Rbfx/build/cross/*/native/*/generated/
+            SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/build/native/*/generated/
           if-no-files-found: error
 
   Union:

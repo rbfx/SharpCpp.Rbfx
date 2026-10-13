@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -67,14 +66,14 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         // A managed exception in a plugin callback ends the process, so the test injects the failure in the commit step.
         var registered = host.Manager.RegisterManagedPlugin(RetryPath);
         var injected = new IOException("injected commit failure");
-        var exception = Assert.Throws<InvalidOperationException>(() => LoadRegistered(host.Manager, registered, _ => throw injected));
+        var exception = Assert.Throws<InvalidOperationException>(() => PluginManagerExtensions.LoadRegistered(host.Manager, registered, RetryPluginName, CommitFailingOnce(injected)));
         Assert.Contains(RetryPluginName, exception.Message, StringComparison.Ordinal);
         Assert.Contains("did not load", exception.Message, StringComparison.Ordinal);
         Assert.Same(injected, exception.InnerException);
         AssertRestored(host, registered, other);
 
         // A commit that does not load the plugin gives the same clear failure.
-        exception = Assert.Throws<InvalidOperationException>(() => LoadRegistered(host.Manager, registered, static _ => { }));
+        exception = Assert.Throws<InvalidOperationException>(() => PluginManagerExtensions.LoadRegistered(host.Manager, registered, RetryPluginName, static _ => { }));
         Assert.Contains(RetryPluginName, exception.Message, StringComparison.Ordinal);
         AssertRestored(host, registered, other);
 
@@ -93,6 +92,33 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         // The same name with another assembly stays an error. The list does not change.
         Assert.Throws<InvalidOperationException>(() => host.Manager.LoadManagedPlugin(AttributePath, RetryPluginName));
         Assert.Equal(new[] { AttributePluginName, RetryPluginName }, host.LoadedNames());
+
+        host.Unload();
+    }
+
+    [Fact]
+    public void Failed_restore_throws_both_failures_and_leaves_a_manager_that_can_recover()
+    {
+        using var host = new Host();
+        var other = host.Manager.LoadManagedPlugin(AttributePath);
+        var registered = host.Manager.RegisterManagedPlugin(RetryPath);
+
+        // The commit fails in the load and again in the restore.
+        var loadFailure = new IOException("injected commit failure");
+        var restoreFailure = new TimeoutException("injected restore failure");
+        var calls = 0;
+        var exception = Assert.Throws<InvalidOperationException>(() => PluginManagerExtensions.LoadRegistered(
+            host.Manager, registered, RetryPluginName, _ => throw (++calls == 1 ? loadFailure : restoreFailure)));
+        Assert.Equal(2, calls);
+        Assert.Contains(RetryPluginName, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("restore", exception.Message, StringComparison.Ordinal);
+        var aggregate = Assert.IsType<AggregateException>(exception.InnerException);
+        Assert.Equal(new Exception[] { loadFailure, restoreFailure }, aggregate.InnerExceptions);
+
+        // The injected failures commit nothing, so a real commit brings the manager back to the previous state.
+        host.Manager.SetPluginsLoaded(new Ea.Vector<Ea.String>([new Ea.String(AttributePluginName)]));
+        host.Manager.Commit();
+        AssertRestored(host, registered, other);
 
         host.Unload();
     }
@@ -139,6 +165,22 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         host.Unload();
     }
 
+    // The first commit (the load) fails. The next commit (the restore) is a real commit.
+    private static Action<PluginManager> CommitFailingOnce(Exception failure)
+    {
+        var failed = false;
+        return manager =>
+        {
+            if (!failed)
+            {
+                failed = true;
+                throw failure;
+            }
+
+            manager.Commit();
+        };
+    }
+
     private static void AssertRestored(Host host, Plugin failed, Plugin other)
     {
         Assert.Equal(new[] { AttributePluginName }, host.LoadedNames());
@@ -147,21 +189,6 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         host.AssertNotCreatable(RetryType);
         Assert.True(other.IsLoaded);
         host.AssertCreatable(AttributeType);
-    }
-
-    // The private step of LoadManagedPlugin after the registration. The commit parameter injects a failure.
-    private static Plugin LoadRegistered(PluginManager manager, Plugin plugin, Action<PluginManager> commit)
-    {
-        var method = typeof(PluginManagerExtensions).GetMethod("LoadRegistered", BindingFlags.NonPublic | BindingFlags.Static)!;
-        try
-        {
-            return (Plugin)method.Invoke(null, [manager, plugin, plugin.PluginName.ToString(), commit])!;
-        }
-        catch (TargetInvocationException exception)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException!).Throw();
-            throw;
-        }
     }
 
     private static (int Result, string Error) CallLoadPlugin(nint manager, string path, bool useCallback = true)
@@ -174,8 +201,8 @@ public sealed unsafe class ManagedPluginLoadFailureTests
             fixed (byte* pathBytes = bytes)
             {
                 delegate* unmanaged[Cdecl]<nint, byte*, int, void> callback = useCallback ? &WriteError : null;
-                var entry = (delegate* unmanaged[Cdecl]<nint, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, int>)
-                    (delegate* unmanaged[Cdecl]<nint, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, int>)&NativeHostEntryPoints.LoadPlugin;
+                delegate* unmanaged[Cdecl]<nint, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, int> entry =
+                    &NativeHostEntryPoints.LoadPlugin;
                 var result = entry(manager, pathBytes, callback, GCHandle.ToIntPtr(handle));
                 return (result, text.ToString());
             }

@@ -66,6 +66,7 @@ public static class PluginManagerExtensions
     /// and name reuses that registered plugin and tries to load it again. A call with the same name and another
     /// assembly fails, because the name is used.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">A second call for an already loaded plugin throws "already registered".</exception>
     public static Plugin LoadManagedPlugin(this PluginManager manager, string assemblyPath, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(manager);
@@ -82,8 +83,9 @@ public static class PluginManagerExtensions
         return LoadRegistered(manager, plugin, pluginName, static m => m.Commit());
     }
 
-    // The commit parameter lets a test inject a failure. A managed exception in a plugin callback ends the process.
-    private static Plugin LoadRegistered(PluginManager manager, Plugin plugin, string pluginName, Action<PluginManager> commit)
+    // The commit parameter lets a test inject a failure in the load and in the restore. A managed exception in a plugin
+    // callback ends the process. The method is internal for the E2E tests.
+    internal static Plugin LoadRegistered(PluginManager manager, Plugin plugin, string pluginName, Action<PluginManager> commit)
     {
         var previous = GetLoadedNames(manager);
         var requested = new List<string>(previous) { pluginName };
@@ -102,7 +104,16 @@ public static class PluginManagerExtensions
             failure = exception;
         }
 
-        RestoreLoadedNames(manager, previous);
+        var restoreFailure = RestoreLoadedNames(manager, previous, commit);
+        if (restoreFailure is not null)
+        {
+            // The manager can keep the failed plugin in its list, so the caller must see both errors.
+            failure ??= new InvalidOperationException("The commit did not load the plugin.");
+            throw new InvalidOperationException(
+                $"The plugin manager did not load the plugin '{pluginName}', and the restore of the loaded plugins failed. " +
+                "The loaded plugins are not known.", new AggregateException(failure, restoreFailure));
+        }
+
         throw new InvalidOperationException(
             $"The plugin manager did not load the plugin '{pluginName}'. The plugin stays registered, but not loaded.", failure);
     }
@@ -137,20 +148,36 @@ public static class PluginManagerExtensions
         return loaded;
     }
 
-    private static void SetLoadedNames(PluginManager manager, List<string> names) =>
-        manager.SetPluginsLoaded(new Ea.Vector<Ea.String>(names.Select(static item => new Ea.String(item)).ToList()));
+    private static void SetLoadedNames(PluginManager manager, List<string> names)
+    {
+        // The native vector copies the items on push, so the managed strings and the vector are disposed after the call.
+        var items = names.Select(static item => new Ea.String(item)).ToList();
+        try
+        {
+            using var vector = new Ea.Vector<Ea.String>(items);
+            manager.SetPluginsLoaded(vector);
+        }
+        finally
+        {
+            foreach (var item in items)
+            {
+                item.Dispose();
+            }
+        }
+    }
 
-    // The restore must not hide the first error. A failed restore is only a best effort.
-    private static void RestoreLoadedNames(PluginManager manager, List<string> previous)
+    // Returns the restore failure, or null when the restore succeeds.
+    private static Exception? RestoreLoadedNames(PluginManager manager, List<string> previous, Action<PluginManager> commit)
     {
         try
         {
             SetLoadedNames(manager, previous);
-            manager.Commit();
+            commit(manager);
+            return null;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // The caller gets the first failure.
+            return exception;
         }
     }
 

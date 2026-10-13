@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="SharpCpp.Rbfx.Tests.E2E" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../SharpCpp.Ea/SharpCpp.Ea.csproj" />
     <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Std/SharpCpp.Std.csproj" />
     <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Support/SharpCpp.Support.csproj" />

@@ -3,12 +3,13 @@ name: Build
 on:
   push:
     branches: [master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -16,13 +17,32 @@ permissions:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  PACKAGE_VERSION: 0.1.0-alpha.${{ github.run_number }}
   RELEASE_TAG: latest
 
 jobs:
+  Version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      # Tag v1.2.3 builds version 1.2.3. Other builds use a prerelease version.
+      - name: Compute Version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.1.0-alpha.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          fi
+
   Package:
     name: ${{ matrix.rid }}
+    needs: Version
     runs-on: ${{ matrix.runs_on }}
+    env:
+      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -224,8 +244,10 @@ jobs:
 
   Union:
     name: Union API and Packages
-    needs: Package
+    needs: [Package, Version]
     runs-on: ubuntu-latest
+    env:
+      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -276,8 +298,10 @@ jobs:
 
   Smoke:
     name: Union Runtime (${{ matrix.rid }})
-    needs: Union
+    needs: [Union, Version]
     runs-on: ${{ matrix.runs_on }}
+    env:
+      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -317,8 +341,10 @@ jobs:
 
   Cross-Consumer:
     name: Example Build (${{ matrix.rid }})
-    needs: Union
+    needs: [Union, Version]
     runs-on: ${{ matrix.runs_on }}
+    env:
+      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -444,7 +470,7 @@ jobs:
   Publish-NuGet:
     name: Publish NuGet Packages
     needs: [Union, Smoke, Cross-Consumer]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -479,7 +505,7 @@ jobs:
   Release-Latest:
     name: Release Latest
     needs: [Union, Smoke, Cross-Consumer]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+    if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     concurrency:
       group: rbfx-sharpcpp-latest-release
@@ -523,3 +549,36 @@ jobs:
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes
           done
           gh release upload "$RELEASE_TAG" packages/*.nupkg --clobber
+
+  Release-Tag:
+    name: Release Tag
+    needs: [Union, Smoke, Cross-Consumer, Version]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Download Packages
+        uses: actions/download-artifact@v8
+        with:
+          name: union-nuget
+          path: packages
+          merge-multiple: true
+
+      - name: Release Packages
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            case "$PACKAGE_VERSION" in
+              *-*) PRERELEASE=--prerelease ;;
+              *) PRERELEASE= ;;
+            esac
+            gh release create "$TAG" $PRERELEASE --verify-tag --title "$TAG" \
+              --notes "SharpCpp.Rbfx $PACKAGE_VERSION."
+          fi
+          gh release upload "$TAG" packages/*.nupkg --clobber

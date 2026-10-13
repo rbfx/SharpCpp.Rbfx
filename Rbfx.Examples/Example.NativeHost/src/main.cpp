@@ -1,76 +1,109 @@
 #include <Urho3D/CSharp/DotNetHost.h>
 
-#include <filesystem>
-#include <iostream>
-#include <string>
+#include <CLI11/CLI11.hpp>
+#include <Urho3D/Core/CoreEvents.h>
+#include <Urho3D/Engine/Application.h>
+#include <Urho3D/Engine/Engine.h>
+#include <Urho3D/Engine/EngineDefs.h>
+#include <Urho3D/Graphics/Material.h>
+#include <Urho3D/Graphics/Model.h>
+#include <Urho3D/Graphics/Octree.h>
+#include <Urho3D/Graphics/StaticModel.h>
+#include <Urho3D/IO/FileSystem.h>
+#include <Urho3D/IO/Log.h>
+#include <Urho3D/Resource/ResourceCache.h>
+#include <Urho3D/Scene/Node.h>
+#include <Urho3D/Scene/Scene.h>
 
-#if defined(_WIN32)
-#include <windows.h>
-#elif defined(__APPLE__)
-#include <mach-o/dyld.h>
-#include <vector>
-#else
-#include <unistd.h>
-#include <climits>
-#endif
+#include <filesystem>
+#include <string>
 
 namespace
 {
 
-std::filesystem::path GetExecutableDirectory()
-{
-#if defined(_WIN32)
-    std::wstring buffer(32768, L'\0');
-    const DWORD size = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-    buffer.resize(size);
-    return std::filesystem::path(buffer).parent_path();
-#elif defined(__APPLE__)
-    uint32_t size = 0;
-    _NSGetExecutablePath(nullptr, &size);
-    std::vector<char> buffer(size + 1, '\0');
-    if (_NSGetExecutablePath(buffer.data(), &size) != 0)
-        return {};
-    return std::filesystem::weakly_canonical(std::filesystem::path(buffer.data())).parent_path();
-#else
-    char buffer[PATH_MAX + 1] = {};
-    const ssize_t size = readlink("/proc/self/exe", buffer, PATH_MAX);
-    if (size <= 0)
-        return {};
-    return std::filesystem::path(std::string(buffer, static_cast<size_t>(size))).parent_path();
-#endif
-}
-
-using RunFunction = int (*)(int, char**);
+using AttachSpinnerFunction = void (*)(Urho3D::Node*, float);
 
 } // namespace
 
-int main(int argc, char** argv)
+/// Plain rbfx application. It starts the .NET runtime and uses a C# component as a script.
+class NativeHostApp : public Urho3D::Application
 {
-    const std::filesystem::path directory = GetExecutableDirectory();
-    if (directory.empty())
+    URHO3D_OBJECT(NativeHostApp, Application);
+
+public:
+    explicit NativeHostApp(Urho3D::Context* context)
+        : Application(context)
     {
-        std::cerr << "Cannot find the directory of the executable." << std::endl;
-        return 1;
     }
 
-    Urho3D::DotNetHost host;
-    Urho3D::DotNetHostOptions options;
-    options.runtimeConfigPath = directory / "Rbfx.NativeHost.Managed.runtimeconfig.json";
-
-    std::string error;
-    if (!host.Initialize(options, error))
+    void Setup() override
     {
-        std::cerr << "Cannot start the .NET runtime: " << error << std::endl;
-        return 1;
+        engineParameters_[Urho3D::EP_WINDOW_TITLE] = "Rbfx.NativeHost";
+        engineParameters_[Urho3D::EP_LOG_NAME] = "Rbfx.NativeHost.log";
+        GetCommandLineParser().add_option("--frames", frames_, "Number of frames to run before exit");
     }
 
-    const auto run = host.GetFunction<RunFunction>(
-        directory / "Rbfx.NativeHost.Managed.dll", "RbfxNativeHost.Entry, Rbfx.NativeHost.Managed", "Run", {}, error);
-    if (!run)
+    void Start() override
     {
-        std::cerr << "Cannot find the managed entry point: " << error << std::endl;
-        return 1;
+        const std::filesystem::path directory = std::filesystem::path(GetSubsystem<Urho3D::FileSystem>()->GetProgramDir().c_str());
+
+        Urho3D::DotNetHostOptions options;
+        options.runtimeConfigPath = directory / "Rbfx.NativeHost.Managed.runtimeconfig.json";
+        std::string error;
+        if (!host_.Initialize(options, error))
+        {
+            ErrorExit(("Cannot start the .NET runtime: " + error).c_str());
+            return;
+        }
+
+        const auto attachSpinner = host_.GetFunction<AttachSpinnerFunction>(
+            directory / "Rbfx.NativeHost.Managed.dll", "RbfxNativeHost.Scripting, Rbfx.NativeHost.Managed",
+            "AttachSpinner", {}, error);
+        if (!attachSpinner)
+        {
+            ErrorExit(("Cannot find the managed function: " + error).c_str());
+            return;
+        }
+
+        scene_ = Urho3D::MakeShared<Urho3D::Scene>(context_);
+        scene_->CreateComponent<Urho3D::Octree>();
+        box_ = scene_->CreateChild("Box");
+        auto* cache = GetSubsystem<Urho3D::ResourceCache>();
+        auto* model = box_->CreateComponent<Urho3D::StaticModel>();
+        model->SetModel(cache->GetResource<Urho3D::Model>("Models/Box.mdl"));
+        model->SetMaterial(cache->GetResource<Urho3D::Material>("Materials/DefaultGrey.xml"));
+
+        attachSpinner(box_, 90.0f);
+
+        SubscribeToEvent(Urho3D::E_UPDATE, URHO3D_HANDLER(NativeHostApp, HandleUpdate));
     }
 
-    return run(argc, argv);
-}
+    void Stop() override
+    {
+        box_ = nullptr;
+        scene_ = nullptr;
+        host_.Close();
+    }
+
+private:
+    void HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap& eventData)
+    {
+        if (++frameCount_ < frames_)
+            return;
+
+        const float yaw = box_->GetRotation().YawAngle();
+        URHO3D_LOGINFO("Finished after {} frames, box yaw: {}", frameCount_, yaw);
+        if (yaw == 0.0f)
+            ErrorExit("The C# spinner did not rotate the box.");
+        else
+            engine_->Exit();
+    }
+
+    Urho3D::DotNetHost host_;
+    Urho3D::SharedPtr<Urho3D::Scene> scene_;
+    Urho3D::SharedPtr<Urho3D::Node> box_;
+    int frames_{60};
+    int frameCount_{};
+};
+
+URHO3D_DEFINE_APPLICATION_MAIN(NativeHostApp)

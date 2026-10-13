@@ -1,14 +1,14 @@
 # Rbfx.NativeHost
 
-Example of a C++ executable that hosts the .NET runtime and runs rbfx application code written in C#.
+Example of a plain C++ rbfx application that uses C# as a scripting layer. The application starts the .NET runtime, loads a C# component and adds it to a node.
 
 Like Example.Desktop and Example.Common, this example builds from source with the main CMake project of this repository. It is not part of `Rbfx.Examples.slnx`. It uses no NuGet packages. The local `Directory.Build.props` and `Directory.Build.targets` import the repository-root files, because MSBuild uses only the nearest file.
 
 ## Parts
 
-- `include/RbfxNativeHost/Spinner.hpp`, `src/Spinner.cpp`: user C++ types. `rbfx_csharp_add_usercode(Rbfx.NativeHost.Wrapped ...)` wraps them as `Rbfx.NativeHost.Bindings`. At configure time it also writes the managed bindings project (`.csproj`, `.props` and `Directory.Build.*` files) below `build/native/dev/generated/usercode/Rbfx.NativeHost.Wrapped/`.
-- `src/main.cpp`: the executable. It includes `Urho3D/CSharp/DotNetHost.h` and uses `SharpCpp::RbfxHost` (`Urho3D::DotNetHost`) to load `Rbfx.NativeHost.Managed.dll` and to call `RbfxNativeHost.Entry.Run(int argc, char** argv)`.
-- `Rbfx.NativeHost.Managed`: managed entry point. It creates an `Application`, a scene and a `Spinner`. It declares `<RbfxUserCodeReference Include="Rbfx.NativeHost.Wrapped" />`. MSBuild then builds the generated bindings project and references its assembly. The example has no hand-written bindings project.
+- `src/main.cpp`: `NativeHostApp` derives from `Urho3D::Application`. `Start()` initializes `Urho3D::DotNetHost` (`SharpCpp::RbfxHost`), creates a scene with a box node and calls the managed function `RbfxNativeHost.Scripting.AttachSpinner(Node*, float)`. After the requested number of frames the application reads the yaw of the node and exits. The exit code is not 0 when the yaw is 0.
+- `Rbfx.NativeHost.Managed/Scripting.cs`: the `[UnmanagedCallersOnly]` function that the C++ code calls. It creates a `Spinner` and adds it to the node.
+- `Rbfx.NativeHost.Managed/Spinner.cs`: a C# `LogicComponent` that rotates its node around the Y axis in `Update`.
 
 ## Build and run
 
@@ -23,5 +23,4 @@ The example builds when `RBFX_BUILD_EXAMPLES` is ON. The default is ON when `RBF
 ## Notes
 
 - NuGet packaging of the host is out of scope. A C++ project consumes the host through CMake (the `SharpCpp::RbfxHost` target).
-- On Linux the executable links `libUrho3D.so` at startup. The runtime loads the binding libraries later with `dlopen`, and the TLS block of Urho3D does not fit then.
-- `Spinner` has no `URHO3D_OBJECT`, so a small exported C function creates it on a node. `Example.UserCode` shows the newer way: a `URHO3D_OBJECT` type that the managed side creates with `Node.CreateComponent<T>()`.
+- On Linux the executable links `libUrho3D.so` at startup. The runtime loads native libraries later with `dlopen`, and the TLS block of Urho3D does not fit then.

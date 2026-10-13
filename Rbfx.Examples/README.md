@@ -37,7 +37,7 @@ in its own folder and does not treat warnings as errors.
 own build tree, so no two projects write the same file. `Rbfx.Examples.Apple.slnx` (repository root) builds the iOS app and
 `Rbfx.Examples.Windows.slnx` builds the UWP app. Each RID needs its SDK in `build/sdk/<rid>`.
 
-`Example.NativeHost` is also an exception. It builds from source with the main CMake project and is not part of the example solutions. See its README.
+`Example.NativeHost` is also an exception. It is a C++ rbfx application that uses C# as a scripting layer. It builds from source with the main CMake project and is not part of the example solutions. See its README.
 
 From the SharpCpp.Rbfx repository root:
 

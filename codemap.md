@@ -103,7 +103,7 @@ SharpCpp.Tool ───────────┘             |
 | `Example.UserCode` (native, `Example.UserCode.Native` library) | `SharpCpp::NativeSupport`, `Urho3D`, user `.cpp` files, generated `.g.cpp` | CMake `target_link_libraries` + Unity build |
 | `Example.Common` (source mode) | `SharpCpp.Rbfx.Bindings`, `Example.UserCode.Bindings.dll` | `RbfxUserCodeReference` + project reference |
 | `Example.Common` (package mode, `RbfxBindingsPackageVersion` set) | `SharpCpp.Rbfx.Bindings` NuGet package, `Example.UserCode.Bindings.dll` | `RbfxUserCodeReference` + package reference |
-| `Rbfx.NativeHost.Managed` | `Rbfx.NativeHost.Wrapped` bindings dll | `RbfxUserCodeReference` |
+| `Rbfx.NativeHost.Managed` | `SharpCpp.Rbfx.Bindings`, `SharpCpp.Rbfx.SourceGenerator` | .NET project references |
 | `SharpCpp.Rbfx.Tests.E2E` | `SharpCpp.Rbfx.Bindings`, xUnit, .NET Test SDK | .NET project + package references |
 | `rbfx/CMakeLists.txt` | `rbfx-sdk` installed at `RBFX_SDK_ROOT` | `find_package(Urho3D CONFIG)` |
 
@@ -120,6 +120,6 @@ SharpCpp.Tool ───────────┘             |
 | `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h`. The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link copies `libnethost.so`, `libnethost.dylib` or `nethost.dll` next to the host library. MSVC always links `nethost.lib`. |
 | `Rbfx.Examples/Example.UserCode/` | Example: native `RotatingComponent` + CMake; no managed project |
 | `Rbfx.Examples/Example.Common/` | Shared demo (`UserCodeSupport.cs`, `DemoApplication.cs`, `DemoDocument.cs`, `SceneSample.cs`); one project, two modes by `RbfxBindingsPackageVersion` (empty: source projects, set: bindings package); uses `Example.UserCode.Bindings.dll` |
-| `Rbfx.Examples/Example.NativeHost/` | Example: C++ executable hosts .NET, wraps user C++ (target `Rbfx.NativeHost.Wrapped`) via `rbfx_csharp_add_usercode()` |
+| `Rbfx.Examples/Example.NativeHost/` | Example: plain C++ rbfx `Application` hosts .NET and adds a C# `LogicComponent` (`Spinner`) to a node |
 | `CheckGeneratedStaleness.cmake` | Generator staleness checker (timestamp-based invalidation) |
 | `CopyRbfxRuntimeDependencies.cmake.in` | Runtime library deployment script template |

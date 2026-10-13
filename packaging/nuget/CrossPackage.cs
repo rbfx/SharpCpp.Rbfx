@@ -240,76 +240,53 @@ static class CrossPackage
         Run("7z", ["a", "-t7z", "-mx=5", "-y", archive, "."], workingDirectory: sdkRoot);
     }
 
+    // The RID to platform item mapping lives in eng/SharpCpp.Rbfx.NativeItems.targets. A generated runtime
+    // targets file lists the staged native files as RbfxNativeRuntimeFile items and imports a copy of that file.
+    const string NativeItemsFile = "SharpCpp.Rbfx.NativeItems.targets";
+
     public static void Targets(string rid, string stage)
     {
-        if (rid.StartsWith("android-", StringComparison.Ordinal))
-        {
-            var androidRoot = Path.Combine(stage, "runtime", rid);
-            var nativeDirectory = Path.Combine(androidRoot, "native");
-            var androidLibraries = Directory.GetFiles(nativeDirectory, "*.so")
-                .Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToArray();
-            if (androidLibraries.Length == 0) throw new InvalidOperationException($"No shared libraries staged for {rid}.");
-
-            var androidProject = new XElement("Project");
-            var androidGroup = new XElement("ItemGroup", new XAttribute("Condition", "'$(AndroidApplication)' == 'true'"));
-            foreach (var library in androidLibraries)
-                androidGroup.Add(new XElement("AndroidNativeLibraryNoJniPreload",
-                    new XAttribute("Include", $"$(MSBuildThisFileDirectory)../runtimes/{rid}/native/{library}")));
-            if (rid == "android-x64")
-                androidGroup.Add(new XElement("AndroidEnvironment",
-                    new XAttribute("Include", "$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Bindings.runtime.android-x64.env")));
-            androidProject.Add(androidGroup);
-
-            var androidTargets = Path.Combine(androidRoot, "buildTransitive");
-            Directory.CreateDirectory(androidTargets);
-            new XDocument(androidProject).Save(Path.Combine(androidTargets, $"SharpCpp.Rbfx.Bindings.runtime.{rid}.targets"));
-            if (rid == "android-x64")
-                File.WriteAllText(Path.Combine(androidTargets, "SharpCpp.Rbfx.Bindings.runtime.android-x64.env"),
-                    "TRACY_NO_INVARIANT_CHECK=1\n");
-            return;
-        }
-
-        if (rid is not ("ios-arm64" or "browser-wasm")) return;
+        var isAndroid = rid.StartsWith("android-", StringComparison.Ordinal);
+        if (!isAndroid && rid is not ("ios-arm64" or "browser-wasm")) return;
         var root = Path.Combine(stage, "runtime", rid);
-        var libraries = Directory.GetFiles(Path.Combine(root, "native"), "*.a").Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToArray();
-        if (libraries.Length == 0) throw new InvalidOperationException($"No static archives staged for {rid}.");
-        var condition = $"'$(RuntimeIdentifier)' == '{rid}'";
-        var group = new XElement("ItemGroup", new XAttribute("Condition", condition));
-        var project = new XElement("Project");
+        var nativeDirectory = Path.Combine(root, "native");
+        // Android ships every *.so, including libc++_shared.so. iOS and Wasm ship every *.a.
+        var libraries = Directory.GetFiles(nativeDirectory, isAndroid ? "*.so" : "*.a")
+            .Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal).ToList();
+        if (libraries.Count == 0) throw new InvalidOperationException($"No {(isAndroid ? "shared libraries" : "static archives")} staged for {rid}.");
+        if (rid == "browser-wasm")
+            libraries.AddRange(Directory.GetFiles(nativeDirectory, "*.js").Select(path => Path.GetFileName(path)!).Order(StringComparer.Ordinal));
         if (rid == "ios-arm64")
         {
-            group.SetAttributeValue("Condition", condition + " and '$(TargetPlatformIdentifier)' == 'ios'");
             // SDK RelWithDebInfo archives otherwise carry several gigabytes of DWARF data.
             // Strip only symbols/debug sections from our staged copies, retaining linkable API.
             foreach (var library in libraries)
-                Run("xcrun", ["--sdk", "iphoneos", "strip", "-S", "-x", Path.Combine(root, "native", library)]);
-            foreach (var library in libraries)
-            {
-                var native = new XElement("NativeReference", new XAttribute("Include", $"$(MSBuildThisFileDirectory)../runtimes/{rid}/native/{library}"),
-                    new XElement("Kind", "Static"), new XElement("ForceLoad", library == "libSharpCpp.Rbfx.Native.a" ? "true" : "false"),
-                    new XElement("SmartLink", "true"));
-                if (library == "libSharpCpp.Rbfx.Native.a")
-                {
-                    native.Add(new XElement("IsCxx", "true"), new XElement("LinkerFlags", "-lc++ -liconv"),
-                        new XElement("Frameworks", "CoreVideo CoreAudio AudioToolbox AVFoundation CoreBluetooth CoreGraphics CoreMotion Foundation Metal OpenGLES QuartzCore UIKit"),
-                        new XElement("WeakFrameworks", "GameController CoreHaptics"));
-                }
-                group.Add(native);
-            }
+                Run("xcrun", ["--sdk", "iphoneos", "strip", "-S", "-x", Path.Combine(nativeDirectory, library)]);
         }
-        else
-        {
-            project.Add(new XElement("PropertyGroup", new XAttribute("Condition", condition),
-                new XElement("EmccExtraLDFlags", "$(EmccExtraLDFlags);--bind;-sWASM=1;-sFETCH=1;-fwasm-exceptions;-sFORCE_FILESYSTEM=1;-lidbfs.js;-sALLOW_MEMORY_GROWTH=1;--no-heap-copy;-sMIN_WEBGL_VERSION=2;-sMAX_WEBGL_VERSION=2;-sGL_ENABLE_GET_PROC_ADDRESS=1;-sFULL_ES3=1;-sDISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0")));
-            foreach (var library in libraries)
-                group.Add(new XElement("NativeFileReference", new XAttribute("Include", $"$(MSBuildThisFileDirectory)../runtimes/{rid}/native/{library}")));
-            foreach (var javascript in Directory.GetFiles(Path.Combine(root, "native"), "*.js").Order(StringComparer.Ordinal))
-                project.Add(new XElement("PropertyGroup", new XAttribute("Condition", condition),
-                    new XElement("EmccExtraLDFlags", $"$(EmccExtraLDFlags);--js-library;\"$(MSBuildThisFileDirectory)../runtimes/{rid}/native/{Path.GetFileName(javascript)}\"")));
-        }
-        project.Add(group);
+
+        // The items carry their RID and kind. The shared file maps only the items of the RID of the consumer.
+        // So a consumer can import the targets of several runtime packages and map every file once.
+        var kind = isAndroid ? "android" : rid == "ios-arm64" ? "ios" : "wasm";
+        var project = new XElement("Project");
+        var files = new XElement("ItemGroup");
+        foreach (var library in libraries)
+            files.Add(new XElement("RbfxNativeRuntimeFile", new XAttribute("Include", $"$(MSBuildThisFileDirectory)../runtimes/{rid}/native/{library}"),
+                new XAttribute("RbfxNativeRid", rid), new XAttribute("RbfxNativeKind", kind)));
+        project.Add(files);
+
         var targets = Path.Combine(root, "buildTransitive");
         Directory.CreateDirectory(targets);
+        if (rid == "android-x64")
+        {
+            project.Add(new XElement("ItemGroup", new XAttribute("Condition", "'$(AndroidApplication)' == 'true'"),
+                new XElement("AndroidEnvironment", new XAttribute("Include", "$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Bindings.runtime.android-x64.env"))));
+            File.WriteAllText(Path.Combine(targets, "SharpCpp.Rbfx.Bindings.runtime.android-x64.env"), "TRACY_NO_INVARIANT_CHECK=1\n");
+        }
+        // The copy has a RID in its name. A union package merges buildTransitive/ of all RIDs, and MSBuild skips
+        // a repeated import of the same path. So each RID file imports its own copy. The mapping is idempotent.
+        var copyName = $"SharpCpp.Rbfx.NativeItems.{rid}.targets";
+        project.Add(new XElement("Import", new XAttribute("Project", $"$(MSBuildThisFileDirectory){copyName}")));
+        File.Copy(Path.Combine(Repo, "eng", NativeItemsFile), Path.Combine(targets, copyName), overwrite: true);
         new XDocument(project).Save(Path.Combine(targets, $"SharpCpp.Rbfx.Bindings.runtime.{rid}.targets"));
     }
 

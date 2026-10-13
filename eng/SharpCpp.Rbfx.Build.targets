@@ -1,4 +1,6 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Consumer.targets" />
+
   <PropertyGroup>
     <!-- Libraries are loaded through their host's dependency file; executables need their own
          so NuGet native runtime assets (libClangSharp) resolve. -->

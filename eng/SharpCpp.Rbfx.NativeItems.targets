@@ -1,0 +1,72 @@
+<Project>
+  <!-- The one mapping from a RID to the platform items that ship native libraries into an application.
+       Source builds import it through eng/SharpCpp.Rbfx.Consumer.targets. The runtime NuGet packages
+       get a copy in buildTransitive/ (packaging/nuget/CrossPackage.cs).
+
+       A consumer can import this file several times: one copy for each runtime package. So the mapping
+       is idempotent. It never uses a property that the copies set differently.
+
+       Input: RbfxNativeRuntimeFile items. The item spec is the file path. Each item has the metadata
+         RbfxNativeRid   The RID of the file, for example android-arm64.
+         RbfxNativeKind  android, ios or wasm.
+       The consumer RID is RbfxTargetRid, or else RuntimeIdentifier. Only the items with this RID are mapped.
+
+       Android: every *.so (this includes libc++_shared.so) becomes AndroidNativeLibraryNoJniPreload.
+       iOS:     every *.a becomes a static NativeReference. libSharpCpp.Rbfx.Native.a also carries the
+                link flags and the frameworks.
+       Wasm:    every *.a becomes NativeFileReference. Every *.js is collected in RbfxNativeJsLibrary and
+                becomes a js-library flag of emcc.
+       Other RIDs (desktop) are copied to the output by the project itself.
+
+       Each ItemGroup removes its items first and then adds them. So a second import adds nothing new. -->
+
+  <PropertyGroup>
+    <_RbfxNativeConsumerRid>$(RbfxTargetRid)</_RbfxNativeConsumerRid>
+    <_RbfxNativeConsumerRid Condition="'$(_RbfxNativeConsumerRid)' == ''">$(RuntimeIdentifier)</_RbfxNativeConsumerRid>
+  </PropertyGroup>
+
+  <!-- Properties are read in order, so the second import sees the marker of the first one. -->
+  <PropertyGroup Condition="'$(_RbfxNativeConsumerRid)' == 'browser-wasm' and '$(_RbfxEmccFlagsApplied)' != 'true'">
+    <_RbfxEmccFlagsApplied>true</_RbfxEmccFlagsApplied>
+    <EmccExtraLDFlags>$(EmccExtraLDFlags);--bind;-sWASM=1;-sFETCH=1;-fwasm-exceptions;-sFORCE_FILESYSTEM=1;-lidbfs.js;-sALLOW_MEMORY_GROWTH=1;--no-heap-copy;-sMIN_WEBGL_VERSION=2;-sMAX_WEBGL_VERSION=2;-sGL_ENABLE_GET_PROC_ADDRESS=1;-sFULL_ES3=1;-sDISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0</EmccExtraLDFlags>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(AndroidApplication)' == 'true'">
+    <AndroidNativeLibraryNoJniPreload Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('Extension', '.so'))" />
+    <AndroidNativeLibraryNoJniPreload Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('Extension', '.so'))" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_RbfxNativeConsumerRid)' == 'ios-arm64' and '$(TargetPlatformIdentifier)' == 'ios'">
+    <NativeReference Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'ios')->WithMetadataValue('RbfxNativeRid', 'ios-arm64')->WithMetadataValue('Extension', '.a'))" />
+    <NativeReference Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'ios')->WithMetadataValue('RbfxNativeRid', 'ios-arm64')->WithMetadataValue('Extension', '.a'))">
+      <Kind>Static</Kind>
+      <ForceLoad>false</ForceLoad>
+      <SmartLink>true</SmartLink>
+    </NativeReference>
+    <NativeReference Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'ios')->WithMetadataValue('RbfxNativeRid', 'ios-arm64')->WithMetadataValue('Filename', 'libSharpCpp.Rbfx.Native')->WithMetadataValue('Extension', '.a'))">
+      <ForceLoad>true</ForceLoad>
+      <IsCxx>true</IsCxx>
+      <LinkerFlags>-lc++ -liconv</LinkerFlags>
+      <Frameworks>CoreVideo CoreAudio AudioToolbox AVFoundation CoreBluetooth CoreGraphics CoreMotion Foundation Metal OpenGLES QuartzCore UIKit</Frameworks>
+      <WeakFrameworks>GameController CoreHaptics</WeakFrameworks>
+    </NativeReference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_RbfxNativeConsumerRid)' == 'browser-wasm'">
+    <NativeFileReference Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.a'))" />
+    <NativeFileReference Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.a'))" />
+    <RbfxNativeJsLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.js'))" />
+    <RbfxNativeJsLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'wasm')->WithMetadataValue('RbfxNativeRid', 'browser-wasm')->WithMetadataValue('Extension', '.js'))" />
+  </ItemGroup>
+
+  <!-- A property cannot read an item at evaluation, so a target adds the flags. Every import defines this
+       target with the same content. MSBuild keeps one definition and runs it once. -->
+  <Target Name="RbfxMapNativeJsLibraries"
+          BeforeTargets="CoreCompile;_BrowserWasmLinkDotNet"
+          Condition="'@(RbfxNativeJsLibrary)' != '' and '$(_RbfxNativeJsFlagsApplied)' != 'true'">
+    <PropertyGroup>
+      <_RbfxNativeJsFlagsApplied>true</_RbfxNativeJsFlagsApplied>
+      <EmccExtraLDFlags>$(EmccExtraLDFlags);@(RbfxNativeJsLibrary->'--js-library;&quot;%(Identity)&quot;', ';')</EmccExtraLDFlags>
+    </PropertyGroup>
+  </Target>
+</Project>

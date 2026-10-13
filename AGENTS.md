@@ -50,6 +50,8 @@ A consumer csproj declares `<RbfxUserCodeReference Include="<cmake target>" />`.
 `RbfxResolveUserCodeReferences` restores and builds the generated project and references its dll.
 So the wrapped user code gives a dll that other modules use.
 
+`eng/SharpCpp.Rbfx.NativeItems.targets` is the one mapping from a RID to the platform items for native libraries (Android `AndroidNativeLibraryNoJniPreload` for every `*.so`, iOS `NativeReference`, Wasm `NativeFileReference` and `--js-library` flags). Its input is the `RbfxNativeRuntimeFile` items with the metadata `RbfxNativeRid` and `RbfxNativeKind`. It maps only the items of the RID of the consumer (`RbfxTargetRid`, else `RuntimeIdentifier`) and is idempotent. `eng/SharpCpp.Rbfx.Consumer.targets` imports it. `packaging/nuget/CrossPackage.cs targets` lists the staged files as `RbfxNativeRuntimeFile` and copies the shared file to `buildTransitive/SharpCpp.Rbfx.NativeItems.<rid>.targets` of the runtime package.
+
 ## Run the examples
 
 - `Example.Desktop` and `Example.Common` need `RBFX_SDK_ROOT` and the native build (about 7 minutes the first time).

@@ -162,6 +162,13 @@ Its build targets defer rbfx native libraries until the binding calls them, beca
 `libUrho3D.so`'s JNI startup expects SDL's Java activity. The Android x64 target also
 sets Tracy's `TRACY_NO_INVARIANT_CHECK` environment variable so Android emulators
 without invariant TSC can load the upstream SDK library.
+The Android, iOS and Wasm runtime packages share one RID to item mapping with the source build:
+`eng/SharpCpp.Rbfx.NativeItems.targets`. `CrossPackage.cs targets` lists the staged files as
+`RbfxNativeRuntimeFile` items with the metadata `RbfxNativeRid` and `RbfxNativeKind` in
+`buildTransitive/SharpCpp.Rbfx.Bindings.runtime.<rid>.targets`. It also copies the shared file to
+`buildTransitive/SharpCpp.Rbfx.NativeItems.<rid>.targets` and imports that copy. The mapping uses only
+the items of the RID of the consumer (Android needs no RID) and is idempotent, so a union consumer maps each file once.
+Android ships every staged `*.so`, so `libc++_shared.so` reaches the application with no extra rule.
 The iOS package strips debug information from staged copies of its archives to
 keep the package smaller; source SDK files are left untouched. Platform-specific
 consumer projects verify the NuGet linking metadata in CI. Android and Wasm

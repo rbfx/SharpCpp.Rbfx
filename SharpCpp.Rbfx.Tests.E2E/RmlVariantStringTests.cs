@@ -23,11 +23,6 @@ public sealed class RmlVariantStringTests
     [MemberData(nameof(Texts))]
     public void Variant_string_assign_and_get_roundtrip(string text)
     {
-        if (!GeneratedSurfaceTests.GeneratorLogContains("RmlUI bindings: enabled"))
-        {
-            return;
-        }
-
         using var variant = new Rml.Variant();
         using var input = new Ea.String(text);
         variant.Assign(input);
@@ -43,11 +38,6 @@ public sealed class RmlVariantStringTests
     [Fact]
     public void Variant_generic_string_assign_roundtrips_many_times()
     {
-        if (!GeneratedSurfaceTests.GeneratorLogContains("RmlUI bindings: enabled"))
-        {
-            return;
-        }
-
         using var variant = new Rml.Variant();
         for (var index = 0; index < 200; index++)
         {

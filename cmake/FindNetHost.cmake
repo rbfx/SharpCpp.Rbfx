@@ -54,13 +54,16 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   set(_nethost_rid "osx-${_nethost_arch}")
 else()
   # A musl C library (Alpine) has its dynamic loader at /lib/ld-musl-<arch>.so.1 of the target root.
+  # A glibc loader (ld-linux-*) wins, because a glibc system can also have the musl package installed.
   file(GLOB _nethost_musl_loader "${CMAKE_SYSROOT}/lib/ld-musl-*.so.1")
-  if(_nethost_musl_loader)
+  file(GLOB _nethost_glibc_loader "${CMAKE_SYSROOT}/lib*/ld-linux-*.so.*" "${CMAKE_SYSROOT}/lib/*/ld-linux-*.so.*")
+  if(_nethost_musl_loader AND NOT _nethost_glibc_loader)
     set(_nethost_rid "linux-musl-${_nethost_arch}")
   else()
     set(_nethost_rid "linux-${_nethost_arch}")
   endif()
   unset(_nethost_musl_loader)
+  unset(_nethost_glibc_loader)
 endif()
 
 # Dotnet root and newest runtime version from "dotnet --list-runtimes".

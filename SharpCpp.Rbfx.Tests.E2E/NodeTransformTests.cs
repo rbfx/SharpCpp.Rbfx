@@ -72,7 +72,7 @@ public sealed class NodeTransformTests
     {
         using var context = new global::Urho3D.Core.Context();
         using var parent = new Node(context);
-        var rotation = new Quaternion(0.5f, 0.5f, 0.5f, 0.5f);
+        var rotation = new Quaternion(0.5477f, 0.1826f, 0.3651f, 0.7303f);
         parent.Rotation = rotation;
         var child = parent.CreateChild("child");
         Assert.NotNull(child);

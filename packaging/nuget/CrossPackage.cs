@@ -292,7 +292,7 @@ static class CrossPackage
 
     public static void Verify(string rid, string version, Dictionary<string, string> options)
     {
-        var packages = Path.GetFullPath(options.GetValueOrDefault("packages") ?? Path.Combine(Repo, "build/package/nuget/out"));
+        var packages = Path.GetFullPath(options.GetValueOrDefault("packages") ?? Path.Combine(Repo, "build/package/nuget", rid, "out"));
         var output = Path.GetFullPath(options.GetValueOrDefault("output") ?? Path.Combine(Repo, "build/cross-consumer", rid));
         Directory.CreateDirectory(output);
         File.WriteAllText(Path.Combine(output, "Directory.Build.props"), "<Project />\n");

@@ -198,5 +198,5 @@ Known SDK archive mappings (kept in `eng/fetch-rbfx-sdk.sh`):
 ./packaging/nuget/package.sh local-repo
 ```
 
-This imports packages from `build/package/nuget/out/` into
+This imports the packages of one RID (option `--rid`, default is the host RID) and the runtime packages of every RID from `build/package/nuget/<rid>/out/` into
 `build/package/nuget/local-repository/` for local restore tests.

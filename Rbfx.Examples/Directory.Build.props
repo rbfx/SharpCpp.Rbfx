@@ -22,7 +22,7 @@
        packages (apk, app, AppBundle, AppX) in this folder. Workload builds emit warnings, so these
        apps do not treat warnings as errors. -->
   <PropertyGroup Condition="'$(RbfxExampleIsApp)' == 'true'">
-    <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/</OutputPath>
+    <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/$(RbfxTargetRid)/</OutputPath>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

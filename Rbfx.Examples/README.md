@@ -60,7 +60,7 @@ an Activity that calls the static `Program.Main` entry function.
 
 `Example.Ios` creates an rbfx scene and reports a node's position in a UIKit view.
 `Example.Wasm` creates the same native scene through the browser WebAssembly runtime;
-serve the `bin/Release/publish/wwwroot` directory over HTTP to run it. The
+serve the `bin/Release/browser-wasm/publish/wwwroot` directory over HTTP to run it. The
 host must enable cross-origin isolation for the multithreaded WebAssembly runtime.
 `Example.Uwp` is a small modern .NET UWP XAML app. Its custom runtime graph maps
 `uap-x64` to the Windows x64 runtime while allowing NuGet to select the

@@ -23,8 +23,13 @@
     <RbfxBuildRootIsExplicit Condition="'$(SharpCppBuildRoot)' != ''">true</RbfxBuildRootIsExplicit>
     <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == '' and '$(SolutionDir)' != ''">$([System.IO.Path]::GetFullPath('$(SolutionDir)/build'))</SharpCppBuildRoot>
     <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/build'))</SharpCppBuildRoot>
-    <!-- Host build root: shared restore dir for every RID, taken before the cross override. -->
+    <!-- Restore files stay under the host build root. RbfxRestoreRid adds a folder for a target RID, so builds of
+         different RIDs never write the same project.assets.json. It comes from a global property, because
+         restore of a referenced project sees only global properties. It follows a global RuntimeIdentifier. -->
     <RbfxHostBuildRoot>$(SharpCppBuildRoot)</RbfxHostBuildRoot>
+    <RbfxRestoreRid Condition="'$(RbfxRestoreRid)' == ''">$(RuntimeIdentifier)</RbfxRestoreRid>
+    <RbfxRestoreRoot>$(RbfxHostBuildRoot)/obj/restore</RbfxRestoreRoot>
+    <RbfxRestoreRoot Condition="'$(RbfxRestoreRid)' != ''">$(RbfxHostBuildRoot)/obj/restore/$(RbfxRestoreRid)</RbfxRestoreRoot>
     <SharpCppBuildRoot Condition="'$(RbfxIsCrossRid)' == 'true' and '$(RbfxBuildRootIsExplicit)' != 'true'">$(SharpCppRbfxRoot)/build/cross/$(RbfxTargetRid)</SharpCppBuildRoot>
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <SharpCppManagedOutputRoot Condition="'$(SharpCppManagedOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppManagedOutputRoot>
@@ -75,7 +80,7 @@
     <OutputPath Condition="'$(RbfxIsTestProject)' != 'true'">$(SharpCppOutputDir)/</OutputPath>
     <OutputPath Condition="'$(RbfxIsTestProject)' == 'true'">$(SharpCppOutputDir)/SharpCpp.Tests/$(MSBuildProjectName)/</OutputPath>
     <BaseIntermediateOutputPath>$(SharpCppIntermediateRoot)/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>$(RbfxHostBuildRoot)/obj/restore/$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
+    <MSBuildProjectExtensionsPath>$(RbfxRestoreRoot)/$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(SharpCppBuildRoot)/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>

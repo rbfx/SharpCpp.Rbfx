@@ -189,7 +189,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nuget-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/package/nuget/out/${{ matrix.packages }}
+          path: SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/out/${{ matrix.packages }}
           if-no-files-found: error
 
       # The managed assembly of this platform. A later job reads the public API of each
@@ -206,8 +206,8 @@ jobs:
         with:
           name: package-input-${{ matrix.rid }}
           path: |
-            SharpCpp.Rbfx/build/package/nuget/stage/managed/lib/
-            SharpCpp.Rbfx/build/package/nuget/stage/managed/analyzers/
+            SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/stage/managed/lib/
+            SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/stage/managed/analyzers/
           if-no-files-found: error
 
       # The generated C# and C++ sources and the generator logs, for debugging.

@@ -5,8 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 PACKAGE_ROOT="$REPO_ROOT/build/package/nuget"
-STAGE_DIR="$PACKAGE_ROOT/stage"
-OUT_DIR="$PACKAGE_ROOT/out"
+# Stage and out folders are per RID, so builds of different RIDs can run in parallel.
+# create_packages sets them from the RID.
+STAGE_DIR=""
+OUT_DIR=""
 LOCAL_REPOSITORY_DIR="$PACKAGE_ROOT/local-repository"
 FETCH_SDK_SCRIPT="$REPO_ROOT/eng/fetch-rbfx-sdk.sh"
 SDK_OUTPUT_DIR="$REPO_ROOT/build/sdk"
@@ -22,7 +24,7 @@ Actions:
   fetch-sdk     Fetch one rbfx prebuilt SDK with eng/fetch-rbfx-sdk.sh
   fetch-sdks    Fetch all known rbfx prebuilt SDKs with eng/fetch-rbfx-sdk.sh
   create        Build, stage, and pack SDK-style NuGet packages
-  local-repo    Create a local NuGet repository from packages in out/
+  local-repo    Create a local NuGet repository from packages in <rid>/out/ (option --rid)
 
 Use 'package.sh <action> --help' for action-specific options.
 EOF
@@ -362,6 +364,8 @@ pack_project() {
     -p:PackageVersion="$version" \
     -p:SharpCppNuGetStageRoot="$STAGE_DIR" \
     -p:SharpCppRuntimeIdentifier="$rid" \
+    -p:RbfxRestoreRid="$rid" \
+    -p:SharpCppIntermediateRoot="$PACKAGE_ROOT/$rid/obj" \
     -p:SharpCppPackageTargetFramework="$target_framework"
 }
 
@@ -465,6 +469,9 @@ EOF
     rid="$(default_rid)"
   fi
 
+  STAGE_DIR="$PACKAGE_ROOT/$rid/stage"
+  OUT_DIR="$PACKAGE_ROOT/$rid/out"
+
   if [ -z "$sdk_root" ]; then
     if [ "$skip_fetch" -eq 0 ]; then
       local fetch_args=(--rid "$rid")
@@ -493,6 +500,7 @@ EOF
       --nologo \
       -p:RbfxNativePreset="$configure_preset" \
       -p:RbfxTargetRid="$rid" \
+      -p:RbfxRestoreRid="$rid" \
       -p:SharpCppBuildRoot="$build_root" \
       -p:RbfxNativeConfigureArguments="$native_configure_arguments" \
       -p:RbfxSdkRoot="$sdk_root"
@@ -526,15 +534,35 @@ EOF
 }
 
 create_local_repository() {
+  local rid=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --rid) rid="$2"; shift 2 ;;
+      *) echo "Error: unknown local-repo option: $1" >&2; return 1 ;;
+    esac
+  done
+  if [ -z "$rid" ]; then
+    rid="$(default_rid)"
+  fi
+
+  # Managed and data packages come from one RID. Runtime packages come from every RID.
+  local packages=() package
+  shopt -s nullglob
+  for package in "$PACKAGE_ROOT/$rid/out"/*.nupkg; do
+    case "$package" in *.runtime.*) ;; *) packages+=("$package") ;; esac
+  done
+  packages+=("$PACKAGE_ROOT"/*/out/*.runtime.*.nupkg)
+  shopt -u nullglob
+  if [ ${#packages[@]} -eq 0 ] || [ ! -d "$PACKAGE_ROOT/$rid/out" ]; then
+    echo "Error: no packages in $PACKAGE_ROOT/$rid/out. Run 'create --rid $rid' first." >&2
+    return 1
+  fi
+
   rm -rf "$LOCAL_REPOSITORY_DIR"
   mkdir -p "$LOCAL_REPOSITORY_DIR"
-
-  shopt -s nullglob
-  local package
-  for package in "$OUT_DIR"/*.nupkg; do
+  for package in "${packages[@]}"; do
     "$NUGET" add "$package" -source "$LOCAL_REPOSITORY_DIR"
   done
-  shopt -u nullglob
 }
 
 if [ $# -eq 0 ]; then

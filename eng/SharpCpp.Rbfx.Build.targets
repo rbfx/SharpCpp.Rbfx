@@ -99,6 +99,7 @@
          already lies in the tree of the target RID. The generated project gets the same RID below. -->
     <PropertyGroup>
       <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
+      <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxRestoreRid)</_RbfxTargetRidProperty>
     </PropertyGroup>
     <ItemGroup>
       <_RbfxUserCodeCandidate Include="$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)/*.csproj"
@@ -142,6 +143,7 @@
          projects (for example the native project). Pass it in SetConfiguration. Empty for the host build. -->
     <PropertyGroup>
       <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
+      <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxRestoreRid)</_RbfxTargetRidProperty>
     </PropertyGroup>
     <ItemGroup>
       <_MSBuildProjectReferenceExistent Update="@(_MSBuildProjectReferenceExistent)">

@@ -88,7 +88,7 @@ internal static class Program
     {
         "Urho3D::Object",
         "Urho3D::Application",
-        "Urho3D::PluginApplication",
+        "Urho3D::Plugin",
         "Urho3D::ApplicationState",
         "Urho3D::Serializable",
         "Urho3D::Animatable",

@@ -29,6 +29,11 @@
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Phase-2 user code: the generated Example.UserCode bindings (by-value ea::string returns). -->
+  <ItemGroup>
+    <RbfxUserCodeReference Include="Example.UserCode" />
+  </ItemGroup>
+
   <!-- Each test plugin is a separate assembly. Only its dll goes to plugins/<name>/, away from the test assemblies. -->
   <ItemGroup>
     <Compile Remove="TestPlugin/**;AttributePlugin/**" />

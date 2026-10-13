@@ -68,6 +68,26 @@ public sealed class NodeTransformTests
     }
 
     [Fact]
+    public void Node_world_rotation_returns_quaternion_by_value()
+    {
+        using var context = new global::Urho3D.Core.Context();
+        using var parent = new Node(context);
+        var rotation = new Quaternion(0.5f, 0.5f, 0.5f, 0.5f);
+        parent.Rotation = rotation;
+        var child = parent.CreateChild("child");
+        Assert.NotNull(child);
+
+        for (var index = 0; index < 100; index++)
+        {
+            var value = child.WorldRotation;
+            Assert.Equal(rotation.W, value.W, 4);
+            Assert.Equal(rotation.X, value.X, 4);
+            Assert.Equal(rotation.Y, value.Y, 4);
+            Assert.Equal(rotation.Z, value.Z, 4);
+        }
+    }
+
+    [Fact]
     public void Camera_gpu_projection_returns_matrix4_by_value()
     {
         using var context = new global::Urho3D.Core.Context();

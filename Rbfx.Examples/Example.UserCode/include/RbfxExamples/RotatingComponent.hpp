@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Urho3D/Container/Str.h>
 #include <Urho3D/Core/Context.h>
 #include <Urho3D/Scene/LogicComponent.h>
 
@@ -22,6 +23,8 @@ public:
     void SetRotationSpeed(float degreesPerSecond);
     float GetRotationSpeed() const;
     int GetUpdateCount() const;
+    /// Returns a text that describes the component. The string returns by value.
+    ea::string Describe() const;
 
     void Update(float timeStep) override;
 

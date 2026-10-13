@@ -6,7 +6,8 @@ Like `Example.NativeHost`, this example builds from source with the main CMake p
 
 ## Parts
 
-- `include/RbfxExamples/RotatingComponent.hpp`, `src/RotatingComponent.cpp`: user C++ type. It rotates its node around the Y axis (default 45 degrees per second). `RotatingComponent` uses `URHO3D_OBJECT`, so its managed wrapper implements `IStaticTypeInfo<RotatingComponent>` and `Node.CreateComponent<RotatingComponent>()` works. The static method `RotatingComponent::RegisterObject(Context*)` adds the object factory with `AddFactoryReflection`. The managed side calls it once.
+- `include/RbfxExamples/RotatingComponent.hpp`, `src/RotatingComponent.cpp`: user C++ type. It rotates its node around the Y axis (default 45 degrees per second). `RotatingComponent` uses `URHO3D_OBJECT`, so its managed wrapper implements `IStaticTypeInfo<RotatingComponent>` and `Node.CreateComponent<RotatingComponent>()` works. The static method `RotatingComponent::RegisterObject(Context*)` adds the object factory with `AddFactoryReflection`. The managed side calls it once. `Describe()` returns an `ea::string` by value.
+- `include/RbfxExamples/TextTools.hpp`, `src/TextTools.cpp`: a plain C++ class without `Urho3D::Object`. `TextTools::RepeatText` returns an `ea::string` by value. With two headers, the generator reads them through one umbrella header in the build tree.
 - `CMakeLists.txt`: calls `rbfx_csharp_add_usercode(Example.UserCode ...)`. The build produces these files:
   - `Example.UserCode.Bindings.dll`: the generated bindings assembly with the `RbfxExamples.RotatingComponent` wrapper.
   - `libExample.UserCode.Native.so` (`Example.UserCode.Native.dll` on Windows): the native library. The example has no hand-written `extern "C"` function.
@@ -16,6 +17,8 @@ Like `Example.NativeHost`, this example builds from source with the main CMake p
 ## How managed code uses the dll
 
 A managed project that wants the dll declares `<RbfxUserCodeReference Include="Example.UserCode" />`. MSBuild then builds the generated bindings project and references `Example.UserCode.Bindings.dll`. The project must reference `SharpCpp.Rbfx.Bindings` either as a project or as a NuGet package, and not both, because two bindings assemblies would load.
+
+`SharpCpp.Rbfx.Tests.E2E` also declares the `RbfxUserCodeReference`. Its tests call `Describe` and `RepeatText`.
 
 `Rbfx.Examples/Example.Common` does this:
 

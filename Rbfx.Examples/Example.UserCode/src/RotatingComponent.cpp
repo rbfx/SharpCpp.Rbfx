@@ -1,5 +1,6 @@
 #include <RbfxExamples/RotatingComponent.hpp>
 
+#include <Urho3D/Core/Format.h>
 #include <Urho3D/Scene/Node.h>
 
 namespace RbfxExamples
@@ -30,6 +31,11 @@ float RotatingComponent::GetRotationSpeed() const
 int RotatingComponent::GetUpdateCount() const
 {
     return updateCount_;
+}
+
+ea::string RotatingComponent::Describe() const
+{
+    return Urho3D::Format("RotatingComponent speed={} updates={}", rotationSpeed_, updateCount_);
 }
 
 void RotatingComponent::Update(float timeStep)

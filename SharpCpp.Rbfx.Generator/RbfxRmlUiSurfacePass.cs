@@ -155,6 +155,7 @@ public static class RbfxRmlUiSurfacePass
         }
 
         var changed = 0;
+        EnsureRmlStringIsEaString(compilation);
         var stringType = CreateRmlStringType(compilation, "Rml::String");
         var stringConstRefType = CreateRmlStringType(compilation, "const Rml::String&", cppIsReference: true);
         if (stringType is null || stringConstRefType is null)
@@ -204,14 +205,61 @@ public static class RbfxRmlUiSurfacePass
 
     // Reference the Ea.String wrapper record so SharpCpp resolves its marshaller like any
     // parsed parameter; helper names are the renderer's business.
+    // The rbfx RmlUi configuration (RmlUi/Config/RbfxConfig.h) declares Rml::String as
+    // eastl::string. EnsureRmlStringIsEaString checks that the parser agrees: a different string
+    // type has a different native layout, and a wrong wrapper corrupts every string.
+    // A reference to a record keeps CppIsRecordValue like a parsed `const T&` parameter: the
+    // handle is the object's address and crosses the ABI as is, not by reference.
     private static BindingType? CreateRmlStringType(BindingCompilation compilation, string cppTypeName, bool cppIsReference = false)
     {
         var eaString = compilation.Records.FirstOrDefault(static record =>
-            record.SymbolId == "record:eastl::basic_string" && record.HasMetadata(MetadataKeys.ManagedWrapperAssembly));
-        return eaString is null
-            ? null
-            : BindingType.CreateHandle(cppTypeName, "global::Ea.String", eaString.SymbolId, cppIsRecordValue: !cppIsReference)
-                .WithCppIsReference(cppIsReference);
+            record.SymbolId == EaStringRecordId && record.HasMetadata(MetadataKeys.ManagedWrapperAssembly));
+        if (eaString is null)
+        {
+            return null;
+        }
+
+        return BindingType.CreateHandle(cppTypeName, "global::Ea.String", eaString.SymbolId, cppIsRecordValue: true)
+            .WithCppIsReference(cppIsReference);
+    }
+
+    private const string EaStringRecordId = "record:eastl::basic_string";
+
+    // The parser resolves each parsed `Rml::String` parameter to its record. Every one must be the
+    // Ea.String record; otherwise generation fails instead of writing corrupting wrappers.
+    private static void EnsureRmlStringIsEaString(BindingCompilation compilation)
+    {
+        var parameters = compilation.Functions
+            .Where(static function => IsRmlHeader(function.HeaderIncludePath))
+            .SelectMany(static function => function.Parameters)
+            .Where(static parameter => parameter.CppTypeName is { } cppTypeName && NamesRmlString(cppTypeName))
+            .ToArray();
+        if (parameters.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "No parsed RmlUI parameter has the type 'Rml::String'; the Rml.Variant string instantiations cannot verify their native type.");
+        }
+
+        var mismatch = parameters.FirstOrDefault(static parameter =>
+            !string.Equals(parameter.Type.RecordId, EaStringRecordId, StringComparison.Ordinal));
+        if (mismatch is not null)
+        {
+            throw new InvalidOperationException(
+                $"RmlUI parameter '{mismatch.SymbolId}' of type '{mismatch.CppTypeName}' resolves to '{mismatch.Type.CppTypeName}' " +
+                $"(record '{mismatch.Type.RecordId ?? "none"}'), but the Rml.Variant string instantiations use the '{EaStringRecordId}' wrapper. " +
+                "The native and managed string layouts differ.");
+        }
+    }
+
+    private static bool NamesRmlString(string cppTypeName)
+    {
+        var name = cppTypeName.Trim();
+        if (name.StartsWith("const ", StringComparison.Ordinal))
+        {
+            name = name["const ".Length..].TrimStart();
+        }
+
+        return string.Equals(name.TrimEnd('&', ' '), "Rml::String", StringComparison.Ordinal);
     }
 
     private static int AddInstantiation(IList<RecordGenericInstantiationBinding> instantiations, BindingType type)

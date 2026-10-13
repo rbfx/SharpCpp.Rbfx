@@ -144,6 +144,7 @@ public sealed class GeneratedSurfaceTests
         var documentContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.Core.ElementDocument.g.cs"));
         var contextContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.Core.Context.g.cs"));
         var aliasContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "SharpCpp.Rbfx.Bindings.Aliases.g.cs"));
+        var variantContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.Core.Variant.g.cs"));
 
         Assert.Contains("namespace Rml", documentContent, StringComparison.Ordinal);
         Assert.Contains("public partial class ElementDocument", documentContent, StringComparison.Ordinal);
@@ -152,6 +153,12 @@ public sealed class GeneratedSurfaceTests
         Assert.Contains("public enum FocusFlag", documentContent, StringComparison.Ordinal);
         Assert.Contains("public global::Rml.DataModelConstructor CreateDataModel(global::Ea.String name, global::Rml.DataTypeRegister? data_type_register = default)", contextContent, StringComparison.Ordinal);
         Assert.Contains("callback(global::Rml.DataModelHandle.CreateManagedWrapper(arg0, ownsHandle: false)", aliasContent, StringComparison.Ordinal);
+
+        // Rml::String is eastl::string (RmlUi/Config/RbfxConfig.h). The string handle is the object's
+        // address: an `in` import parameter would pass the address of the handle instead.
+        Assert.Contains("public global::Rml.Variant Assign(global::Ea.String value)", variantContent, StringComparison.Ordinal);
+        Assert.Contains("public global::Ea.String Get(global::Ea.String default_value)", variantContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("] in global::Ea.String?", variantContent, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -258,7 +265,7 @@ public sealed class GeneratedSurfaceTests
             [typeof(Action<uint, global::Urho3D.Core.WorkQueue>), typeof(global::Urho3D.Core.TaskPriority)]));
     }
 
-    private static string GetGeneratedDir()
+    internal static string GetGeneratedDir()
     {
         var dir = Environment.GetEnvironmentVariable("SharpCppGeneratedDir");
         if (string.IsNullOrWhiteSpace(dir))
@@ -272,7 +279,7 @@ public sealed class GeneratedSurfaceTests
         return Path.GetFullPath(dir);
     }
 
-    private static bool GeneratorLogContains(string value)
+    internal static bool GeneratorLogContains(string value)
     {
         var logPath = Path.Combine(GetGeneratedDir(), "generator.log");
         return File.Exists(logPath) && File.ReadAllText(logPath).Contains(value, StringComparison.Ordinal);

@@ -13,6 +13,8 @@
 #                          The default is ON for MSVC and when BUILD_SHARED_LIBS is ON.
 #                          Otherwise the default is OFF. The cached value of an existing
 #                          build tree is kept.
+#   NETHOST_RID            Runtime identifier of the host pack. Empty (the default) detects it:
+#                          win-, osx-, linux- or linux-musl- (a musl loader in /lib) and x64 or arm64.
 #
 # The static libnethost.lib of the pack is built with /MT. It does not link with code that
 # uses /MD, so MSVC links the import library nethost.lib and needs nethost.dll at run time.
@@ -37,18 +39,28 @@ else()
 endif()
 option(NETHOST_PREFER_SHARED "Link the shared nethost library instead of the static one." ${_nethost_prefer_shared_default})
 
-# Runtime identifier of the target platform.
+# Runtime identifier of the target platform. NETHOST_RID overrides the detection.
+set(NETHOST_RID "" CACHE STRING "Runtime identifier of the Microsoft.NETCore.App.Host pack (empty: detect).")
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
   set(_nethost_arch arm64)
 else()
   set(_nethost_arch x64)
 endif()
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+if(NETHOST_RID)
+  set(_nethost_rid "${NETHOST_RID}")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(_nethost_rid "win-${_nethost_arch}")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   set(_nethost_rid "osx-${_nethost_arch}")
 else()
-  set(_nethost_rid "linux-${_nethost_arch}")
+  # A musl C library (Alpine) has its dynamic loader at /lib/ld-musl-<arch>.so.1 of the target root.
+  file(GLOB _nethost_musl_loader "${CMAKE_SYSROOT}/lib/ld-musl-*.so.1")
+  if(_nethost_musl_loader)
+    set(_nethost_rid "linux-musl-${_nethost_arch}")
+  else()
+    set(_nethost_rid "linux-${_nethost_arch}")
+  endif()
+  unset(_nethost_musl_loader)
 endif()
 
 # Dotnet root and newest runtime version from "dotnet --list-runtimes".

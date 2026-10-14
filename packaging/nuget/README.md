@@ -46,6 +46,17 @@ Use `--skip-build` to package an already-built tree. The tree is `build/package/
 Package staging, package output, and the local repository remain below
 `build/package/nuget/`. Downloaded SDKs are in `build/sdk/`.
 
+The package build holds no path of the build machine. The native configure turns the dotnet root of the machine
+off and maps the source, build and SDK directories to short names. The managed build uses fixed source paths
+(`eng/SharpCpp.Rbfx.Deterministic.props`). Check the result with the guard script. It takes archives and directories:
+
+```bash
+./packaging/check-no-local-paths.sh --root build/package/nuget/<rid>/out/*.nupkg --forbid "$PWD" --forbid "$HOME"
+```
+
+The script exits with 1 and lists each file with 2 samples when it finds a forbidden prefix. It skips the engine
+files `libUrho3D*` and `Urho3D*.dll`. CI runs it for the packages and for the SDK archive of each RID.
+
 ## Union packages
 
 CI first builds the native glue and generated C# for each platform. One Linux job

@@ -101,6 +101,10 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);$(SharpCppBuildRoot)/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <!-- Packaging and CI builds map the directories of the build machine to fixed names, so a pdb and a dll hold no local path.
+       RbfxPackaging is set by packaging/nuget/package.sh, which also loads the file through CustomAfterMicrosoftCommonProps. A local developer build keeps the real paths for the debugger. -->
+  <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Deterministic.props" Condition="('$(RbfxPackaging)' == 'true' or '$(GITHUB_ACTIONS)' == 'true') and '$(CustomAfterMicrosoftCommonProps)' == ''" />
+
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpCpp.Rbfx.Bindings'">
     <RbfxConsumedGeneratedDir>$(RbfxGeneratedDir)</RbfxConsumedGeneratedDir>
     <RbfxConsumedGeneratedStamp>$(RbfxGeneratedStamp)</RbfxConsumedGeneratedStamp>

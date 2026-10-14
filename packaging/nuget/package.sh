@@ -519,7 +519,8 @@ EOF
   fi
 
   if [ "$skip_build" -eq 0 ]; then
-    local native_configure_arguments="" encoded_argument argument
+    # A package ships to other machines, so the native libraries must not carry the dotnet root or the directories of this machine.
+    local native_configure_arguments=" -DRBFX_HOST_DEFAULT_DOTNET_ROOT=OFF -DRBFX_REMAP_SOURCE_PATHS=ON" encoded_argument argument
     for argument in "${cmake_arguments[@]}"; do
       printf -v encoded_argument '%q' "$argument"
       native_configure_arguments+=" $encoded_argument"
@@ -528,10 +529,17 @@ EOF
     if [ -n "$configure_preset" ]; then
       preset_arguments=(-p:RbfxNativePreset="$configure_preset")
     fi
+    # The props file maps the paths of this machine to fixed names. It applies to the projects of the SharpCpp checkout too.
+    local deterministic_props="$REPO_ROOT/eng/SharpCpp.Rbfx.Deterministic.props"
+    if command -v cygpath >/dev/null 2>&1; then
+      deterministic_props="$(cygpath -m "$deterministic_props")"
+    fi
     "$DOTNET" build "$REPO_ROOT/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" \
       ${preset_arguments[@]+"${preset_arguments[@]}"} \
       --configuration "$configuration" \
       --nologo \
+      -p:RbfxPackaging=true \
+      -p:CustomAfterMicrosoftCommonProps="$deterministic_props" \
       -p:RbfxTargetRid="$rid" \
       -p:RbfxRestoreRid="$rid" \
       -p:SharpCppBuildRoot="$build_root" \

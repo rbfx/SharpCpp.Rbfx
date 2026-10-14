@@ -46,6 +46,9 @@ set_target_properties(
     UNITY_BUILD ON
     UNITY_BUILD_BATCH_SIZE 100
     OUTPUT_NAME "SharpCpp.Rbfx.Native"
+    # Only the install-style rpath: the run-time libraries are copied next to the wrapper, so the
+    # file has no rpath entry with the build directory.
+    BUILD_WITH_INSTALL_RPATH ON
     BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
     INSTALL_RPATH "${RBFX_RUNTIME_RPATH}")
 target_include_directories(

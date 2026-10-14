@@ -1,0 +1,18 @@
+<Project>
+  <!-- Deterministic source paths for packaging and CI builds. SharpCpp.Rbfx.Build.props imports this file.
+       package.sh passes it with CustomAfterMicrosoftCommonProps, so the projects of the SharpCpp checkout get it too. -->
+  <PropertyGroup>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <DeterministicSourcePaths>true</DeterministicSourcePaths>
+    <!-- GetFullPath gives each root the separators of the platform, so a root from a bash script maps on Windows too. -->
+    <RbfxFullBuildRoot Condition="'$(SharpCppBuildRoot)' != ''">$([System.IO.Path]::GetFullPath('$(SharpCppBuildRoot)'))</RbfxFullBuildRoot>
+    <RbfxFullRbfxRoot Condition="'$(SharpCppRbfxRoot)' != ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)'))</RbfxFullRbfxRoot>
+    <RbfxFullSharpCppRoot Condition="'$(SharpCppRoot)' != ''">$([System.IO.Path]::GetFullPath('$(SharpCppRoot)'))</RbfxFullSharpCppRoot>
+    <!-- The git root of each project maps to /_/ by itself. These entries cover the directories outside of it. -->
+    <RbfxPathMapBuild Condition="'$(RbfxFullBuildRoot)' != ''">$([MSBuild]::EnsureTrailingSlash('$(RbfxFullBuildRoot)'))=/_/build/</RbfxPathMapBuild>
+    <RbfxPathMapRbfx Condition="'$(RbfxFullRbfxRoot)' != ''">$([MSBuild]::EnsureTrailingSlash('$(RbfxFullRbfxRoot)'))=/_/SharpCpp.Rbfx/</RbfxPathMapRbfx>
+    <RbfxPathMapSharpCpp Condition="'$(RbfxFullSharpCppRoot)' != ''">$([MSBuild]::EnsureTrailingSlash('$(RbfxFullSharpCppRoot)'))=/_/SharpCpp/</RbfxPathMapSharpCpp>
+    <PathMap>$(RbfxPathMapBuild),$(RbfxPathMapRbfx),$(RbfxPathMapSharpCpp)</PathMap>
+    <PathMap>$([System.Text.RegularExpressions.Regex]::Replace('$(PathMap)', '^,+|,+$|,(?=,)', ''))</PathMap>
+  </PropertyGroup>
+</Project>

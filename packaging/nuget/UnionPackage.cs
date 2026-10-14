@@ -40,6 +40,23 @@ static class UnionPackage
 {
     static string SourcePath([CallerFilePath] string path = "") => path;
     static readonly string Repo = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../.."));
+    static readonly string DeterministicProps = Path.GetFullPath(Path.Combine(Repo, "eng/SharpCpp.Rbfx.Deterministic.props"));
+
+    // The build of a shipped assembly maps the directories of this machine to fixed names. The generated projects
+    // ignore the Directory.Build.props of the repository, so each build gets the props file and the roots as arguments.
+    // The roots are the output directory of the union build, the repository and the SharpCpp checkout.
+    static string[] PathMapArguments = [];
+    static Layout CreateLayout(Options options)
+    {
+        var layout = new Layout(options);
+        UseBuildRoot(layout.Output, layout.Sharp);
+        return layout;
+    }
+    static void UseBuildRoot(string buildRoot, string sharpRoot) => PathMapArguments =
+    [
+        "-p:RbfxPackaging=true", $"-p:CustomAfterMicrosoftCommonProps={DeterministicProps}",
+        $"-p:SharpCppBuildRoot={buildRoot}", $"-p:SharpCppRbfxRoot={Repo}", $"-p:SharpCppRoot={sharpRoot}"
+    ];
 
     // All phases use the same paths. A CI job continues from the output directory of an earlier job,
     // so the generated projects and the build outputs are the same as in one create run.
@@ -64,7 +81,7 @@ static class UnionPackage
 
     public static void Create(Options options)
     {
-        var layout = new Layout(options);
+        var layout = CreateLayout(options);
         var version = options.Required("version");
         var tool = BuildTool(layout.Sharp);
         var state = CreateReference(layout, tool);
@@ -84,14 +101,14 @@ static class UnionPackage
     // Phase 1: the union API, the reference assembly and state.json.
     public static void Reference(Options options)
     {
-        var layout = new Layout(options);
+        var layout = CreateLayout(options);
         CreateReference(layout, BuildTool(layout.Sharp));
     }
 
     // Phase 2: the implementation, ApiCompat and the runtime package of one RID.
     public static void Implement(Options options)
     {
-        var layout = new Layout(options);
+        var layout = CreateLayout(options);
         var version = options.Required("version");
         var rid = options.Required("rid");
         var state = LoadState(layout);
@@ -107,7 +124,7 @@ static class UnionPackage
     // Phase 3: cross-platform validation, the remaining packages and the consumer smoke test.
     public static void Package(Options options)
     {
-        var layout = new Layout(options);
+        var layout = CreateLayout(options);
         var version = options.Required("version");
         var state = LoadState(layout);
         var implementations = state.Platforms.ToDictionary(rid => rid, rid =>
@@ -178,7 +195,7 @@ static class UnionPackage
         var referenceProject = Path.Combine(sources, "UnionReference.csproj");
         Project(referenceProject, framework, [Path.Combine(sources, "Reference.g.cs")], dependencies,
             assemblyVersion, reference: true);
-        Run("dotnet", ["build", referenceProject, "-c", "Release", "--nologo"]);
+        Run("dotnet", ["build", referenceProject, "-c", "Release", "--nologo", .. PathMapArguments]);
         var built = Run("dotnet", ["msbuild", referenceProject, "-p:Configuration=Release", "-getProperty:TargetRefPath"], capture: true).Trim();
         // A copy outside obj/ lets the later phases use the reference without the reference build tree.
         var reference = Path.Combine(output, "reference", Path.GetFileName(built));
@@ -203,7 +220,7 @@ static class UnionPackage
         Project(implementationProject, state.Framework, Directory.GetFiles(prepared, "*.cs").Order(StringComparer.Ordinal),
             layout.Dependencies, state.AssemblyVersion, analyzer: state.Analyzer, staticRuntime: rid is "ios-arm64" or "browser-wasm",
             browserWasm: rid == "browser-wasm");
-        Run("dotnet", ["build", implementationProject, "-c", "Release", "--nologo"]);
+        Run("dotnet", ["build", implementationProject, "-c", "Release", "--nologo", .. PathMapArguments]);
         return layout.Implementation(rid);
     }
 
@@ -420,7 +437,7 @@ static class UnionPackage
         Run("dotnet", ["pack", Path.Combine(Repo, "packaging/nuget/packages", name, name + ".Package.csproj"),
             "-c", "Release", "--nologo", "--output", packages, "--source", packages, $"-p:PackageVersion={version}",
             $"-p:SharpCppNuGetStageRoot={stage}", $"-p:SharpCppRuntimeIdentifier={rid}", $"-p:SharpCppPackageTargetFramework={framework}",
-            "-p:SharpCppUnionPackage=true", .. dependencies is null ? Array.Empty<string>() : [$"-p:SharpCppUnionDependencies={dependencies}"]]);
+            "-p:SharpCppUnionPackage=true", .. PathMapArguments, .. dependencies is null ? Array.Empty<string>() : [$"-p:SharpCppUnionDependencies={dependencies}"]]);
 
     static void PackRuntimeGroup(string group, string primaryRid, string additionalRid, string version, string framework,
         string stage, string packages) =>
@@ -428,7 +445,7 @@ static class UnionPackage
             "-c", "Release", "--nologo", "--output", packages, "--source", packages, $"-p:PackageVersion={version}",
             $"-p:SharpCppNuGetStageRoot={stage}", $"-p:SharpCppRuntimeIdentifier={primaryRid}",
             $"-p:SharpCppAdditionalRuntimeIdentifier={additionalRid}", $"-p:SharpCppRuntimePackageId=SharpCpp.Rbfx.Bindings.runtime.{group}",
-            $"-p:SharpCppPackageTargetFramework={framework}", "-p:SharpCppUnionPackage=true"]);
+            $"-p:SharpCppPackageTargetFramework={framework}", "-p:SharpCppUnionPackage=true", .. PathMapArguments]);
 
     static string RuntimePackageId(string rid) => rid is "android-x64" or "linux-x64"
         ? "SharpCpp.Rbfx.Bindings.runtime.unix-x64"

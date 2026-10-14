@@ -32,6 +32,15 @@ if(NETHOST_DOTNET_ROOT AND RBFX_HOST_DEFAULT_DOTNET_ROOT)
     PRIVATE SHARPCPP_RBFX_DEFAULT_DOTNET_ROOT="${NETHOST_DOTNET_ROOT}")
 endif()
 
+# The nethost header comes from the dotnet pack of this machine (see RBFX_REMAP_SOURCE_PATHS in the root file).
+if(RBFX_REMAP_SOURCE_PATHS AND NETHOST_DOTNET_ROOT AND NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(
+    sharpcpp-rbfx-host
+    PRIVATE
+      "-ffile-prefix-map=${NETHOST_DOTNET_ROOT}=dotnet"
+      "-fdebug-prefix-map=${NETHOST_DOTNET_ROOT}=dotnet")
+endif()
+
 set_target_properties(
   sharpcpp-rbfx-host
   PROPERTIES

@@ -103,6 +103,37 @@ if(NOT EXISTS "${RBFX_SDK_ROOT}/include/Urho3D")
   message(FATAL_ERROR "rbfx SDK headers were not found at '${RBFX_SDK_ROOT}/include/Urho3D'.")
 endif()
 
+# Package builds map the source, build, SharpCpp, SDK and dotnet directories to short relative names in
+# debug info, __FILE__ and assert strings. The libraries then carry no path of the build machine.
+# Developer builds keep the real paths, because a debugger needs them to find the sources.
+option(RBFX_REMAP_SOURCE_PATHS "Replace the directories of this machine in the compiled output with short relative names." OFF)
+if(RBFX_REMAP_SOURCE_PATHS)
+  # The compiler matches a map as a string prefix, and the last matching map wins. A nested directory
+  # comes after the directory that contains it. The SharpCpp directory comes first, because its name
+  # is a string prefix of the name of this directory (SharpCpp and SharpCpp.Rbfx).
+  set(_rbfx_path_maps
+    "${SHARPCPP_ROOT}=SharpCpp"
+    "${RBFX_SDK_ROOT}=rbfx-sdk"
+    "${CMAKE_CURRENT_SOURCE_DIR}=."
+    "${CMAKE_BINARY_DIR}=build")
+  if(MSVC)
+    # The compiler removes the prefix from the file names in __FILE__ and in the debug info.
+    foreach(_rbfx_path_map IN LISTS _rbfx_path_maps)
+      string(REGEX REPLACE "=[^=]*$" "" _rbfx_path "${_rbfx_path_map}")
+      file(TO_NATIVE_PATH "${_rbfx_path}" _rbfx_path)
+      add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/d1trimfile:${_rbfx_path}\\>")
+    endforeach()
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    foreach(_rbfx_path_map IN LISTS _rbfx_path_maps)
+      add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-ffile-prefix-map=${_rbfx_path_map}>")
+    endforeach()
+    # The two older options cover compilers that read only one of them.
+    foreach(_rbfx_path_map IN LISTS _rbfx_path_maps)
+      add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-fdebug-prefix-map=${_rbfx_path_map}>")
+    endforeach()
+  endif()
+endif()
+
 function(sharpcpp_find_rbfx_sdk)
   if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
     set(BUILD_SHARED_LIBS OFF)

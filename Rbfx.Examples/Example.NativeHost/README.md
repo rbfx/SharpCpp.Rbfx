@@ -6,7 +6,7 @@ Like Example.Desktop and Example.Common, this example builds from source with th
 
 ## Parts
 
-- `main.cpp`: `NativeHostApp` derives from `Urho3D::Application`. `Start()` initializes `Urho3D::DotNetHost` (`SharpCpp::RbfxHost`) and calls `DotNetHost::LoadPlugin` with the plugin manager of the engine and `Rbfx.NativeHost.Managed.dll`. Then it creates a scene with a box node, calls `CreateComponent("Spinner")` and sets the `Speed` attribute to 90. With `--frames N` the application, after N frames, reads the yaw of the node and exits. Without `--frames` the application runs until you close the window. The exit code is not 0 when the yaw is 0.
+- `main.cpp`: `NativeHostApp` derives from `Urho3D::Application`. `Start()` initializes `Urho3D::DotNetHost` (`SharpCpp::RbfxHost`) and calls `DotNetHost::LoadPlugin` with the plugin manager of the engine and `Rbfx.NativeHost.Managed.dll`. Then it creates a scene with a box node, calls `CreateComponent("Spinner")` and sets the `Speed` attribute to 90. The application runs until you close the window.
 - `Rbfx.NativeHost.Managed/NativeHostPlugin.cs`: the plugin of the assembly. It derives from `ManagedPlugin`, which registers `Spinner` and its `[SerializeField]` attributes when the plugin loads.
 - `Rbfx.NativeHost.Managed/Spinner.cs`: a C# `LogicComponent` that rotates its node around the Y axis in `Update`. `Speed` is a `[SerializeField]` property, so C++ sets it through the attribute API.
 
@@ -26,14 +26,13 @@ export RBFX_SDK_ROOT=<path of the installed rbfx SDK>
 dotnet build SharpCpp.Rbfx.slnx --configuration Debug
 cmake -S . -B <build directory> -G "Ninja Multi-Config"
 cmake --build <build directory> --config Debug
-./build/bin/Debug/Rbfx.NativeHost --headless --frames 10
+./build/bin/Debug/Rbfx.NativeHost
 ```
 
 - The `dotnet build` of the solution first builds the generators. CMake needs them in `build/bin/<Config>` and does not build them.
 - The nested `dotnet build` of CMake sets the MSBuild property `RbfxNativeBuildDriver=cmake`. MSBuild then does not start a native build, because CMake is already the driver.
 - `dotnet build SharpCpp.Rbfx.slnx` alone also builds the plugin. In that case MSBuild is the driver and it configures `build/native/linux-gcc-x64-dll` with `-DRBFX_CSHARP_BUILD_MANAGED=OFF`. Use another build directory for the CMake build.
 - On Linux, set `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768` for a run with a window.
-- Without `--frames` the application runs until you close the window.
 
 The example builds when `RBFX_BUILD_EXAMPLES` is ON. The default is ON when `RBFX_BUILD_USERCODE` and `RBFX_BUILD_HOST` are ON.
 

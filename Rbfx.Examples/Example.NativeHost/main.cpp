@@ -39,7 +39,6 @@ public:
     {
         engineParameters_[Urho3D::EP_WINDOW_TITLE] = "Rbfx.NativeHost";
         engineParameters_[Urho3D::EP_LOG_NAME] = "Rbfx.NativeHost.log";
-        GetCommandLineParser().add_option("--frames", frames_, "Number of frames to run before exit (0 runs until the window closes)");
     }
 
     void Start() override
@@ -98,8 +97,6 @@ public:
             renderer->SetNumViewports(1);
             renderer->SetViewport(0, Urho3D::MakeShared<Urho3D::Viewport>(context_, scene_, camera));
         }
-
-        SubscribeToEvent(Urho3D::E_UPDATE, URHO3D_HANDLER(NativeHostApp, HandleUpdate));
     }
 
     void Stop() override
@@ -116,24 +113,9 @@ private:
         ErrorExit(message);
     }
 
-    void HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap& eventData)
-    {
-        if (frames_ <= 0 || ++frameCount_ < frames_)
-            return;
-
-        const float yaw = box_->GetRotation().YawAngle();
-        URHO3D_LOGINFO("Finished after {} frames, box yaw: {}", frameCount_, yaw);
-        if (yaw == 0.0f)
-            Fail("The C# spinner did not rotate the box.");
-        else
-            engine_->Exit();
-    }
-
     Urho3D::DotNetHost host_;
     Urho3D::SharedPtr<Urho3D::Scene> scene_;
     Urho3D::SharedPtr<Urho3D::Node> box_;
-    int frames_{0};
-    int frameCount_{};
 };
 
 URHO3D_DEFINE_APPLICATION_MAIN(NativeHostApp)

@@ -1,4 +1,4 @@
-#include <RbfxExamples/RotatingComponent.hpp>
+#include "RotatingComponent.hpp"
 
 #include <Urho3D/Core/Format.h>
 #include <Urho3D/Scene/Node.h>

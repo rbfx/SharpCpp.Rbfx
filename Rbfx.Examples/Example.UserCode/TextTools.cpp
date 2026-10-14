@@ -1,9 +1,9 @@
-#include <RbfxExamples/TextTools.hpp>
+#include "TextTools.hpp"
 
 namespace RbfxExamples
 {
 
-ea::string TextTools::RepeatText(const ea::string& pattern, int length) const
+ea::string TextTools::RepeatText(const ea::string& pattern, int length)
 {
     ea::string result;
     if (pattern.empty() || length <= 0)

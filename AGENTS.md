@@ -9,7 +9,7 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 - `SharpCpp.Rbfx.Generator/` - phase-1 generator for the installed rbfx SDK headers.
 - `Rbfx.UserCode.Generator/` - the phase-2 user-code generator.
 - `Rbfx.Host/` - native library that hosts the .NET runtime (`SharpCpp::RbfxHost`). Public headers are `Urho3D/CSharp/DotNetHost.h` and `DotNetHostExport.h` (`namespace Urho3D`). `DotNetHost::LoadPlugin(PluginManager*, path, error)` loads `SharpCpp.Rbfx.Bindings.dll` into the default load context and calls `NativeHostEntryPoints.LoadPlugin`. Call it after `Engine::Initialize`. `cmake/FindNetHost.cmake` finds nethost. It detects a musl RID on Linux, and `NETHOST_RID` overrides the RID. The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link uses `libnethost.so`, `libnethost.dylib` or `nethost.dll`, and the host build copies it next to the host library. A static link uses `libnethost.a`. MSVC always links the import library `nethost.lib` (the static `libnethost.lib` uses /MT and does not link with /MD). The top-level `CMakeLists.txt` sets `BUILD_SHARED_LIBS` from `RBFX_NATIVE_LIBRARY_TYPE`. The Android toolchains use `c++_shared` unless the command line sets `-DBUILD_SHARED_LIBS=OFF`. `-DRBFX_ANDROID_STL=c++_shared` or `c++_static` overrides both.
-- `Rbfx.Examples/Example.UserCode/` - example: native C++ component (`RotatingComponent`) and CMake. No managed project.
+- `Rbfx.Examples/Example.UserCode/` - example: native C++ component (`RotatingComponent`), static `TextTools::RepeatText`, and CMake. The files are directly in the directory. No managed project.
 - `Rbfx.Examples/Example.Common/` - shared demo with the native user code `Example.UserCode`. One project with two modes. Source mode (default) references the bindings source projects. Package mode (`-p:RbfxBindingsPackageVersion=VERSION`) references the `SharpCpp.Rbfx.Bindings` package. `Example.Desktop`, `Example.Android`, `Example.Ios`, `Example.Wasm` and `Example.Uwp` use it.
 - `Rbfx.Examples/Example.NativeHost/` - example: C++ rbfx `Application` that hosts .NET. `DotNetHost::LoadPlugin` loads a C# `ManagedPlugin`, and C++ creates its `LogicComponent` by name with `CreateComponent("Spinner")`. The managed entry point of `LoadPlugin` is `Urho3D.Plugins.NativeHostEntryPoints` in `SharpCpp.Rbfx.Bindings`.
 - `SharpCpp.Rbfx.Bindings/` - generated rbfx wrapper assembly and hand-written runtime glue.
@@ -28,11 +28,11 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 
 ## Wrap user C++ code
 
-`rbfx_csharp_add_usercode(<target> HEADERS ... [SOURCES INCLUDE_DIRECTORIES LINK_LIBRARIES NAMESPACE
+`rbfx_csharp_add_usercode(<target> HEADERS ... [INCLUDE_DIRECTORIES LINK_LIBRARIES NAMESPACE
 ASSEMBLY_NAME LIBRARY_NAME SYMBOL_PREFIX GENERATED_DIRECTORY LIBRARY_TYPE CSPROJ])` is in
 `cmake/RbfxCSharpAddUsercode.cmake`.
 
-- The function builds the native library and runs the phase-2 generator.
+- The function creates only the bindings target: the generator target `sharpcpp-generate-<target>`, the native library `<target>` with the generated wrappers, and the managed project files. It has no `SOURCES`. The implementation of the headers is a separate target. The caller passes it in `LINK_LIBRARIES` (linked PUBLIC). `Example.UserCode.Impl` is the example. It is a static library (an object library when the native libraries are static).
 - At configure time it writes `Directory.Build.props`, `Directory.Build.targets`, `<target>.props`
   and `<ASSEMBLY_NAME>.csproj` into the build tree, below `usercode/<target>/`.
 - The user needs no generator knowledge and no bindings csproj.

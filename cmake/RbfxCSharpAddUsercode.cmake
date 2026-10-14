@@ -1,7 +1,8 @@
 # rbfx_csharp_add_usercode(<target> HEADERS <header>... [keywords])
 #
-# Generates C# bindings for user C++ headers that use the rbfx SDK and builds
-# the native library with the generated wrapper code. See build/PLAN-dotnet-hosting.md, section 3.3.
+# Generates C# bindings for user C++ headers that use the rbfx SDK. The function creates the bindings
+# target <target>: the native library with the generated wrapper code. The implementation of the wrapped
+# headers is a separate target that the caller passes in LINK_LIBRARIES. See build/PLAN-dotnet-hosting.md, section 3.3.
 # The function also writes the managed bindings project at configure time. It never runs MSBuild.
 #
 # Keywords with one value:
@@ -18,9 +19,8 @@
 #                        writes are the same, except the csproj.
 # Keywords with a list of values:
 #   HEADERS              Header files to wrap. Required.
-#   SOURCES              Additional native source files of the library.
 #   INCLUDE_DIRECTORIES  Include directories of the headers.
-#   LINK_LIBRARIES       Additional libraries to link.
+#   LINK_LIBRARIES       Libraries to link PUBLIC. Pass the target that implements the headers.
 #
 # Files written to ${SHARPCPP_GENERATED_ROOT}/usercode/<target>/ (only when the content changes):
 #   Directory.Build.props, Directory.Build.targets  Import RBFX_CSHARP_MSBUILD_PROPS and RBFX_CSHARP_MSBUILD_TARGETS.
@@ -55,7 +55,7 @@ function(rbfx_csharp_add_usercode target)
     WRAP
     ""
     "NAMESPACE;ASSEMBLY_NAME;LIBRARY_NAME;SYMBOL_PREFIX;GENERATED_DIRECTORY;LIBRARY_TYPE;CSPROJ"
-    "HEADERS;SOURCES;INCLUDE_DIRECTORIES;LINK_LIBRARIES"
+    "HEADERS;INCLUDE_DIRECTORIES;LINK_LIBRARIES"
     ${ARGN})
 
   if(WRAP_UNPARSED_ARGUMENTS)
@@ -163,11 +163,6 @@ function(rbfx_csharp_add_usercode target)
     cmake_path(ABSOLUTE_PATH header BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE OUTPUT_VARIABLE header_path)
     list(APPEND headers "${header_path}")
   endforeach()
-  set(sources)
-  foreach(source IN LISTS WRAP_SOURCES)
-    cmake_path(ABSOLUTE_PATH source BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE OUTPUT_VARIABLE source_path)
-    list(APPEND sources "${source_path}")
-  endforeach()
   set(include_directories)
   foreach(directory IN LISTS WRAP_INCLUDE_DIRECTORIES)
     cmake_path(ABSOLUTE_PATH directory BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE OUTPUT_VARIABLE directory_path)
@@ -245,7 +240,6 @@ function(rbfx_csharp_add_usercode target)
       ${headers}
       ${include_tree_headers}
       ${umbrella_dependencies}
-      ${sources}
       ${RBFX_SDK_INPUT_HEADERS}
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     VERBATIM
@@ -262,7 +256,7 @@ function(rbfx_csharp_add_usercode target)
     PROPERTIES
       GENERATED TRUE
       OBJECT_DEPENDS "${generated_stamp}")
-  add_library(${target} ${WRAP_LIBRARY_TYPE} "${generated_cpp}" ${sources})
+  add_library(${target} ${WRAP_LIBRARY_TYPE} "${generated_cpp}")
   add_dependencies(${target} sharpcpp-generate-${target} sharpcpp-rbfx-runtime)
   target_compile_features(${target} PRIVATE cxx_std_20)
   if(MSVC)

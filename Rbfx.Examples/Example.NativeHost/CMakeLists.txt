@@ -1,4 +1,4 @@
-add_executable(Rbfx.NativeHost src/main.cpp)
+add_executable(Rbfx.NativeHost main.cpp)
 target_compile_features(Rbfx.NativeHost PRIVATE cxx_std_20)
 target_link_libraries(Rbfx.NativeHost PRIVATE Urho3D SharpCpp::RbfxHost)
 if(WIN32)

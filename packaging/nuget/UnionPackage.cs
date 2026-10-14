@@ -88,8 +88,9 @@ static class UnionPackage
             assemblyVersion, reference: true);
         Run("dotnet", ["build", referenceProject, "-c", "Release", "--nologo"]);
         var reference = Run("dotnet", ["msbuild", referenceProject, "-p:Configuration=Release", "-getProperty:TargetRefPath"], capture: true).Trim();
-        var implementations = new Dictionary<string, string>();
-        foreach (var rid in platforms)
+        var built = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+        // Each platform builds in its own folder, so the builds run in parallel.
+        Parallel.ForEach(platforms, new ParallelOptions { MaxDegreeOfParallelism = Math.Min(4, Environment.ProcessorCount) }, rid =>
         {
             var generated = Directory.GetFiles(Path.Combine(inputs, "generated-" + rid),
                 "SharpCpp.Rbfx.Bindings.Aliases.g.cs", SearchOption.AllDirectories)
@@ -103,8 +104,9 @@ static class UnionPackage
                 dependencies, assemblyVersion, analyzer: analyzer, staticRuntime: rid is "ios-arm64" or "browser-wasm",
                 browserWasm: rid == "browser-wasm");
             Run("dotnet", ["build", implementationProject, "-c", "Release", "--nologo"]);
-            implementations.Add(rid, Path.Combine(sources, rid, "output/SharpCpp.Rbfx.Bindings.dll"));
-        }
+            built[rid] = Path.Combine(sources, rid, "output/SharpCpp.Rbfx.Bindings.dll");
+        });
+        var implementations = built.OrderBy(item => item.Key, StringComparer.Ordinal).ToDictionary(item => item.Key, item => item.Value);
         Run("dotnet", [tool, "validate", $"ref={reference}", .. implementations.Select(item => $"{item.Key}={item.Value}")]);
         var tools = Path.Combine(output, "tools");
         Run("dotnet", ["tool", "install", "Microsoft.DotNet.ApiCompat.Tool", "--version", "10.0.100", "--tool-path", tools]);

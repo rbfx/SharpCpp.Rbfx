@@ -337,6 +337,7 @@ set(SHARPCPP_RBFX_STALENESS_SCRIPT "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStal
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake")
 
 # A consumer tree (add_subdirectory or the find_package shim) needs only CMAKE_PREFIX_PATH. This build
 # runs "dotnet build" for the generators into SHARPCPP_MANAGED_OUTPUT_ROOT. The top-level developer build
@@ -446,7 +447,9 @@ if(RBFX_INSTALL_SDK)
       "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfig.cmake"
     DESTINATION "${_rbfx_sdk_cmake_dir}")
   install(
-    FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
+    FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
   if(RBFX_HOST_MODE STREQUAL "hostfxr")
     install(

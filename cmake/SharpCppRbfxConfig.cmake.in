@@ -8,7 +8,7 @@ set(_sharpcpp_rbfx_include_dir "@PACKAGE__rbfx_sdk_include_dir@")
 
 include(CMakeFindDependencyMacro)
 
-# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpAddUserCode.cmake and their helpers).
+# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpApplication.cmake, RbfxCSharpAddUserCode.cmake and their helpers).
 set(_sharpcpp_rbfx_module_dir "@PACKAGE__rbfx_sdk_module_dir@")
 list(PREPEND CMAKE_MODULE_PATH "${_sharpcpp_rbfx_module_dir}")
 
@@ -38,6 +38,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/SharpCppRbfxTargets.cmake")
 # The functions of RbfxCSharpDotNet.cmake run "dotnet".
 find_program(DOTNET_EXECUTABLE dotnet)
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpDotNet.cmake")
+# rbfx_csharp_add_application() links SharpCpp::RbfxHost, so it needs an SDK that has the host library.
+include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpApplication.cmake")
 
 # rbfx_csharp_add_usercode(). The inputs come from this SDK and from the rbfx SDK of the consumer.
 if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)

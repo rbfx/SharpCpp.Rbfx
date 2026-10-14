@@ -86,7 +86,7 @@ function(rbfx_csharp_add_plugin target)
     message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
 
-  get_filename_component(plugin_name "${arg_PROJECT}" NAME_WE)
+  get_filename_component(plugin_name "${arg_PROJECT}" NAME_WLE)
   if(NOT TARGET ${arg_HOST})
     message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): HOST '${arg_HOST}' is not a target.")
   endif()

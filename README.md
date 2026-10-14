@@ -94,8 +94,8 @@ Both prefixes set these variables:
   In the SDK package the value is a plain path, `<prefix>/share/SharpCppRbfx/managed`. The SDK package leaves the variable unset
   when the SDK was built with `RBFX_CSHARP_BINDINGS_PACKAGE_VERSION`, because it then has no managed files.
 
-The package gives the targets `SharpCpp::RbfxHost` and `SharpCpp::RbfxNative` and the functions `rbfx_csharp_add_plugin()`,
-`rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_usercode()`.
+The package gives the targets `SharpCpp::RbfxHost` and `SharpCpp::RbfxNative` and the functions `rbfx_csharp_add_application()`,
+`rbfx_csharp_add_plugin()`, `rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_usercode()`.
 
 The installed SDK has these parts:
 
@@ -106,6 +106,7 @@ The installed SDK has these parts:
   consumer must put `nethost.dll` next to its executable.
 - `share/SharpCppRbfx/cmake/FindNetHost.cmake` (hostfxr mode only). The package file uses it for a static host library.
 - `share/SharpCppRbfx/cmake/RbfxCSharpDotNet.cmake` with `rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_plugin()`.
+- `share/SharpCppRbfx/cmake/RbfxCSharpApplication.cmake` with `rbfx_csharp_add_application()`.
 - The native binding wrapper `SharpCpp.Rbfx.Native` with the imported target `SharpCpp::RbfxNative`. This part is in a source-mode build, for the shared and for the static library type.
   The install step copies the engine shared library and the other runtime files of the wrapper next to it (`lib` on Linux and macOS, `bin` on Windows).
   The wrapper finds them through its own run-time path.
@@ -129,6 +130,30 @@ In a consumer project, `rbfx_csharp_add_usercode()` writes the managed project f
 Set `RBFX_CSHARP_MSBUILD_PROPS`, `RBFX_CSHARP_MSBUILD_TARGETS` and `RBFX_CSHARP_BINDINGS_PROJECTS` before you build the written project.
 In a consumer project, the target of `rbfx_csharp_add_plugin()` is not part of the default build. Add it with `add_dependencies()`.
 The install step needs a finished build, because the generator writes the metadata files and the build links the wrapper.
+
+### Application in one call
+
+`rbfx_csharp_add_application()` makes a native application that hosts .NET and loads a C# plugin.
+This is the only call that an application needs. The desktop platforms (hostfxr mode) are supported now.
+
+```cmake
+find_package(Urho3D REQUIRED)
+find_package(SharpCppRbfx CONFIG REQUIRED)
+rbfx_csharp_add_application(MyApp
+    SOURCES Main.cpp
+    PLUGIN "${CMAKE_SOURCE_DIR}/Managed/MyApp.Managed/MyApp.Managed.csproj"
+    [USERCODE <targets...>] [LINK_LIBRARIES <libraries...>] [CONSOLE] [PROPERTIES <Name=Value>...])
+```
+
+- The call makes the executable `MyApp`. It links `Urho3D`, `SharpCpp::RbfxHost` and `LINK_LIBRARIES`.
+  The source file uses `URHO3D_DEFINE_APPLICATION_MAIN(Class)` as in any rbfx application.
+- The compile definition `SHARPCPP_RBFX_PLUGIN_NAME` is the assembly name of the plugin as a string.
+  The plugin files (`<name>.dll` and `<name>.runtimeconfig.json`) are in the folder of the executable.
+- The target `MyApp.CSharp` is part of the default build. It builds the plugin with dotnet and copies the native wrapper
+  next to the executable. On Windows it also copies the host library and `nethost.dll`.
+- On Linux the executable links with `--no-as-needed`, so Urho3D stays a start-up dependency.
+- `RESOURCES` and `APPLICATION_ID` are accepted and ignored on desktop. Mobile and web platforms use them.
+- The function sets the MSBuild properties that the plugin project needs for source mode and for SDK mode. `PROPERTIES` adds more.
 
 ### DotNetHost modes
 

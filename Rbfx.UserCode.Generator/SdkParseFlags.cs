@@ -26,6 +26,12 @@ internal sealed class SdkParseFlags
 
     public IReadOnlyList<string> AdditionalArguments { get; }
 
+    public bool HasDefine(string name, string expectedValue)
+    {
+        // A define has the form NAME or NAME=VALUE.
+        return Defines.Contains($"{name}={expectedValue}", StringComparer.Ordinal);
+    }
+
     // Emscripten debug-info arguments. Plain clang does not know them.
     private static bool IsEmscriptenDebugArgument(string value) =>
         value.StartsWith("-gseparate-dwarf", StringComparison.Ordinal) ||

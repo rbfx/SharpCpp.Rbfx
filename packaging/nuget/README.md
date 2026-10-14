@@ -94,7 +94,9 @@ Use an empty output directory. The default is `build/package/union`; `--output`
 selects another directory. Sources, prepared compilations and packages stay there.
 Inputs must include managed assemblies, generated sources, NuGet native packages,
 and the managed package inputs. The older Linux managed package is also accepted
-as a source of portable dependencies. Runtime packages are transitive dependencies,
+as a source of portable dependencies. Each runtime package also carries the engine binding metadata of its RID
+(`runtimes/<rid>/metadata/SharpCpp.Rbfx.Bindings.json`, with the umbrella header `SharpCpp.Rbfx.ParseUmbrella.hpp`). The user-code generator of a consumer imports it,
+so a consumer does not run the engine generator. Runtime packages are transitive dependencies,
 so restore downloads every supported runtime package even when publishing for one RID.
 The C# utility also builds consumers for every RID, verifies the selected DLLs,
 and runs the Linux consumer against the native SDK and an unsupported API stub.

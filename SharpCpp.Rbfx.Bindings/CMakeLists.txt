@@ -1,16 +1,22 @@
+# Package mode: the engine natives come from the runtime package, so the engine wrapper is neither generated nor compiled.
+# The user-code generators read the engine metadata from the package.
+if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
+  add_custom_target(sharpcpp-rbfx-runtime)
+  return()
+endif()
+
 file(MAKE_DIRECTORY "${RBFX_GENERATED_ROOT}")
-file(GLOB_RECURSE RBFX_GENERATED_CPP_FILES CONFIGURE_DEPENDS "${RBFX_GENERATED_ROOT}/*.g.cpp")
+# The generator writes the list of its sources. CMake re-runs when the list changes (see the generator directory).
+set(RBFX_GENERATED_CPP_FILES)
+if(EXISTS "${RBFX_GENERATED_SOURCE_LIST}")
+  file(STRINGS "${RBFX_GENERATED_SOURCE_LIST}" _generated_source_names)
+  foreach(_generated_source_name IN LISTS _generated_source_names)
+    list(APPEND RBFX_GENERATED_CPP_FILES "${RBFX_GENERATED_ROOT}/${_generated_source_name}")
+  endforeach()
+endif()
 if(NOT RBFX_GENERATED_CPP_FILES)
   file(WRITE "${RBFX_GENERATED_ROOT}/.stub.cpp" "// Replaced by generated binding sources.\n")
   set(RBFX_GENERATED_CPP_FILES "${RBFX_GENERATED_ROOT}/.stub.cpp")
-endif()
-
-# Package mode: the engine natives come from the runtime package, so the engine wrapper is not compiled.
-# The runtime target still waits for the generator, because the user-code generators read its output.
-if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
-  add_custom_target(sharpcpp-rbfx-runtime)
-  add_dependencies(sharpcpp-rbfx-runtime sharpcpp-generate-rbfx)
-  return()
 endif()
 
 set_source_files_properties(

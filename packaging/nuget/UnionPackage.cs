@@ -230,6 +230,12 @@ static class UnionPackage
         var native = Path.Combine(payload, "runtimes", rid, "native");
         if (!Directory.Exists(native)) throw new InvalidOperationException($"Missing native package for {rid}.");
         CopyDirectory(native, Path.Combine(layout.Stage, "runtime", rid, "native"));
+        // The runtime package of one RID carries the engine binding metadata that the user-code generator of a consumer reads,
+        // and the umbrella header that the wrapper of the user code includes.
+        var metadata = Path.Combine(payload, "runtimes", rid, "metadata");
+        foreach (var name in new[] { "SharpCpp.Rbfx.Bindings.json", "SharpCpp.Rbfx.ParseUmbrella.hpp" })
+            if (!File.Exists(Path.Combine(metadata, name))) throw new InvalidOperationException($"Missing {name} in the native package for {rid}.");
+        CopyDirectory(metadata, Path.Combine(layout.Stage, "runtime", rid, "metadata"));
         var targets = Path.Combine(payload, "buildTransitive");
         if (Directory.Exists(targets)) CopyDirectory(targets, Path.Combine(layout.Stage, "runtime", rid, "buildTransitive"));
         var runtimeLib = layout.RuntimeLib(rid, state.Framework);

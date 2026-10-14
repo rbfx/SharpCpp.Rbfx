@@ -13,6 +13,12 @@ foreach(_required
   endif()
 endforeach()
 
+# Package mode passes the engine metadata file of the runtime package. Source mode leaves it empty, which
+# also clears a value that a package build left in the same tree.
+if(NOT DEFINED RBFX_ENGINE_METADATA_FILE)
+  set(RBFX_ENGINE_METADATA_FILE "")
+endif()
+
 get_filename_component(_lock_directory "${RBFX_NATIVE_LOCK_FILE}" DIRECTORY)
 file(MAKE_DIRECTORY "${_lock_directory}")
 file(LOCK "${RBFX_NATIVE_LOCK_FILE}" GUARD PROCESS TIMEOUT 900)
@@ -27,6 +33,7 @@ ${RBFX_SDK_ROOT}
 ${SHARPCPP_MANAGED_OUTPUT_ROOT}
 ${SHARPCPP_NATIVE_OUTPUT_ROOT}
 ${RBFX_NATIVE_CONFIGURE_ARGUMENTS}
+${RBFX_ENGINE_METADATA_FILE}
 RBFX_CSHARP_BUILD_MANAGED=OFF")
 string(SHA256 _configure_signature "${_configure_signature_input}")
 set(_configure_signature_file "${RBFX_NATIVE_BUILD_DIR}/sharpcpp-rbfx-configure.signature")
@@ -65,6 +72,7 @@ if(_configure_native)
     "-DRBFX_SDK_ROOT=${RBFX_SDK_ROOT}"
     "-DSHARPCPP_MANAGED_OUTPUT_ROOT=${SHARPCPP_MANAGED_OUTPUT_ROOT}"
     "-DSHARPCPP_NATIVE_OUTPUT_ROOT=${SHARPCPP_NATIVE_OUTPUT_ROOT}"
+    "-DRBFX_ENGINE_METADATA_FILE=${RBFX_ENGINE_METADATA_FILE}"
     # MSBuild builds the managed projects, so the nested CMake build must not run dotnet.
     "-DRBFX_CSHARP_BUILD_MANAGED=OFF")
   if(NOT "${RBFX_NATIVE_CONFIGURE_ARGUMENTS}" STREQUAL "")

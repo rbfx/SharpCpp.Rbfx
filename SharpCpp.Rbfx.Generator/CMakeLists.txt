@@ -10,8 +10,11 @@ file(GLOB_RECURSE RBFX_GENERATOR_INPUTS CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/../include/SharpCpp/*.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/../include/SharpCpp/*.h")
 
+# The list of generated sources lives outside the generated directory, which the staleness check clears.
+# Its timestamp changes only when the set of sources changes, so CMake re-runs only then.
 add_custom_command(
   OUTPUT "${RBFX_GENERATED_STAMP}"
+  BYPRODUCTS "${RBFX_GENERATED_SOURCE_LIST}"
   COMMAND "${CMAKE_COMMAND}"
           "-DGENERATOR_DLL=${SHARPCPP_RBFX_GENERATOR_DLL}"
           "-DGENERATED_STAMP=${RBFX_GENERATED_STAMP}"
@@ -28,6 +31,10 @@ add_custom_command(
           --rbfx-include "${PROJECT_SOURCE_DIR}/include"
           --sdk-library "$<TARGET_FILE:${RBFX_URHO3D_TARGET}>"
           --log-file "${RBFX_GENERATOR_LOG_FILE}"
+  COMMAND "${CMAKE_COMMAND}"
+          "-DGENERATED_DIR=${RBFX_GENERATED_ROOT}"
+          "-DSOURCE_LIST=${RBFX_GENERATED_SOURCE_LIST}"
+          -P "${PROJECT_SOURCE_DIR}/cmake/RbfxWriteGeneratedSourceList.cmake"
   COMMAND "${CMAKE_COMMAND}" -E touch "${RBFX_GENERATED_STAMP}"
   DEPENDS
     "${SHARPCPP_RBFX_GENERATOR_DLL}"
@@ -39,4 +46,8 @@ add_custom_command(
   USES_TERMINAL)
 
 add_custom_target(sharpcpp-generate-rbfx DEPENDS "${RBFX_GENERATED_STAMP}")
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RBFX_GENERATED_STAMP}")
+# CMake records only an existing file as a configure dependency.
+if(NOT EXISTS "${RBFX_GENERATED_SOURCE_LIST}")
+  file(WRITE "${RBFX_GENERATED_SOURCE_LIST}" "")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RBFX_GENERATED_SOURCE_LIST}")

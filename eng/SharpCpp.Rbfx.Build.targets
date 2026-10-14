@@ -158,6 +158,23 @@
         <GlobalPropertiesToRemove>TargetFramework;RuntimeIdentifier;SelfContained</GlobalPropertiesToRemove>
       </_MSBuildProjectReferenceExistent>
     </ItemGroup>
+
+    <!-- Package mode: the native build needs the engine binding metadata of the runtime package of the target RID.
+         The native project has no package restore of its own, so this project resolves the file in the restored
+         package folder and passes it as a global property. The wildcard stands for the id of the runtime package,
+         because one package can serve several RIDs. -->
+    <ItemGroup Condition="'$(RbfxBindingsPackageVersion)' != ''">
+      <_RbfxNativeProjectReference Include="@(_MSBuildProjectReferenceExistent->WithMetadataValue('Filename', 'SharpCpp.Rbfx.Native'))" />
+      <_RbfxEngineMetadataCandidate Include="$(NuGetPackageRoot)sharpcpp.rbfx.bindings.runtime.*/$(RbfxBindingsPackageVersion.ToLowerInvariant())/runtimes/$(RbfxPresetRid)/metadata/SharpCpp.Rbfx.Bindings.json"
+                                    Condition="'$(NuGetPackageRoot)' != ''" />
+    </ItemGroup>
+    <Error Condition="'@(_RbfxNativeProjectReference)' != '' and '$(DesignTimeBuild)' != 'true' and '@(_RbfxEngineMetadataCandidate->Count())' != '1'"
+           Text="Expected one engine binding metadata file runtimes/$(RbfxPresetRid)/metadata/SharpCpp.Rbfx.Bindings.json in the restored runtime packages of version $(RbfxBindingsPackageVersion) in '$(NuGetPackageRoot)'. Found @(_RbfxEngineMetadataCandidate->Count()). Restore the project first." />
+    <ItemGroup Condition="'@(_RbfxEngineMetadataCandidate->Count())' == '1'">
+      <_MSBuildProjectReferenceExistent Update="@(_RbfxNativeProjectReference)">
+        <SetConfiguration>%(_MSBuildProjectReferenceExistent.SetConfiguration);RbfxEngineMetadataFile=@(_RbfxEngineMetadataCandidate->'%(FullPath)')</SetConfiguration>
+      </_MSBuildProjectReferenceExistent>
+    </ItemGroup>
   </Target>
 
   <Target Name="RbfxIncludeGeneratedSources"

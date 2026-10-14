@@ -153,7 +153,7 @@ Dual-output logging (console + file) via `Log()` helper. Errors and exceptions a
 |---|---|---|
 | `SharpCpp.Rbfx.*.g.cs` | `RBFX_GENERATED_ROOT/` | `SharpCpp.Rbfx.Bindings.csproj` (wildcard Compile) |
 | `SharpCpp.Rbfx.*.g.cpp` | `RBFX_GENERATED_ROOT/` | `SharpCppRbfx_Native` CMake target (Unity build) |
-| `SharpCpp.Rbfx.Bindings.json` | `RBFX_GENERATED_ROOT/` | `Rbfx.UserCode.Generator` (`--import-binding-metadata`) |
+| `SharpCpp.Rbfx.Bindings.json` | `RBFX_GENERATED_ROOT/` (packed into the runtime package, `runtimes/<rid>/metadata/`) | `Rbfx.UserCode.Generator` (`--import-binding-metadata`) |
 
 CI reads the compiled `SharpCpp.Rbfx.Bindings.dll` for each platform to construct
 the managed API union. `SharpCpp.Rbfx.Bindings.json` supplies binding metadata to

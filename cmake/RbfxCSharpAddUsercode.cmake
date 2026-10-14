@@ -41,7 +41,9 @@
 # Required variables (defined by the top-level CMakeLists.txt before this file is included):
 #   SHARPCPP_ROOT, SHARPCPP_GENERATED_ROOT, SHARPCPP_NATIVE_OUTPUT_ROOT, SHARPCPP_MANAGED_OUTPUT_ROOT,
 #   DOTNET_EXECUTABLE, SHARPCPP_CLANG_RESOURCE_DIRECTORY,
-#   RBFX_SDK_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_GENERATED_STAMP, RBFX_GENERATED_ROOT, RBFX_METADATA_FILE,
+#   RBFX_SDK_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_GENERATED_ROOT, RBFX_METADATA_FILE,
+#   RBFX_ENGINE_UMBRELLA_DIRECTORY (the folder of SharpCpp.Rbfx.ParseUmbrella.hpp, which the wrapper includes),
+#   RBFX_GENERATED_STAMP (empty in package mode, which has no engine generator),
 #   RBFX_SDK_INPUT_HEADERS, RBFX_NATIVE_LIBRARY_TYPE, RBFX_RUNTIME_RPATH, RBFX_URHO3D_TARGET,
 #   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL, RBFX_CSHARP_BINDINGS_PROJECTS, RBFX_CSHARP_BINDINGS_PACKAGE_VERSION,
 #   RBFX_CSHARP_MSBUILD_PROPS, RBFX_CSHARP_MSBUILD_TARGETS.
@@ -206,6 +208,13 @@ function(rbfx_csharp_add_usercode target)
     list(APPEND include_tree_headers ${directory_headers})
   endforeach()
 
+  # Source mode waits for the engine generator. Package mode has no engine generator: the metadata file comes from the package.
+  if(RBFX_GENERATED_STAMP)
+    set(engine_generation_dependencies "${RBFX_GENERATED_STAMP}")
+  else()
+    set(engine_generation_dependencies "${RBFX_METADATA_FILE}")
+  endif()
+
   add_custom_command(
     OUTPUT "${generated_stamp}"
     COMMAND "${CMAKE_COMMAND}"
@@ -236,7 +245,7 @@ function(rbfx_csharp_add_usercode target)
     DEPENDS
       "${SHARPCPP_RBFX_USERCODE_GENERATOR_DLL}"
       "${RBFX_SDK_FLAGS_FILE}"
-      "${RBFX_GENERATED_STAMP}"
+      ${engine_generation_dependencies}
       ${headers}
       ${include_tree_headers}
       ${umbrella_dependencies}
@@ -248,7 +257,9 @@ function(rbfx_csharp_add_usercode target)
   add_custom_target(
     sharpcpp-generate-${target}
     DEPENDS "${generated_stamp}")
-  add_dependencies(sharpcpp-generate-${target} sharpcpp-generate-rbfx)
+  if(TARGET sharpcpp-generate-rbfx)
+    add_dependencies(sharpcpp-generate-${target} sharpcpp-generate-rbfx)
+  endif()
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${generated_stamp}")
 
   set_source_files_properties(
@@ -283,7 +294,7 @@ function(rbfx_csharp_add_usercode target)
     ${target}
     PRIVATE
       "${generated_root}"
-      "${RBFX_GENERATED_ROOT}"
+      "${RBFX_ENGINE_UMBRELLA_DIRECTORY}"
       ${umbrella_include_directories}
     PUBLIC
       ${include_directories})

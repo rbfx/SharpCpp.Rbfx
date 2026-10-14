@@ -79,7 +79,10 @@ SharpCpp.Rbfx release `latest`. See `--help` for all options.
 Set the MSBuild property `RbfxBindingsPackageVersion` to build the user code against the built
 packages (from package.sh or CI, in a local feed). It adds `-DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=<version>` and `-DRBFX_BUILD_HOST=OFF` to
 `RbfxNativeConfigureArguments`. The generated bindings project then references the package
-`SharpCpp.Rbfx.Bindings`. The native build then runs the engine generator once but does not compile `SharpCppRbfx_Native`. Unset means source build.
+`SharpCpp.Rbfx.Bindings`. The native build neither runs the engine generator nor compiles `SharpCppRbfx_Native`. The user-code generator reads the engine
+binding metadata from the runtime package (`runtimes/<rid>/metadata/SharpCpp.Rbfx.Bindings.json`, with the umbrella header `SharpCpp.Rbfx.ParseUmbrella.hpp` that the user wrapper includes). The consumer project finds the file in the restored package
+folder (`eng/SharpCpp.Rbfx.Build.targets`, target `RbfxSetProjectReferenceProperties`) and passes it through the native project to `-DRBFX_ENGINE_METADATA_FILE`.
+Restore the consumer first. Unset means source build.
 
 Coherent local commits after validation are authorized; publishing requires explicit
 task authorization.

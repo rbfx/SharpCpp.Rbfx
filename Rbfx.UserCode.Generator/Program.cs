@@ -81,12 +81,19 @@ internal static class Program
 
             var headerIncludePath = GetHeaderIncludePath(headerPath, userIncludeRoots);
 
-            var marshallerConfigurationFiles = new[]
+            var sdkFlags = SdkParseFlags.Load(options.FlagsFilePath);
+            var marshallerHeaderPaths = new List<string>
             {
                 Path.Combine(sharpCppIncludeRoot, "SharpCpp", "Marshaller.hpp"),
                 Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxRefCountedMarshallers.hpp"),
                 Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp")
-            }.Select(Path.GetFullPath).ToArray();
+            };
+            if (sdkFlags.HasDefine("URHO3D_SYSTEMUI", "1"))
+            {
+                marshallerHeaderPaths.Add(Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxImGuiValueMarshallers.hpp"));
+            }
+
+            var marshallerConfigurationFiles = marshallerHeaderPaths.Select(Path.GetFullPath).ToArray();
 
             Logger.LogInformation("rbfx SDK root: {SdkRoot}", sdkRoot);
             Logger.LogInformation("Flags file: {FlagsFilePath}", options.FlagsFilePath);
@@ -99,7 +106,6 @@ internal static class Program
                 Logger.LogInformation("Imported binding metadata: '{MetadataFile}'", metadataFile);
             }
 
-            var sdkFlags = SdkParseFlags.Load(options.FlagsFilePath);
             var clangArguments = BuildClangArguments([sharpCppIncludeRoot, rbfxIncludeRoot], includeRoot, userIncludeRoots, sdkFlags);
             var parser = new ClangSharpHeaderParser();
             var compilation = parser.Parse(

@@ -24,6 +24,8 @@
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/lib/$(TargetFramework)/*" Pack="true" PackagePath="runtimes/$(SharpCppRuntimeIdentifier)/lib/$(TargetFramework)/%(Filename)%(Extension)" />
     <None Include="$(SharpCppNuGetStageRoot)/managed/analyzers/dotnet/cs/*" Pack="true" PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)" Condition="'$(SharpCppUnionPackage)' != 'true'" />
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/native/*" Pack="true" PackagePath="runtimes/$(SharpCppRuntimeIdentifier)/native/%(Filename)%(Extension)" />
+    <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/metadata/*" Pack="true" PackagePath="runtimes/$(SharpCppRuntimeIdentifier)/metadata/%(Filename)%(Extension)" />
+    <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/metadata/*" Pack="true" PackagePath="runtimes/$(SharpCppAdditionalRuntimeIdentifier)/metadata/%(Filename)%(Extension)" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' != ''" />
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/buildTransitive/*" Pack="true" PackagePath="buildTransitive/%(Filename)%(Extension)" />
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/lib/$(TargetFramework)/*" Pack="true" PackagePath="runtimes/$(SharpCppAdditionalRuntimeIdentifier)/lib/$(TargetFramework)/%(Filename)%(Extension)" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' != ''" />
     <None Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/native-assets/*" Pack="true" PackagePath="native-assets/$(SharpCppAdditionalRuntimeIdentifier)/%(Filename)%(Extension)" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' == 'linux-x64'" />
@@ -40,5 +42,7 @@
       <SharpCppRuntimeNativeFiles Include="$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/native/*" Condition="'$(SharpCppAdditionalRuntimeIdentifier)' != ''" />
     </ItemGroup>
     <Error Condition="'@(SharpCppRuntimeNativeFiles)' == ''" Text="No native runtime files were staged for $(SharpCppRuntimeIdentifier)." />
+    <Error Condition="!Exists('$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/metadata/SharpCpp.Rbfx.Bindings.json') or !Exists('$(SharpCppNuGetStageRoot)/runtime/$(SharpCppRuntimeIdentifier)/metadata/SharpCpp.Rbfx.ParseUmbrella.hpp')" Text="The engine binding metadata and the umbrella header were not staged for $(SharpCppRuntimeIdentifier)." />
+    <Error Condition="'$(SharpCppAdditionalRuntimeIdentifier)' != '' and (!Exists('$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/metadata/SharpCpp.Rbfx.Bindings.json') or !Exists('$(SharpCppNuGetStageRoot)/runtime/$(SharpCppAdditionalRuntimeIdentifier)/metadata/SharpCpp.Rbfx.ParseUmbrella.hpp'))" Text="The engine binding metadata and the umbrella header were not staged for $(SharpCppAdditionalRuntimeIdentifier)." />
   </Target>
 </Project>

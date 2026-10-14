@@ -196,6 +196,28 @@ detect_target_framework() {
   echo "$target_framework"
 }
 
+# The user-code generator of a consumer reads the engine binding metadata, so the runtime package carries it
+# with the umbrella header that the metadata names.
+# The native build tree of the package build holds it. The metadata depends on the headers of the RID.
+stage_engine_metadata() {
+  local rid="$1"
+  local build_root="$2"
+  local metadata_files=()
+  local metadata_file
+  for metadata_file in "$build_root"/native/*/generated/rbfx/SharpCpp.Rbfx.Bindings.json; do
+    [ -f "$metadata_file" ] && metadata_files+=("$metadata_file")
+  done
+  if [ "${#metadata_files[@]}" -ne 1 ]; then
+    echo "Error: expected one engine binding metadata file below $build_root/native/*/generated/rbfx, found ${#metadata_files[@]}." >&2
+    return 1
+  fi
+  mkdir -p "$STAGE_DIR/runtime/$rid/metadata"
+  cp -a "${metadata_files[0]}" "$STAGE_DIR/runtime/$rid/metadata/SharpCpp.Rbfx.Bindings.json"
+  # The binding wrapper of user code includes the umbrella header that the metadata names.
+  require_file "$(dirname "${metadata_files[0]}")/SharpCpp.Rbfx.ParseUmbrella.hpp"
+  cp -a "$(dirname "${metadata_files[0]}")/SharpCpp.Rbfx.ParseUmbrella.hpp" "$STAGE_DIR/runtime/$rid/metadata/"
+}
+
 stage_packages() {
   local rid="$1"
   local configuration="$2"
@@ -339,6 +361,8 @@ stage_packages() {
     echo "Error: no native runtime files were staged for '$rid' from '$bin_dir'." >&2
     return 1
   fi
+
+  stage_engine_metadata "$rid" "$build_root"
 
   local data_name
   for data_name in CoreData Data EditorData; do

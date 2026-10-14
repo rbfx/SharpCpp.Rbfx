@@ -68,7 +68,7 @@ SharpCpp.Tool ───────────┘             |
    - Exports `SharpCpp.Rbfx.Bindings.json` metadata
    - Writes a `generate.stamp` to signal completion
 
-4. **Phase 1 Native Build**: `SharpCppRbfx_Native` compiles the generated `.g.cpp` files with Unity (Jumbo) build, links against `sharpcpp-native-support` and `Urho3D`, and copies SDK runtime dependencies post-build. Package mode (`RBFX_CSHARP_BINDINGS_PACKAGE_VERSION` set) skips this target. Only the generator stage runs.
+4. **Phase 1 Native Build**: `SharpCppRbfx_Native` compiles the generated `.g.cpp` files with Unity (Jumbo) build, links against `sharpcpp-native-support` and `Urho3D`, and copies SDK runtime dependencies post-build. Package mode (`RBFX_CSHARP_BINDINGS_PACKAGE_VERSION` and `RBFX_ENGINE_METADATA_FILE` set) skips this target and the engine generator. `sharpcpp-rbfx-runtime` stays as an empty target. The user-code generators take the engine metadata from `RBFX_ENGINE_METADATA_FILE`, the file `runtimes/<rid>/metadata/SharpCpp.Rbfx.Bindings.json` of the runtime package. The folder of that file also holds `SharpCpp.Rbfx.ParseUmbrella.hpp`, which the user wrapper includes, so it is an include directory of the user library.
 
 5. **Phase 1 Managed Build**: after the `SharpCpp.Native` dependency completes,
    `SharpCpp.Rbfx.Bindings.csproj` includes generated `.g.cs` files immediately

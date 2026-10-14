@@ -19,7 +19,9 @@ with two modes. The MSBuild property `RbfxBindingsPackageVersion` selects the mo
   of the target RID in `build/sdk/<rid>`).
 - Package mode (for example `-p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION`):
   `Example.Common` references the `SharpCpp.Rbfx.Bindings` package. The engine natives come from the
-  runtime package. Only the native library of `Example.UserCode` comes from the native build.
+  runtime package, and so does the engine binding metadata that the generator of `Example.UserCode` imports.
+  Only the native library of `Example.UserCode` comes from the native build. Restore first: the build
+  finds the metadata in the restored package folder. The native build does not run the engine generator.
 
 `Example.Common` and `Rbfx.Examples.slnx` need the SDK. The first native build takes about 7 minutes.
 

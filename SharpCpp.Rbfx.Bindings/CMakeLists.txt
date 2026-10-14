@@ -5,6 +5,14 @@ if(NOT RBFX_GENERATED_CPP_FILES)
   set(RBFX_GENERATED_CPP_FILES "${RBFX_GENERATED_ROOT}/.stub.cpp")
 endif()
 
+# Package mode: the engine natives come from the runtime package, so the engine wrapper is not compiled.
+# The runtime target still waits for the generator, because the user-code generators read its output.
+if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
+  add_custom_target(sharpcpp-rbfx-runtime)
+  add_dependencies(sharpcpp-rbfx-runtime sharpcpp-generate-rbfx)
+  return()
+endif()
+
 set_source_files_properties(
   ${RBFX_GENERATED_CPP_FILES}
   PROPERTIES OBJECT_DEPENDS "${RBFX_GENERATED_STAMP}")

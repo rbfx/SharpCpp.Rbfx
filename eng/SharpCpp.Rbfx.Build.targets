@@ -11,7 +11,9 @@
              Visible="false"
              RbfxGeneratedSource="true"
              Condition="Exists('$(RbfxConsumedGeneratedDir)')" />
+    <!-- Package mode: the application already references the native project, so a generated project does not build it again. -->
     <ProjectReference Include="$(SharpCppRbfxRoot)/native/SharpCpp.Rbfx.Native/SharpCpp.Rbfx.Native.csproj"
+                      Condition="'$(RbfxBindingsPackageVersion)' == ''"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all"
                       SkipGetTargetFrameworkProperties="true" />

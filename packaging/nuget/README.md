@@ -187,12 +187,9 @@ are present during restore and runtime-pack selection:
 Android consumer verification accepts `--AndroidSdkDirectory` and
 `--JavaSdkDirectory`.
 
-The native host switch: the Bindings package does not contain the host library `SharpCpp.Rbfx.Host`.
-The MSBuild property `SharpCppRbfxNativeHost` is false by default (`buildTransitive/SharpCpp.Rbfx.NativeHost.targets`).
-It sets the `AppContext` switch and the trimmer feature `SharpCpp.Rbfx.NativeHost`. With the value false,
-the trimmer removes the attach code of the bindings and its imports of the host library, so a NuGet-only iOS app
-links without the host symbols. This needs trimming (the default of Release builds on iOS). An application whose
-native code hosts the runtime (a head with `SharpCpp.Rbfx.Host`) sets the property to true.
+The packages do not contain the host library `SharpCpp.Rbfx.Host` or the assembly `SharpCpp.Rbfx.NativeHost`.
+Native hosting on Android, iOS and web lives in `SharpCpp.Rbfx.NativeHost`. Only heads reference it. A NuGet-only app
+has no attach code of the host library, so a NuGet-only iOS app links without the host symbols.
 
 iOS packages must be built on macOS. iOS and Wasm native glue use static libraries;
 Android uses shared `.so` files and includes `libc++_shared.so` from the selected NDK. The Android toolchains use `c++_shared` unless the command line sets `-DBUILD_SHARED_LIBS=OFF`. `-DRBFX_ANDROID_STL=c++_shared` or `c++_static` overrides both.

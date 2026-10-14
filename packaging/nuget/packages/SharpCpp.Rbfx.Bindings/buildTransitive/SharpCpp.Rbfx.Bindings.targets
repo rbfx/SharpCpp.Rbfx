@@ -2,6 +2,4 @@
   <PropertyGroup>
     <SharpCppRbfxBindingsPackageImported>true</SharpCppRbfxBindingsPackageImported>
   </PropertyGroup>
-  <!-- The feature switch of the native host (default false). The same file is in eng/ of the repository. -->
-  <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.NativeHost.targets" />
 </Project>

@@ -384,16 +384,17 @@ if(TARGET sharpcpp-generate-rbfx AND TARGET sharpcpp-rbfx-build-generator)
   add_dependencies(sharpcpp-generate-rbfx sharpcpp-rbfx-build-generator)
 endif()
 add_subdirectory(SharpCpp.Rbfx.Bindings)
-# The managed bindings project (and the projects that it references: SharpCpp.Ea, SharpCpp.Std and SharpCpp.Support)
-# reads the generated engine sources. A project of the consumer references it.
+# The managed native host project builds the bindings project (and the projects that it references: SharpCpp.Ea,
+# SharpCpp.Std and SharpCpp.Support). The bindings project reads the generated engine sources. A project of the consumer references it.
 if(TARGET sharpcpp-rbfx-build-usercode-generator AND TARGET sharpcpp-generate-rbfx AND NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
   rbfx_csharp_add_dotnet_project(
     sharpcpp-rbfx-build-managed
-    PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj"
+    PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj"
     BYPRODUCTS
       "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Rbfx.Bindings.dll"
       "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Std.dll"
       "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Ea.dll"
+      "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Rbfx.NativeHost.dll"
     DEPENDS sharpcpp-rbfx-build-usercode-generator sharpcpp-generate-rbfx)
   # The project checks that the native wrapper exists.
   if(TARGET sharpcpp-rbfx-runtime)
@@ -475,7 +476,7 @@ if(RBFX_INSTALL_SDK)
         set(_rbfx_share_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${_rbfx_sdk_share_dir}\")
       endif()
       foreach(_rbfx_assembly IN ITEMS
-          SharpCpp.Rbfx.Bindings SharpCpp.Support SharpCpp.Std SharpCpp.Ea SharpCpp.Rbfx.SourceGenerator)
+          SharpCpp.Rbfx.Bindings SharpCpp.Rbfx.NativeHost SharpCpp.Support SharpCpp.Std SharpCpp.Ea SharpCpp.Rbfx.SourceGenerator)
         if(NOT EXISTS \"${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.dll\")
           message(FATAL_ERROR \"The managed assembly is missing: ${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.dll. Run dotnet build before the install step.\")
         endif()

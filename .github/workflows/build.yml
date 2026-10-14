@@ -192,6 +192,14 @@ jobs:
             -p:CustomAfterMicrosoftCommonProps="$paths_props" \
             -p:RbfxTargetRid='${{ matrix.rid }}' \
             -p:SharpCppBuildRoot="$build_root"
+          # The SDK has the assembly that attaches the managed side to the native host.
+          dotnet build SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj \
+            --configuration Release \
+            --nologo \
+            -p:RbfxPackaging=true \
+            -p:CustomAfterMicrosoftCommonProps="$paths_props" \
+            -p:RbfxTargetRid='${{ matrix.rid }}' \
+            -p:SharpCppBuildRoot="$build_root"
 
       # The SDK host library must not contain the dotnet root of the runner.
       # The configure step keeps the other cache values of the package build.

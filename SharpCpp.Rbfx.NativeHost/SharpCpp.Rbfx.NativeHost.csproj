@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Native hosting on Android, iOS and the web. A native library hosts the runtime there and calls the managed
+       function table that this assembly attaches. Only heads (applications that link SharpCpp.Rbfx.Host) reference it.
+       The NuGet packages do not contain it. SharpCpp.Rbfx.Bindings does not reference it. -->
+  <PropertyGroup>
+    <AssemblyName>SharpCpp.Rbfx.NativeHost</AssemblyName>
+    <DisableRuntimeMarshalling>true</DisableRuntimeMarshalling>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SharpCpp.Rbfx.Tests.E2E" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
+  </ItemGroup>
+</Project>

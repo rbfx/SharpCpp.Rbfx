@@ -87,7 +87,7 @@ Both prefixes set these variables:
 - `SharpCppRbfx_FOUND`: TRUE.
 - `SharpCppRbfx_IS_SDK`: ON for the SDK prefix, OFF for the shim prefix.
 - `SharpCppRbfx_PACKAGE_ROOT`: the SDK prefix, or the root of this repository.
-- `SharpCppRbfx_MANAGED_DIR`: the folder of the managed assemblies (`SharpCpp.Rbfx.Bindings`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea`).
+- `SharpCppRbfx_MANAGED_DIR`: the folder of the managed assemblies (`SharpCpp.Rbfx.Bindings`, `SharpCpp.Rbfx.NativeHost`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea`).
   In the shim package the value is a generator expression, `<SHARPCPP_MANAGED_OUTPUT_ROOT>/$<CONFIG>`. Use it only where CMake
   evaluates generator expressions: in the `COMMAND` of `add_custom_command()` and `add_custom_target()`, and in the `PROPERTIES` of
   the `rbfx_csharp_add_*` functions. The target `sharpcpp-rbfx-build-managed` fills the folder (see above). It exists only when `RBFX_CSHARP_BUILD_GENERATORS` is ON.
@@ -113,7 +113,7 @@ The installed SDK has these parts:
 - The binding metadata `SharpCpp.Rbfx.Bindings.json` and `SharpCpp.Rbfx.ParseUmbrella.hpp` in `share/SharpCppRbfx/metadata`.
 - The package file `SharpCppRbfxConfig.cmake`.
 
-- The managed assemblies `SharpCpp.Rbfx.Bindings`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea` and `SharpCpp.Rbfx.SourceGenerator` in `share/SharpCppRbfx/managed`.
+- The managed assemblies `SharpCpp.Rbfx.Bindings`, `SharpCpp.Rbfx.NativeHost`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea` and `SharpCpp.Rbfx.SourceGenerator` in `share/SharpCppRbfx/managed`.
 - The user-code generator in `share/SharpCppRbfx/tools/usercode`. Run it with `dotnet <prefix>/share/SharpCppRbfx/tools/usercode/Rbfx.UserCode.Generator.dll`.
   It needs a .NET runtime on the machine. The install step copies the files that the generator needs from the output folder of `dotnet build`.
 - The SharpCpp headers in `include/SharpCpp` (`Marshaller.hpp` and its includes, and the `detail` marshaller headers of this repository).
@@ -199,7 +199,7 @@ The browser has no hostfxr. A .NET WebAssembly head is the entry. The native app
   object is a `NativeFileReference`, and the flags and the `INTERFACE_LINK_OPTIONS` go to `EmccExtraLDFlags`.
   The head sets the exception mode, so the function removes `DISABLE_EXCEPTION_CATCHING` from the flags.
   A shared library in the closure is a configure error.
-- The head sets `SharpCppRbfxNativeHost=true` and makes the plugin assembly and the SharpCpp assemblies trimmer roots, as on Android.
+- The head references `SharpCpp.Rbfx.NativeHost` and makes the plugin assembly and the SharpCpp assemblies (also `SharpCpp.Rbfx.NativeHost`) trimmer roots, as on Android.
   A source build compiles the bindings with `RbfxTargetRid=browser-wasm`. Then their import names are the file names of
   `libSharpCpp.Rbfx.Native.a` and `libSharpCpp.Rbfx.Host.a`, and the runtime links the imports statically.
 - A file in `RESOURCES` becomes a file in the root folder of the Emscripten file system. A folder becomes a folder with its name.
@@ -215,7 +215,7 @@ Why `main.js` calls the native entry, and not `Program.Main`: the threaded .NET 
 (the deputy thread), but SDL, WebGL and the input events of the canvas work on the browser thread. Also,
 `Application::Run` calls `emscripten_set_main_loop_arg` with `simulate_infinite_loop`. Emscripten then throws a JavaScript
 exception through all frames to leave the native code, and managed frames must not be on that stack. So `Program.Main`
-only runs the module initializer of the bindings (the attach to the host library) and returns. Then `main.js` calls
+only runs the module initializer of `SharpCpp.Rbfx.NativeHost` (the attach to the host library) and returns. Then `main.js` calls
 `Module._rbfx_application_start()` on the browser thread and ignores the `'unwind'` exception. The native code calls the
 managed code on the browser thread after that. `main.js` sets `jsThreadBlockingMode` to `DangerousAllowBlockingWait`, because
 managed code can wait on a lock there.
@@ -227,7 +227,7 @@ managed code can wait on a lock there.
 - `hostfxr` is the default on desktop. `DotNetHost` loads hostfxr and starts the .NET runtime. This mode needs nethost.
 - `shim` is the default on Android, iOS and Emscripten. `DotNetHost` never starts a runtime. The .NET head starts the runtime.
   The managed side pushes a function table (`SharpCppRbfxManagedHost`, header `Urho3D/CSharp/DotNetHostShim.h`) into the native
-  host library through `sharpcpp_rbfx_attach_managed_host`. The shim code is in `SharpCpp.Rbfx.Host` on every platform
+  host library through `sharpcpp_rbfx_attach_managed_host`. The managed side of this attach is `SharpCpp.Rbfx.NativeHost` (see below). The shim code is in `SharpCpp.Rbfx.Host` on every platform
   (source `Rbfx.Host/src/DotNetHostShim.cpp`), not in `SharpCpp.Rbfx.Native`. The NuGet runtime packages do not pack the host library.
   `SharpCpp::RbfxHost` is a real library of the type `RBFX_NATIVE_LIBRARY_TYPE` (shared on Android, static on iOS and Emscripten).
   It has no link dependency and the interface definition `URHO3D_DOTNETHOST_SHIM`. A static library also has `URHO3D_DOTNETHOST_STATIC`.
@@ -238,7 +238,10 @@ managed code can wait on a lock there.
   A native application links `SharpCpp::RbfxHost`. A .NET head loads `SharpCpp.Rbfx.Host` next to `SharpCpp.Rbfx.Native`.
   `SharpCppRbfxConfig.cmake` sets `SharpCppRbfx_HOST_MODE` and `SharpCppRbfx_LIBRARY_TYPE`. It stops when the target `Urho3D` has another library type than the SDK.
   `DotNetHost::GetFunctionPointer` accepts only an empty `delegateTypeName` (an `[UnmanagedCallersOnly]` method).
-  The bindings attach the table automatically when the `SharpCpp.Rbfx.Bindings` assembly is first used, so the head code does not call it.
+  The module initializer of `SharpCpp.Rbfx.NativeHost` attaches the table. Native hosting on Android, iOS and web lives in
+  `SharpCpp.Rbfx.NativeHost`; only heads reference it. The head touches the assembly before the native entry with
+  `RuntimeHelpers.RunModuleConstructor(typeof(Urho3D.Plugins.NativeHostModule).Module.ModuleHandle)`. `SharpCpp.Rbfx.Bindings`
+  does not reference it, and the NuGet packages do not contain it, so a NuGet-only app has no host symbols to link.
 
 ### SDK archives
 

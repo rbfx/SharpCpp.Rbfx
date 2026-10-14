@@ -18,10 +18,6 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NuGetAudit>false</NuGetAudit>
-    <!-- The head loads the native host library SharpCpp.Rbfx.Host, so the attach code of the bindings must stay.
-         Without this property the trimmer removes the attach code (eng/SharpCpp.Rbfx.NativeHost.targets).
-         A head of iOS or browser-wasm that uses the host library sets the property in the same way. -->
-    <SharpCppRbfxNativeHost>true</SharpCppRbfxNativeHost>
     <OutputPath>bin/$(Configuration)/</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
@@ -38,10 +34,18 @@
     <!-- The managed plugin of the application. -->
     <ProjectReference Include="@RBFX_HEAD_PLUGIN@" />
 
+    <!-- The native host: attaches the managed function table to the host library (SharpCpp.Rbfx.Host). Only heads
+         reference it. SDK mode: the assembly of the SDK. Source mode: the project of the source tree. -->
+    <Reference Include="SharpCpp.Rbfx.NativeHost" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.NativeHost.dll</HintPath>
+    </Reference>
+    <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'" />
+
     <!-- Only native code calls the managed entry points of these assemblies (UnmanagedCallersOnly methods,
-         the module initializer of the bindings and the plugin class). The trimmer must keep them. -->
+         the module initializer of the native host and the plugin class). The trimmer must keep them. -->
     <TrimmerRootAssembly Include="@RBFX_HEAD_PLUGIN_NAME@" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Rbfx.Bindings" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Rbfx.NativeHost" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />

@@ -8,27 +8,22 @@ using Urho3D.Interop;
 namespace Urho3D.Plugins;
 
 /// <summary>
-/// The feature switch of the native host. The MSBuild property <c>SharpCppRbfxNativeHost</c> sets it
-/// (eng/SharpCpp.Rbfx.NativeHost.targets). The switch is false by default.
-/// The ILLink substitution (ILLink.Substitutions.xml) replaces <see cref="IsEnabled"/> with a constant.
-/// With the value false, the trimmer removes <see cref="NativeHostShim.Attach"/> code and the imports of the host library.
-/// An application with a native host (a head with SharpCpp.Rbfx.Host) sets the property to true.
-/// </summary>
-internal static class NativeHostFeature
-{
-    internal const string SwitchName = "SharpCpp.Rbfx.NativeHost";
-
-    internal static bool IsEnabled => AppContext.TryGetSwitch(SwitchName, out var enabled) && enabled;
-}
-
-/// <summary>
 /// Attaches the managed function table to <c>Urho3D::DotNetHost</c> in shim mode (Android, iOS, browser-wasm).
 /// In shim mode the native class never starts a runtime. It reads the function pointers from this table.
-/// The module initializer runs when the bindings assembly loads. User code and head code do not call this class.
+/// The module initializer runs when the assembly SharpCpp.Rbfx.NativeHost loads. User code and head code do not call this class.
 /// </summary>
 internal static unsafe partial class NativeHostShim
 {
     private const int HostVersion = 1;
+
+    // The host library (SharpCpp.Rbfx.Host). It has the attach and detach exports of DotNetHost in shim mode.
+#if SHARPCPP_BROWSER_WASM
+    private const string HostLibraryName = "libSharpCpp.Rbfx.Host";
+#elif SHARPCPP_STATIC_RUNTIME
+    private const string HostLibraryName = "__Internal";
+#else
+    private const string HostLibraryName = "SharpCpp.Rbfx.Host";
+#endif
 
     // The layout matches SharpCppRbfxManagedHost in Urho3D/CSharp/DotNetHostShim.h.
     internal struct ManagedHost
@@ -40,11 +35,11 @@ internal static unsafe partial class NativeHostShim
     }
 
     // The shim code is in the host library (SharpCpp.Rbfx.Host), not in the wrapper library.
-    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.HostName, EntryPoint = "sharpcpp_rbfx_attach_managed_host")]
+    [LibraryImport(HostLibraryName, EntryPoint = "sharpcpp_rbfx_attach_managed_host")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     private static partial int AttachManagedHost(ManagedHost* host);
 
-    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.HostName, EntryPoint = "sharpcpp_rbfx_detach_managed_host")]
+    [LibraryImport(HostLibraryName, EntryPoint = "sharpcpp_rbfx_detach_managed_host")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial void DetachManagedHost();
 
@@ -57,12 +52,6 @@ internal static unsafe partial class NativeHostShim
 #pragma warning restore CA2255
     internal static void Attach()
     {
-        // A NuGet-only application has no host library. With the switch false, the trimmer removes the rest of this method and the imports.
-        if (!NativeHostFeature.IsEnabled)
-        {
-            return;
-        }
-
         if (!OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS() && !OperatingSystem.IsBrowser())
         {
             return;

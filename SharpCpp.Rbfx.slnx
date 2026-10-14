@@ -13,6 +13,7 @@
   <Project Path="SharpCpp.Rbfx.Generator/SharpCpp.Rbfx.Generator.csproj" />
   <Project Path="SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj" />
   <Project Path="SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
+  <Project Path="SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" />
   <Project Path="Rbfx.UserCode.Generator/Rbfx.UserCode.Generator.csproj" />
   <Project Path="Rbfx.Examples/Example.NativeHost/Rbfx.NativeHost.Managed/Rbfx.NativeHost.Managed.csproj" />
   <Project Path="Rbfx.Examples/Example.Common/Example.Common.csproj" />

@@ -18,9 +18,6 @@
     <!-- The native application is linked into dotnet.native.wasm. -->
     <WasmBuildNative>true</WasmBuildNative>
     <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
-    <!-- The head links the native host library SharpCpp.Rbfx.Host, so the attach code of the bindings must stay.
-         Without this property the trimmer removes the attach code (eng/SharpCpp.Rbfx.NativeHost.targets). -->
-    <SharpCppRbfxNativeHost>true</SharpCppRbfxNativeHost>
     <OutputPath>bin/$(Configuration)/</OutputPath>
     <PublishDir>bin/publish/</PublishDir>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -34,17 +31,21 @@
     <!-- The managed plugin of the application. -->
     <ProjectReference Include="@RBFX_HEAD_PLUGIN@" />
 
+    <!-- The native host: attaches the managed function table to the host library (SharpCpp.Rbfx.Host). Only heads
+         reference it. SDK mode: the assembly of the SDK. Source mode: the project of the source tree. -->
+    <Reference Include="SharpCpp.Rbfx.NativeHost" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.NativeHost.dll</HintPath>
+    </Reference>
+    <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'" />
+
     <!-- Only native code calls the managed entry points of these assemblies (UnmanagedCallersOnly methods,
-         the module initializer of the bindings and the plugin class). The trimmer must keep them. -->
+         the module initializer of the native host and the plugin class). The trimmer must keep them. -->
     <TrimmerRootAssembly Include="@RBFX_HEAD_PLUGIN_NAME@" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Rbfx.Bindings" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Rbfx.NativeHost" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
-
-    <!-- The feature switch of eng/SharpCpp.Rbfx.NativeHost.targets. A source build or an SDK build of the head
-         does not import that file, so the head sets the switch itself. The file adds no second item. -->
-    <RuntimeHostConfigurationOption Include="SharpCpp.Rbfx.NativeHost" Value="true" Trim="true" />
 
     <!-- main.js calls the native entry (heads/wasm/RbfxWebMain.cpp) after Program.Main. -->
     <EmccExportedFunction Include="_@RBFX_HEAD_ENTRY@" />

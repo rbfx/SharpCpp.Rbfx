@@ -235,6 +235,7 @@ set(
   "MSBuild targets file that the written Directory.Build.targets imports.")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUsercode.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
 
 add_subdirectory(SharpCpp.Rbfx.Generator)
 add_subdirectory(SharpCpp.Rbfx.Bindings)
@@ -262,5 +263,9 @@ endif()
 if(RBFX_BUILD_EXAMPLES)
   add_dependencies(sharpcpp-rbfx-native Rbfx.NativeHost)
 endif()
+get_property(_rbfx_plugin_targets GLOBAL PROPERTY SHARPCPP_RBFX_PLUGIN_TARGETS)
+foreach(_plugin_target IN LISTS _rbfx_plugin_targets)
+  add_dependencies(sharpcpp-rbfx-native ${_plugin_target})
+endforeach()
 
 add_custom_target(sharpcpp-rbfx-native-all ALL DEPENDS sharpcpp-rbfx-native)

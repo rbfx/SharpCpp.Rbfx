@@ -26,7 +26,8 @@ ${SHARPCPP_ROOT}
 ${RBFX_SDK_ROOT}
 ${SHARPCPP_MANAGED_OUTPUT_ROOT}
 ${SHARPCPP_NATIVE_OUTPUT_ROOT}
-${RBFX_NATIVE_CONFIGURE_ARGUMENTS}")
+${RBFX_NATIVE_CONFIGURE_ARGUMENTS}
+RBFX_CSHARP_BUILD_MANAGED=OFF")
 string(SHA256 _configure_signature "${_configure_signature_input}")
 set(_configure_signature_file "${RBFX_NATIVE_BUILD_DIR}/sharpcpp-rbfx-configure.signature")
 set(_configure_native FALSE)
@@ -38,6 +39,15 @@ else()
   string(STRIP "${_cached_configure_signature}" _cached_configure_signature)
   if(NOT _cached_configure_signature STREQUAL _configure_signature)
     set(_configure_native TRUE)
+  endif()
+  # A direct CMake configure of the same tree can turn the managed targets on. MSBuild is the driver here.
+  file(STRINGS "${RBFX_NATIVE_BUILD_DIR}/CMakeCache.txt" _cached_build_managed
+    REGEX "^RBFX_CSHARP_BUILD_MANAGED:[A-Z]+=")
+  if(_cached_build_managed)
+    string(REGEX REPLACE "^[^=]*=" "" _cached_build_managed "${_cached_build_managed}")
+    if(_cached_build_managed)
+      set(_configure_native TRUE)
+    endif()
   endif()
 endif()
 
@@ -54,7 +64,9 @@ if(_configure_native)
     "-DSHARPCPP_ROOT=${SHARPCPP_ROOT}"
     "-DRBFX_SDK_ROOT=${RBFX_SDK_ROOT}"
     "-DSHARPCPP_MANAGED_OUTPUT_ROOT=${SHARPCPP_MANAGED_OUTPUT_ROOT}"
-    "-DSHARPCPP_NATIVE_OUTPUT_ROOT=${SHARPCPP_NATIVE_OUTPUT_ROOT}")
+    "-DSHARPCPP_NATIVE_OUTPUT_ROOT=${SHARPCPP_NATIVE_OUTPUT_ROOT}"
+    # MSBuild builds the managed projects, so the nested CMake build must not run dotnet.
+    "-DRBFX_CSHARP_BUILD_MANAGED=OFF")
   if(NOT "${RBFX_NATIVE_CONFIGURE_ARGUMENTS}" STREQUAL "")
     separate_arguments(_extra_configure_arguments NATIVE_COMMAND "${RBFX_NATIVE_CONFIGURE_ARGUMENTS}")
     list(APPEND _configure_command ${_extra_configure_arguments})

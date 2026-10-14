@@ -36,7 +36,8 @@ ASSEMBLY_NAME LIBRARY_NAME SYMBOL_PREFIX GENERATED_DIRECTORY LIBRARY_TYPE CSPROJ
 - At configure time it writes `Directory.Build.props`, `Directory.Build.targets`, `<target>.props`
   and `<ASSEMBLY_NAME>.csproj` into the build tree, below `usercode/<target>/`.
 - The user needs no generator knowledge and no bindings csproj.
-- CMake never runs `dotnet build`. It would deadlock with the native build lock.
+- One driver builds the native tree. MSBuild is the driver when it builds `SharpCpp.Rbfx.slnx`: target `RbfxBuildNative` of `native/SharpCpp.Rbfx.Native` runs `BuildNative.cmake` under a lock and configures with `-DRBFX_CSHARP_BUILD_MANAGED=OFF`. CMake is the driver when it builds the tree. Then CMake runs `dotnet build` only through `rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_plugin()` (`cmake/RbfxCSharpDotNet.cmake`). These pass `-p:RbfxNativeBuildDriver=cmake -p:RbfxNativeBuildDir=<CMake binary dir>`, so `RbfxBuildNative` does not run in the nested build. A nested MSBuild that runs `RbfxBuildNative` would wait on the lock or start a second build of the same tree. The option `RBFX_CSHARP_BUILD_MANAGED` (default ON) turns the managed targets off. Do not set the driver rule aside.
+- A CMake-driven build needs the generators in `build/bin/<Config>` (`SharpCpp.Rbfx.Generator.dll`, `Rbfx.UserCode.Generator.dll`) first. Run `dotnet build SharpCpp.Rbfx.slnx` once. Do not use the tree `build/native/dev` for both drivers: `BuildNative.cmake` configures it again with `RBFX_CSHARP_BUILD_MANAGED=OFF`. Use another binary directory for a CMake-driven build, or configure with `-DRBFX_CSHARP_BUILD_MANAGED=ON` again.
 - `CSPROJ <path>`: the user supplies the project and the function writes none. `<target>.props` stays available to import.
 - Opt-in hooks: a user csproj can import `<target>.props`. Cache variables are
   `RBFX_CSHARP_BINDINGS_PROJECTS`, `RBFX_CSHARP_BINDINGS_PACKAGE_VERSION`,

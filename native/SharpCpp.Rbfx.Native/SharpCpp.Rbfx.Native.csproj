@@ -18,7 +18,9 @@
                       PrivateAssets="all" />
   </ItemGroup>
 
-  <Target Name="RbfxBuildNative" AfterTargets="Build">
+  <!-- RbfxNativeBuildDriver=cmake means CMake builds the native tree and runs this build. The target
+       would wait on the native lock or start a second build of the same tree. -->
+  <Target Name="RbfxBuildNative" AfterTargets="Build" Condition="'$(RbfxNativeBuildDriver)' != 'cmake'">
     <Error Condition="'$(RbfxSdkRoot)' == ''"
            Text="Set RbfxSdkRoot (or RBFX_SDK_ROOT) to an installed shared-library rbfx SDK." />
     <MakeDir Directories="$(SharpCppBuildRoot);$(SharpCppOutputDir)" />

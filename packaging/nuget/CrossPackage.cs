@@ -59,7 +59,7 @@ static class CrossPackage
 
     public static void Create(string rid, string version, Dictionary<string, string> options)
     {
-        var cmake = new List<string> { "-DRBFX_BUILD_USERCODE=OFF", "-DRBFX_BUILD_EXAMPLES=OFF", "-DRBFX_BUILD_HOST=OFF" };
+        var cmake = new List<string> { "-DRBFX_BUILD_USERCODE=OFF", "-DRBFX_BUILD_EXAMPLES=OFF" };
         var environment = new Dictionary<string, string>();
         if (rid.StartsWith("android-", StringComparison.Ordinal))
         {

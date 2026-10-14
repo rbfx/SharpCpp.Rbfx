@@ -25,9 +25,14 @@ internal static unsafe partial class NativeHostShim
         public delegate* unmanaged[Cdecl]<nint, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, int> LoadPlugin;
     }
 
-    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_attach_managed_host")]
+    // The shim code is in the host library (SharpCpp.Rbfx.Host), not in the wrapper library.
+    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.HostName, EntryPoint = "sharpcpp_rbfx_attach_managed_host")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     private static partial int AttachManagedHost(ManagedHost* host);
+
+    [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.HostName, EntryPoint = "sharpcpp_rbfx_detach_managed_host")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void DetachManagedHost();
 
     /// <summary>True after the native library accepted the table.</summary>
     internal static bool IsAttached { get; private set; }
@@ -57,7 +62,7 @@ internal static unsafe partial class NativeHostShim
         }
         catch (Exception exception) when (exception is EntryPointNotFoundException or DllNotFoundException)
         {
-            // The native library has no shim. The table stays empty and DotNetHost::Initialize reports "not attached".
+            // The host library has no shim, or the application does not load it. The table stays empty and DotNetHost::Initialize reports "not attached".
         }
     }
 

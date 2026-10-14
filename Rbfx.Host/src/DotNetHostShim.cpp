@@ -22,6 +22,12 @@ std::mutex& TableMutex()
     return mutex;
 }
 
+// The managed side finds sharpcpp_rbfx_attach_managed_host by name, and no native code calls it.
+// A pointer that Initialize reads makes the export reachable, so the linker keeps it when it
+// removes unused code (for example dead_strip on iOS).
+using AttachFunction = int (*)(const SharpCppRbfxManagedHost*);
+AttachFunction volatile KeepAttachExport = &::sharpcpp_rbfx_attach_managed_host;
+
 SharpCppRbfxManagedHost& Table()
 {
     static SharpCppRbfxManagedHost table{};
@@ -63,6 +69,8 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
 {
     (void)options;
     error.clear();
+    const AttachFunction keepAttachExport = KeepAttachExport;
+    (void)keepAttachExport;
     try
     {
         bool attached;

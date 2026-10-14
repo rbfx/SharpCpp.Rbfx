@@ -2,33 +2,16 @@ include(GNUInstallDirs)
 
 if(RBFX_HOST_MODE STREQUAL "shim")
   # Shim mode: DotNetHost starts no runtime. It reads function pointers that the managed side
-  # attached to the native wrapper library (see include/Urho3D/CSharp/DotNetHostShim.h).
-  if(NOT TARGET SharpCppRbfx_Native)
-    message(FATAL_ERROR "RBFX_HOST_MODE=shim needs the SharpCppRbfx_Native target (source mode, not package mode).")
-  endif()
-  target_sources(SharpCppRbfx_Native PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/DotNetHostShim.cpp")
-  target_include_directories(SharpCppRbfx_Native PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-  if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
-    target_compile_definitions(SharpCppRbfx_Native PRIVATE URHO3D_DOTNETHOST_STATIC)
-  else()
-    target_compile_definitions(SharpCppRbfx_Native PRIVATE URHO3D_DOTNETHOST_EXPORTS)
-  endif()
-
-  add_library(sharpcpp-rbfx-host INTERFACE)
-  add_library(SharpCpp::RbfxHost ALIAS sharpcpp-rbfx-host)
-  target_include_directories(sharpcpp-rbfx-host INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-  target_link_libraries(sharpcpp-rbfx-host INTERFACE SharpCppRbfx_Native)
-  target_compile_definitions(sharpcpp-rbfx-host INTERFACE URHO3D_DOTNETHOST_SHIM)
-  if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
-    target_compile_definitions(sharpcpp-rbfx-host INTERFACE URHO3D_DOTNETHOST_STATIC)
-  endif()
-  return()
+  # attached to this library (see include/Urho3D/CSharp/DotNetHostShim.h). The library needs no
+  # NetHost and no engine library: the class header only forward-declares PluginManager.
+  set(_rbfx_host_sources src/DotNetHostShim.cpp)
+else()
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+  find_package(NetHost REQUIRED)
+  set(_rbfx_host_sources src/DotNetHost.cpp)
 endif()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
-find_package(NetHost REQUIRED)
-
-add_library(sharpcpp-rbfx-host ${RBFX_NATIVE_LIBRARY_TYPE} src/DotNetHost.cpp)
+add_library(sharpcpp-rbfx-host ${RBFX_NATIVE_LIBRARY_TYPE} ${_rbfx_host_sources})
 add_library(SharpCpp::RbfxHost ALIAS sharpcpp-rbfx-host)
 
 target_compile_features(sharpcpp-rbfx-host PUBLIC cxx_std_20)
@@ -37,11 +20,16 @@ target_include_directories(
   PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-target_link_libraries(
-  sharpcpp-rbfx-host
-  PRIVATE
-    NetHost::NetHost
-    ${CMAKE_DL_LIBS})
+if(RBFX_HOST_MODE STREQUAL "shim")
+  # A consumer of the shim host sees the definition URHO3D_DOTNETHOST_SHIM.
+  target_compile_definitions(sharpcpp-rbfx-host INTERFACE URHO3D_DOTNETHOST_SHIM)
+else()
+  target_link_libraries(
+    sharpcpp-rbfx-host
+    PRIVATE
+      NetHost::NetHost
+      ${CMAKE_DL_LIBS})
+endif()
 
 if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
   target_compile_definitions(sharpcpp-rbfx-host PUBLIC URHO3D_DOTNETHOST_STATIC)
@@ -49,22 +37,24 @@ else()
   target_compile_definitions(sharpcpp-rbfx-host PRIVATE URHO3D_DOTNETHOST_EXPORTS)
 endif()
 
-# Build-tree fallback of the dotnet root. Turn it OFF for a build that you install and ship,
-# because the host library would carry a path of the build machine.
-option(RBFX_HOST_DEFAULT_DOTNET_ROOT "Compile the dotnet root of this machine into the host library as a fallback." ON)
-if(NETHOST_DOTNET_ROOT AND RBFX_HOST_DEFAULT_DOTNET_ROOT)
-  target_compile_definitions(
-    sharpcpp-rbfx-host
-    PRIVATE SHARPCPP_RBFX_DEFAULT_DOTNET_ROOT="${NETHOST_DOTNET_ROOT}")
-endif()
+if(NOT RBFX_HOST_MODE STREQUAL "shim")
+  # Build-tree fallback of the dotnet root. Turn it OFF for a build that you install and ship,
+  # because the host library would carry a path of the build machine.
+  option(RBFX_HOST_DEFAULT_DOTNET_ROOT "Compile the dotnet root of this machine into the host library as a fallback." ON)
+  if(NETHOST_DOTNET_ROOT AND RBFX_HOST_DEFAULT_DOTNET_ROOT)
+    target_compile_definitions(
+      sharpcpp-rbfx-host
+      PRIVATE SHARPCPP_RBFX_DEFAULT_DOTNET_ROOT="${NETHOST_DOTNET_ROOT}")
+  endif()
 
-# The nethost header comes from the dotnet pack of this machine (see RBFX_REMAP_SOURCE_PATHS in the root file).
-if(RBFX_REMAP_SOURCE_PATHS AND NETHOST_DOTNET_ROOT AND NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(
-    sharpcpp-rbfx-host
-    PRIVATE
-      "-ffile-prefix-map=${NETHOST_DOTNET_ROOT}=dotnet"
-      "-fdebug-prefix-map=${NETHOST_DOTNET_ROOT}=dotnet")
+  # The nethost header comes from the dotnet pack of this machine (see RBFX_REMAP_SOURCE_PATHS in the root file).
+  if(RBFX_REMAP_SOURCE_PATHS AND NETHOST_DOTNET_ROOT AND NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      sharpcpp-rbfx-host
+      PRIVATE
+        "-ffile-prefix-map=${NETHOST_DOTNET_ROOT}=dotnet"
+        "-fdebug-prefix-map=${NETHOST_DOTNET_ROOT}=dotnet")
+  endif()
 endif()
 
 set_target_properties(
@@ -94,8 +84,10 @@ if(NETHOST_RUNTIME_LIBRARY AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
 endif()
 
 # Install rules. They run only for "cmake --install" and do not change the build.
-# The host links NetHost::NetHost privately. A shared host needs nothing from the consumer.
-# A static host exports "$<LINK_ONLY:NetHost::NetHost>", so SharpCppRbfxConfig.cmake finds NetHost.
+# The hostfxr host links NetHost::NetHost privately. A shared host needs nothing from the consumer.
+# A static hostfxr host exports "$<LINK_ONLY:NetHost::NetHost>", so SharpCppRbfxConfig.cmake finds NetHost.
+# The shim host has no link dependency. A static shim host needs no whole-archive link: the
+# application calls DotNetHost::Initialize, so the linker keeps the object file with the attach export.
 if(RBFX_INSTALL_SDK)
   install(
     TARGETS sharpcpp-rbfx-host
@@ -103,10 +95,14 @@ if(RBFX_INSTALL_SDK)
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+  set(_rbfx_host_headers
+    include/Urho3D/CSharp/DotNetHost.h
+    include/Urho3D/CSharp/DotNetHostExport.h)
+  if(RBFX_HOST_MODE STREQUAL "shim")
+    list(APPEND _rbfx_host_headers include/Urho3D/CSharp/DotNetHostShim.h)
+  endif()
   install(
-    FILES
-      include/Urho3D/CSharp/DotNetHost.h
-      include/Urho3D/CSharp/DotNetHostExport.h
+    FILES ${_rbfx_host_headers}
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Urho3D/CSharp")
   install(
     EXPORT SharpCppRbfxTargets

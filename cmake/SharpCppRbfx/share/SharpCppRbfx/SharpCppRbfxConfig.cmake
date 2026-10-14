@@ -7,7 +7,7 @@
 #
 # Notes:
 # - The engine must come from an installed rbfx SDK. Call find_package(Urho3D) before this package.
-#   A static engine is not supported.
+#   A static engine is supported only on iOS and Emscripten.
 # - SHARPCPP_ROOT is the SharpCpp checkout. The default is the folder ../SharpCpp next to this
 #   repository. Set SHARPCPP_ROOT before find_package() when the checkout is in another place.
 # - Set RBFX_BUILD_USERCODE, RBFX_BUILD_EXAMPLES, RBFX_INSTALL_SDK or RBFX_BUILD_HOST before
@@ -26,10 +26,10 @@ if(NOT TARGET sharpcpp-rbfx-native-all)
       "Call find_package(Urho3D) with an installed rbfx SDK before find_package(SharpCppRbfx).")
   endif()
   get_target_property(_sharpcpp_rbfx_engine_type Urho3D TYPE)
-  if(_sharpcpp_rbfx_engine_type STREQUAL "STATIC_LIBRARY")
+  if(_sharpcpp_rbfx_engine_type STREQUAL "STATIC_LIBRARY" AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT EMSCRIPTEN)
     message(FATAL_ERROR
       "SharpCppRbfx: the target Urho3D is a static library. "
-      "Only a shared (desktop) engine from an installed rbfx SDK is supported.")
+      "A static engine is supported only on iOS and Emscripten.")
   endif()
   unset(_sharpcpp_rbfx_engine_type)
 

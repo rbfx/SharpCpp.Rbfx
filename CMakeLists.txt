@@ -23,16 +23,12 @@ else()
   set(_rbfx_build_host_default ON)
 endif()
 option(RBFX_BUILD_HOST "Build the SharpCpp.Rbfx.Host library that hosts the .NET runtime." ${_rbfx_build_host_default})
-if(RBFX_BUILD_HOST AND PROJECT_IS_TOP_LEVEL AND RBFX_HOST_MODE STREQUAL "hostfxr")
+if(RBFX_BUILD_HOST AND PROJECT_IS_TOP_LEVEL)
   set(_rbfx_install_sdk_default ON)
 else()
   set(_rbfx_install_sdk_default OFF)
 endif()
 option(RBFX_INSTALL_SDK "Install the CMake SDK (host library, headers, package files). Needs RBFX_BUILD_HOST." ${_rbfx_install_sdk_default})
-if(RBFX_INSTALL_SDK AND RBFX_HOST_MODE STREQUAL "shim")
-  message(STATUS "RBFX_INSTALL_SDK is ignored because RBFX_HOST_MODE is shim.")
-  set(RBFX_INSTALL_SDK OFF)
-endif()
 if(RBFX_INSTALL_SDK AND NOT RBFX_BUILD_HOST)
   message(STATUS "RBFX_INSTALL_SDK is ignored because RBFX_BUILD_HOST is OFF.")
   set(RBFX_INSTALL_SDK OFF)
@@ -417,16 +413,19 @@ if(RBFX_INSTALL_SDK)
   set(_rbfx_sdk_data_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx")
   set(_rbfx_sdk_include_dir "${CMAKE_INSTALL_INCLUDEDIR}")
 
-  # A static host exports a link dependency on NetHost::NetHost. A shared host needs no NetHost.
+  # A static hostfxr host exports a link dependency on NetHost::NetHost. A shared host and the shim
+  # host need no NetHost.
   set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST OFF)
-  if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
+  if(RBFX_HOST_MODE STREQUAL "hostfxr" AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
     set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST ON)
   endif()
 
   # rbfx_csharp_add_usercode() needs the metadata and the generator. The SDK has them in a source-mode
-  # build with a shared library type (see SharpCpp.Rbfx.Bindings/CMakeLists.txt).
+  # build (see SharpCpp.Rbfx.Bindings/CMakeLists.txt), for each library type.
+  set(SHARPCPP_RBFX_HOST_MODE "${RBFX_HOST_MODE}")
+  set(SHARPCPP_RBFX_NATIVE_LIBRARY_TYPE "${RBFX_NATIVE_LIBRARY_TYPE}")
   set(SHARPCPP_RBFX_SDK_HAS_USERCODE OFF)
-  if(NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
+  if(NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
     set(SHARPCPP_RBFX_SDK_HAS_USERCODE ON)
   endif()
 
@@ -447,10 +446,13 @@ if(RBFX_INSTALL_SDK)
       "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfig.cmake"
     DESTINATION "${_rbfx_sdk_cmake_dir}")
   install(
-    FILES
-      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindNetHost.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
+  if(RBFX_HOST_MODE STREQUAL "hostfxr")
+    install(
+      FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindNetHost.cmake"
+      DESTINATION "${_rbfx_sdk_module_dir}")
+  endif()
 
   # Package mode has no managed build of its own, so the managed payload belongs to source mode only.
   if(NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)

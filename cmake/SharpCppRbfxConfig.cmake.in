@@ -15,7 +15,20 @@ list(PREPEND CMAKE_MODULE_PATH "${_sharpcpp_rbfx_module_dir}")
 # The consumer sets Urho3D_DIR or CMAKE_PREFIX_PATH to find the rbfx SDK.
 find_dependency(Urho3D CONFIG)
 
-# The static host library links nethost. A shared host library carries it.
+# The host mode and the library type of this SDK.
+set(SharpCppRbfx_HOST_MODE "@SHARPCPP_RBFX_HOST_MODE@")
+set(SharpCppRbfx_LIBRARY_TYPE "@SHARPCPP_RBFX_NATIVE_LIBRARY_TYPE@")
+
+# The Urho3D target of the consumer must have the library type of this SDK.
+get_target_property(_sharpcpp_rbfx_engine_type Urho3D TYPE)
+if(SharpCppRbfx_LIBRARY_TYPE STREQUAL "STATIC" AND NOT _sharpcpp_rbfx_engine_type STREQUAL "STATIC_LIBRARY")
+  message(FATAL_ERROR "SharpCppRbfx: this SDK has static libraries, but the target Urho3D is not a static library (${_sharpcpp_rbfx_engine_type}). Use an rbfx SDK of the same library type.")
+elseif(SharpCppRbfx_LIBRARY_TYPE STREQUAL "SHARED" AND _sharpcpp_rbfx_engine_type STREQUAL "STATIC_LIBRARY")
+  message(FATAL_ERROR "SharpCppRbfx: this SDK has shared libraries, but the target Urho3D is a static library. Use an rbfx SDK of the same library type.")
+endif()
+unset(_sharpcpp_rbfx_engine_type)
+
+# Only a static hostfxr host library links nethost. A shared host library carries it. The shim host has none.
 if(@SHARPCPP_RBFX_HOST_NEEDS_NETHOST@)
   find_dependency(NetHost)
 endif()
@@ -46,11 +59,7 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
     message(FATAL_ERROR "SharpCppRbfx: the rbfx SDK headers are not in '${RBFX_ENGINE_ROOT}/include/Urho3D'. Add the installed rbfx SDK to CMAKE_PREFIX_PATH.")
   endif()
   if(NOT RBFX_NATIVE_LIBRARY_TYPE)
-    if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR EMSCRIPTEN)
-      set(RBFX_NATIVE_LIBRARY_TYPE STATIC)
-    else()
-      set(RBFX_NATIVE_LIBRARY_TYPE SHARED)
-    endif()
+    set(RBFX_NATIVE_LIBRARY_TYPE "${SharpCppRbfx_LIBRARY_TYPE}")
   endif()
   if(APPLE)
     set(RBFX_RUNTIME_RPATH "@loader_path")

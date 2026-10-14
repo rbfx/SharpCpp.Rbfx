@@ -34,10 +34,10 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/ScriptRuntime.cpp")
 add_dependencies(SharpCppRbfx_Native sharpcpp-generate-rbfx)
 # Source mode: the same name as the imported target of an installed SDK, so a consumer uses one name.
-# A tree that adds this directory with add_subdirectory() gets the target SharpCpp::RbfxNative. The shim
-# package of the source tree (cmake/SharpCppRbfx) does this, so find_package(SharpCppRbfx) and the SDK
-# package give the same name.
-if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED" AND NOT TARGET SharpCpp::RbfxNative)
+# A tree that adds this directory with add_subdirectory() gets the target SharpCpp::RbfxNative for
+# every library type. The package of the source tree (cmake/SharpCppRbfx) does this, so
+# find_package(SharpCppRbfx) and the SDK package give the same name.
+if(NOT TARGET SharpCpp::RbfxNative)
   add_library(SharpCpp::RbfxNative ALIAS SharpCppRbfx_Native)
 endif()
 target_compile_features(SharpCppRbfx_Native PRIVATE cxx_std_20)
@@ -63,10 +63,12 @@ target_include_directories(
   PRIVATE
     "${RBFX_GENERATED_ROOT}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+# A shared wrapper links Urho3D privately. A static wrapper puts its private link items in the
+# export set, so the Urho3D link is link-only there and the consumer finds Urho3D with find_package().
 target_link_libraries(
   SharpCppRbfx_Native
   PRIVATE
-    SharpCpp::NativeSupport
+    $<BUILD_INTERFACE:SharpCpp::NativeSupport>
     "${RBFX_URHO3D_TARGET}")
 target_compile_options(
   SharpCppRbfx_Native
@@ -100,9 +102,10 @@ endif()
 
 # Install rules of the SDK. They run only for "cmake --install" and do not change the build.
 # The wrapper joins the export set of the host library, so SharpCppRbfxConfig.cmake defines
-# SharpCpp::RbfxNative. A static wrapper is not installed, because its private link
-# dependencies are not in the export set.
-if(RBFX_INSTALL_SDK AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
+# SharpCpp::RbfxNative. This holds for a shared and for a static wrapper. The header-only
+# SharpCpp::NativeSupport is a build-only dependency. A static wrapper exports its Urho3D link
+# as link-only, so the consumer resolves Urho3D through find_package().
+if(RBFX_INSTALL_SDK)
   include(GNUInstallDirs)
   set(_rbfx_sdk_metadata_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx/metadata")
   set_target_properties(SharpCppRbfx_Native PROPERTIES EXPORT_NAME RbfxNative)

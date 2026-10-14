@@ -56,8 +56,8 @@ The engine must come from an installed rbfx SDK. The two prefixes differ in how 
 - Shim prefix. Put the folder `cmake/SharpCppRbfx` of this repository on `CMAKE_PREFIX_PATH`. The package builds this source tree
   with `add_subdirectory()` in `<build>/SharpCppRbfx`. A SharpCpp checkout must be at `SHARPCPP_ROOT` (default `../SharpCpp`).
   The shim sets `RBFX_BUILD_USERCODE`, `RBFX_BUILD_EXAMPLES` and `RBFX_INSTALL_SDK` to OFF and `RBFX_BUILD_HOST` to ON, when the consumer did not define them.
-  The consumer must call `find_package(Urho3D)` before `find_package(SharpCppRbfx)`. Only the desktop shared engine is supported.
-  A static engine and an engine in source mode are not supported.
+  The consumer must call `find_package(Urho3D)` before `find_package(SharpCppRbfx)`. The desktop shared engine is the tested case.
+  A static engine is accepted on iOS and Emscripten only. An engine in source mode is not supported.
   The first call adds the source tree. A second call (also from a sibling directory) only sets the variables below.
   The default `SHARPCPP_NATIVE_OUTPUT_ROOT` is `<build>/SharpCppRbfx/bin` and the default `SHARPCPP_MANAGED_OUTPUT_ROOT` is
   `<build>/SharpCppRbfx/managed`. A value from the consumer wins.
@@ -104,9 +104,9 @@ The installed SDK has these parts:
 - The nethost runtime library next to the host library, when the host library is shared.
   On Linux and macOS the host library finds it through its own run-time path. On Windows the
   consumer must put `nethost.dll` next to its executable.
-- `share/SharpCppRbfx/cmake/FindNetHost.cmake`. The package file uses it for a static host library.
+- `share/SharpCppRbfx/cmake/FindNetHost.cmake` (hostfxr mode only). The package file uses it for a static host library.
 - `share/SharpCppRbfx/cmake/RbfxCSharpDotNet.cmake` with `rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_plugin()`.
-- The native binding wrapper `SharpCpp.Rbfx.Native` with the imported target `SharpCpp::RbfxNative`. This part is in a source-mode build with a shared library type.
+- The native binding wrapper `SharpCpp.Rbfx.Native` with the imported target `SharpCpp::RbfxNative`. This part is in a source-mode build, for the shared and for the static library type.
   The install step copies the engine shared library and the other runtime files of the wrapper next to it (`lib` on Linux and macOS, `bin` on Windows).
   The wrapper finds them through its own run-time path.
 - The binding metadata `SharpCpp.Rbfx.Bindings.json` and `SharpCpp.Rbfx.ParseUmbrella.hpp` in `share/SharpCppRbfx/metadata`.
@@ -137,9 +137,16 @@ The install step needs a finished build, because the generator writes the metada
 - `hostfxr` is the default on desktop. `DotNetHost` loads hostfxr and starts the .NET runtime. This mode needs nethost.
 - `shim` is the default on Android, iOS and Emscripten. `DotNetHost` never starts a runtime. The .NET head starts the runtime.
   The managed side pushes a function table (`SharpCppRbfxManagedHost`, header `Urho3D/CSharp/DotNetHostShim.h`) into the native
-  wrapper library through `sharpcpp_rbfx_attach_managed_host`. The shim code is part of `SharpCpp.Rbfx.Native`.
-  `SharpCpp::RbfxHost` is then an interface target that links `SharpCppRbfx_Native`.
-  `DotNetHost::Initialize` returns false and gives an error text while no table is attached. In this mode `RBFX_INSTALL_SDK` is ignored.
+  host library through `sharpcpp_rbfx_attach_managed_host`. The shim code is in `SharpCpp.Rbfx.Host` on every platform
+  (source `Rbfx.Host/src/DotNetHostShim.cpp`), not in `SharpCpp.Rbfx.Native`. The NuGet runtime packages do not pack the host library.
+  `SharpCpp::RbfxHost` is a real library of the type `RBFX_NATIVE_LIBRARY_TYPE` (shared on Android, static on iOS and Emscripten).
+  It has no link dependency and the interface definition `URHO3D_DOTNETHOST_SHIM`. A static library also has `URHO3D_DOTNETHOST_STATIC`.
+  `DotNetHost::Initialize` refers to the attach export, so the linker keeps it in a static program. No whole-archive link is needed.
+  `DotNetHost::Initialize` returns false and gives an error text while no table is attached.
+  `RBFX_INSTALL_SDK` works in both modes. The shim SDK has `SharpCpp::RbfxHost` (the host library and the headers `DotNetHost.h`,
+  `DotNetHostExport.h` and `DotNetHostShim.h`) and `SharpCpp::RbfxNative` (the wrapper). It has no `FindNetHost.cmake`.
+  A native application links `SharpCpp::RbfxHost`. A .NET head loads `SharpCpp.Rbfx.Host` next to `SharpCpp.Rbfx.Native`.
+  `SharpCppRbfxConfig.cmake` sets `SharpCppRbfx_HOST_MODE` and `SharpCppRbfx_LIBRARY_TYPE`. It stops when the target `Urho3D` has another library type than the SDK.
   `DotNetHost::GetFunctionPointer` accepts only an empty `delegateTypeName` (an `[UnmanagedCallersOnly]` method).
   The bindings attach the table automatically when the `SharpCpp.Rbfx.Bindings` assembly is first used, so the head code does not call it.
 

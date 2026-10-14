@@ -1,0 +1,25 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake).
+set(_sharpcpp_rbfx_module_dir "@PACKAGE__rbfx_sdk_module_dir@")
+list(PREPEND CMAKE_MODULE_PATH "${_sharpcpp_rbfx_module_dir}")
+
+# The consumer sets Urho3D_DIR or CMAKE_PREFIX_PATH to find the rbfx SDK.
+find_dependency(Urho3D CONFIG)
+
+# The static host library links nethost. A shared host library carries it.
+if(@SHARPCPP_RBFX_HOST_NEEDS_NETHOST@)
+  find_dependency(NetHost)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/SharpCppRbfxTargets.cmake")
+
+# The functions of RbfxCSharpDotNet.cmake run "dotnet".
+find_program(DOTNET_EXECUTABLE dotnet)
+include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpDotNet.cmake")
+
+unset(_sharpcpp_rbfx_module_dir)
+
+check_required_components(SharpCppRbfx)

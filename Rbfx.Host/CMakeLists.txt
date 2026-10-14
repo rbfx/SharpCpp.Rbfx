@@ -1,3 +1,4 @@
+include(GNUInstallDirs)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 find_package(NetHost REQUIRED)
 
@@ -8,7 +9,8 @@ target_compile_features(sharpcpp-rbfx-host PUBLIC cxx_std_20)
 target_include_directories(
   sharpcpp-rbfx-host
   PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 target_link_libraries(
   sharpcpp-rbfx-host
   PRIVATE
@@ -21,8 +23,10 @@ else()
   target_compile_definitions(sharpcpp-rbfx-host PRIVATE URHO3D_DOTNETHOST_EXPORTS)
 endif()
 
-# Build-tree fallback of the dotnet root. The build tree is not committed.
-if(NETHOST_DOTNET_ROOT)
+# Build-tree fallback of the dotnet root. Turn it OFF for a build that you install and ship,
+# because the host library would carry a path of the build machine.
+option(RBFX_HOST_DEFAULT_DOTNET_ROOT "Compile the dotnet root of this machine into the host library as a fallback." ON)
+if(NETHOST_DOTNET_ROOT AND RBFX_HOST_DEFAULT_DOTNET_ROOT)
   target_compile_definitions(
     sharpcpp-rbfx-host
     PRIVATE SHARPCPP_RBFX_DEFAULT_DOTNET_ROOT="${NETHOST_DOTNET_ROOT}")
@@ -36,6 +40,7 @@ set_target_properties(
     VISIBILITY_INLINES_HIDDEN ON
     POSITION_INDEPENDENT_CODE ON
     OUTPUT_NAME "SharpCpp.Rbfx.Host"
+    EXPORT_NAME RbfxHost
     BUILD_WITH_INSTALL_RPATH ON
     BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
     INSTALL_RPATH "${RBFX_RUNTIME_RPATH}")
@@ -51,4 +56,36 @@ if(NETHOST_RUNTIME_LIBRARY AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
       "${NETHOST_RUNTIME_LIBRARY}"
       "$<TARGET_FILE_DIR:sharpcpp-rbfx-host>"
     VERBATIM)
+endif()
+
+# Install rules. They run only for "cmake --install" and do not change the build.
+# The host links NetHost::NetHost privately. A shared host needs nothing from the consumer.
+# A static host exports "$<LINK_ONLY:NetHost::NetHost>", so SharpCppRbfxConfig.cmake finds NetHost.
+if(RBFX_INSTALL_SDK)
+  install(
+    TARGETS sharpcpp-rbfx-host
+    EXPORT SharpCppRbfxTargets
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+  install(
+    FILES
+      include/Urho3D/CSharp/DotNetHost.h
+      include/Urho3D/CSharp/DotNetHostExport.h
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Urho3D/CSharp")
+  install(
+    EXPORT SharpCppRbfxTargets
+    NAMESPACE SharpCpp::
+    FILE SharpCppRbfxTargets.cmake
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SharpCppRbfx")
+
+  # The installed host library finds nethost through its "$ORIGIN" or "@loader_path" rpath on
+  # Linux and macOS. On Windows the loader looks in the directory of the application, so the consumer puts nethost.dll next to its executable.
+  if(NETHOST_RUNTIME_LIBRARY AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
+    if(WIN32)
+      install(FILES "${NETHOST_RUNTIME_LIBRARY}" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    else()
+      install(FILES "${NETHOST_RUNTIME_LIBRARY}" DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+    endif()
+  endif()
 endif()

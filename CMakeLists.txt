@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(SharpCppRbfx LANGUAGES CXX)
+project(SharpCppRbfx VERSION 0.0.0 LANGUAGES CXX)
 
 option(RBFX_BUILD_USERCODE "Build the phase-two user-code integration fixtures." ON)
 if(CMAKE_CROSSCOMPILING OR EMSCRIPTEN OR ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -9,6 +9,16 @@ else()
   set(_rbfx_build_host_default ON)
 endif()
 option(RBFX_BUILD_HOST "Build the SharpCpp.Rbfx.Host library that hosts the .NET runtime." ${_rbfx_build_host_default})
+if(RBFX_BUILD_HOST AND PROJECT_IS_TOP_LEVEL)
+  set(_rbfx_install_sdk_default ON)
+else()
+  set(_rbfx_install_sdk_default OFF)
+endif()
+option(RBFX_INSTALL_SDK "Install the CMake SDK (host library, headers, package files). Needs RBFX_BUILD_HOST." ${_rbfx_install_sdk_default})
+if(RBFX_INSTALL_SDK AND NOT RBFX_BUILD_HOST)
+  message(STATUS "RBFX_INSTALL_SDK is ignored because RBFX_BUILD_HOST is OFF.")
+  set(RBFX_INSTALL_SDK OFF)
+endif()
 if(RBFX_BUILD_USERCODE AND RBFX_BUILD_HOST)
   set(_rbfx_build_examples_default ON)
 else()
@@ -247,6 +257,46 @@ if(RBFX_BUILD_HOST)
 endif()
 if(RBFX_BUILD_EXAMPLES)
   add_subdirectory(Rbfx.Examples/Example.NativeHost)
+endif()
+
+if(RBFX_INSTALL_SDK)
+  include(GNUInstallDirs)
+  include(CMakePackageConfigHelpers)
+  set(_rbfx_sdk_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/SharpCppRbfx")
+  set(_rbfx_sdk_module_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx/cmake")
+
+  if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION MATCHES "^([0-9]+(\\.[0-9]+)*)")
+    set(_rbfx_sdk_version "${CMAKE_MATCH_1}")
+  else()
+    set(_rbfx_sdk_version "${PROJECT_VERSION}")
+  endif()
+
+  # A static host exports a link dependency on NetHost::NetHost. A shared host needs no NetHost.
+  set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST OFF)
+  if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
+    set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST ON)
+  endif()
+
+  configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SharpCppRbfxConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfig.cmake"
+    INSTALL_DESTINATION "${_rbfx_sdk_cmake_dir}"
+    PATH_VARS _rbfx_sdk_module_dir)
+  write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfigVersion.cmake"
+    VERSION "${_rbfx_sdk_version}"
+    COMPATIBILITY SameMajorVersion)
+
+  install(
+    FILES
+      "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfig.cmake"
+      "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfigVersion.cmake"
+    DESTINATION "${_rbfx_sdk_cmake_dir}")
+  install(
+    FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindNetHost.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
+    DESTINATION "${_rbfx_sdk_module_dir}")
 endif()
 
 add_custom_target(sharpcpp-rbfx-generate DEPENDS sharpcpp-generate-rbfx)

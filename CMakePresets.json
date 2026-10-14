@@ -7,70 +7,265 @@
   },
   "configurePresets": [
     {
-      "name": "dev",
-      "displayName": "Dev",
-      "generator": "Ninja Multi-Config",
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja Multi-Config"
+    },
+    {
+      "name": "base-native",
+      "hidden": true,
+      "inherits": "base",
       "binaryDir": "${sourceDir}/build/native/${presetName}"
     },
     {
-      "name": "android-arm",
-      "displayName": "android-arm",
-      "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/cross/android-arm",
+      "name": "base-cross",
+      "hidden": true,
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/cross/${presetName}"
+    },
+    {
+      "name": "base-gcc",
+      "hidden": true,
+      "environment": {
+        "CC": "gcc",
+        "CXX": "g++"
+      }
+    },
+    {
+      "name": "base-clang",
+      "hidden": true,
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
+      }
+    },
+    {
+      "name": "linux-gcc-x64-dll",
+      "displayName": "Linux GCC x64 (shared)",
+      "inherits": [
+        "base-native",
+        "base-gcc"
+      ],
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "macos-clang-arm64-dll",
+      "displayName": "macOS Clang arm64 (shared)",
+      "inherits": [
+        "base-native",
+        "base-clang"
+      ],
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-msvc-x64-dll",
+      "displayName": "Windows MSVC x64 (shared)",
+      "inherits": "base-native",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "android-clang-arm-dll",
+      "displayName": "Android Clang arm (shared)",
+      "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm.cmake"
     },
     {
-      "name": "android-arm64",
-      "displayName": "android-arm64",
-      "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/cross/android-arm64",
+      "name": "android-clang-arm64-dll",
+      "displayName": "Android Clang arm64 (shared)",
+      "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm64.cmake"
     },
     {
-      "name": "android-x64",
-      "displayName": "android-x64",
-      "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/cross/android-x64",
+      "name": "android-clang-x64-dll",
+      "displayName": "Android Clang x64 (shared)",
+      "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-x64.cmake"
     },
     {
-      "name": "ios-arm64",
-      "displayName": "ios-arm64",
-      "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/cross/ios-arm64",
+      "name": "ios-clang-arm64-lib",
+      "displayName": "iOS Clang arm64 (static)",
+      "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/ios-arm64.cmake"
     },
     {
-      "name": "browser-wasm",
-      "displayName": "browser-wasm",
-      "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/cross/browser-wasm",
+      "name": "web-emscripten-wasm-lib",
+      "displayName": "Web Emscripten wasm (static)",
+      "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/browser-wasm.cmake"
     },
     {
-      "name": "uap-x64",
-      "displayName": "uap-x64",
-      "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/cross/uap-x64",
+      "name": "uwp-msvc-x64-dll",
+      "displayName": "UWP MSVC x64 (shared)",
+      "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/uap-x64.cmake"
     }
   ],
   "buildPresets": [
     {
-      "name": "Debug",
-      "configurePreset": "dev",
+      "name": "debug-base",
+      "hidden": true,
       "configuration": "Debug",
       "targets": [
         "sharpcpp-rbfx-native"
       ]
     },
     {
-      "name": "Release",
-      "configurePreset": "dev",
+      "name": "release-base",
+      "hidden": true,
       "configuration": "Release",
       "targets": [
         "sharpcpp-rbfx-native"
       ]
+    },
+    {
+      "name": "linux-gcc-x64-dll-debug",
+      "configurePreset": "linux-gcc-x64-dll",
+      "displayName": "debug",
+      "inherits": "debug-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "linux-gcc-x64-dll-release",
+      "configurePreset": "linux-gcc-x64-dll",
+      "displayName": "release",
+      "inherits": "release-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "macos-clang-arm64-dll-debug",
+      "configurePreset": "macos-clang-arm64-dll",
+      "displayName": "debug",
+      "inherits": "debug-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-clang-arm64-dll-release",
+      "configurePreset": "macos-clang-arm64-dll",
+      "displayName": "release",
+      "inherits": "release-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-msvc-x64-dll-debug",
+      "configurePreset": "windows-msvc-x64-dll",
+      "displayName": "debug",
+      "inherits": "debug-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-msvc-x64-dll-release",
+      "configurePreset": "windows-msvc-x64-dll",
+      "displayName": "release",
+      "inherits": "release-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "android-clang-arm-dll-debug",
+      "configurePreset": "android-clang-arm-dll",
+      "displayName": "debug",
+      "inherits": "debug-base"
+    },
+    {
+      "name": "android-clang-arm-dll-release",
+      "configurePreset": "android-clang-arm-dll",
+      "displayName": "release",
+      "inherits": "release-base"
+    },
+    {
+      "name": "android-clang-arm64-dll-debug",
+      "configurePreset": "android-clang-arm64-dll",
+      "displayName": "debug",
+      "inherits": "debug-base"
+    },
+    {
+      "name": "android-clang-arm64-dll-release",
+      "configurePreset": "android-clang-arm64-dll",
+      "displayName": "release",
+      "inherits": "release-base"
+    },
+    {
+      "name": "android-clang-x64-dll-debug",
+      "configurePreset": "android-clang-x64-dll",
+      "displayName": "debug",
+      "inherits": "debug-base"
+    },
+    {
+      "name": "android-clang-x64-dll-release",
+      "configurePreset": "android-clang-x64-dll",
+      "displayName": "release",
+      "inherits": "release-base"
+    },
+    {
+      "name": "ios-clang-arm64-lib-debug",
+      "configurePreset": "ios-clang-arm64-lib",
+      "displayName": "debug",
+      "inherits": "debug-base"
+    },
+    {
+      "name": "ios-clang-arm64-lib-release",
+      "configurePreset": "ios-clang-arm64-lib",
+      "displayName": "release",
+      "inherits": "release-base"
+    },
+    {
+      "name": "web-emscripten-wasm-lib-debug",
+      "configurePreset": "web-emscripten-wasm-lib",
+      "displayName": "debug",
+      "inherits": "debug-base"
+    },
+    {
+      "name": "web-emscripten-wasm-lib-release",
+      "configurePreset": "web-emscripten-wasm-lib",
+      "displayName": "release",
+      "inherits": "release-base"
+    },
+    {
+      "name": "uwp-msvc-x64-dll-debug",
+      "configurePreset": "uwp-msvc-x64-dll",
+      "displayName": "debug",
+      "inherits": "debug-base"
+    },
+    {
+      "name": "uwp-msvc-x64-dll-release",
+      "configurePreset": "uwp-msvc-x64-dll",
+      "displayName": "release",
+      "inherits": "release-base"
     }
   ]
 }

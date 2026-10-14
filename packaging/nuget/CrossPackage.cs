@@ -82,8 +82,8 @@ static class CrossPackage
         }
         else throw new ArgumentException($"Unsupported cross-platform RID: {rid}");
 
-        // The CMake preset named like the RID carries the toolchain file; see CMakePresets.json and cmake/toolchains.
-        var arguments = new List<string> { Path.Combine(Repo, "packaging/nuget/package.sh"), "create", "--rid", rid, "--configure-preset", rid,
+        // package.sh takes the CMake preset (with the toolchain file) from the RID; see eng/SharpCpp.Rbfx.Build.props, CMakePresets.json and cmake/toolchains.
+        var arguments = new List<string> { Path.Combine(Repo, "packaging/nuget/package.sh"), "create", "--rid", rid,
             "--version", version };
         if (options.TryGetValue("build-root", out var buildRoot)) arguments.AddRange(["--build-root", Path.GetFullPath(buildRoot)]);
         if (options.TryGetValue("sdk-root", out var sdkRoot)) arguments.AddRange(["--sdk-root", Path.GetFullPath(sdkRoot), "--skip-fetch"]);

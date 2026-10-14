@@ -1,3 +1,4 @@
+using System.Reflection;
 using Xunit;
 
 namespace SharpCpp.Rbfx.Tests.E2E;
@@ -270,13 +271,12 @@ public sealed class GeneratedSurfaceTests
         var dir = Environment.GetEnvironmentVariable("SharpCppGeneratedDir");
         if (string.IsNullOrWhiteSpace(dir))
         {
-            dir = Path.Combine(
-                Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? ".",
-                "..", "..", "..", "..", "..",
-                "build", "native", "dev", "generated", "rbfx");
+            dir = typeof(GeneratedSurfaceTests).Assembly
+                .GetCustomAttributes<System.Reflection.AssemblyMetadataAttribute>()
+                .FirstOrDefault(attribute => attribute.Key == "RbfxGeneratedDir")?.Value;
         }
 
-        return Path.GetFullPath(dir);
+        return Path.GetFullPath(dir ?? throw new InvalidOperationException("The assembly metadata RbfxGeneratedDir is missing."));
     }
 
     internal static bool GeneratorLogContains(string value)

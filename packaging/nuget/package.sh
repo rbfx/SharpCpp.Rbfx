@@ -437,7 +437,7 @@ Options:
   --version, -v VERSION      Package version. Suffix -alpha or -dev appends the git SHA.
   --rid RID                 Runtime package RID. Defaults to host RID.
   --configuration, -c NAME   Build configuration. Defaults to Release.
-  --configure-preset NAME    CMake configure preset (alias --preset). Defaults to dev.
+  --configure-preset NAME    CMake configure preset (alias --preset). Defaults to the preset of the RID (eng/SharpCpp.Rbfx.Build.props).
   --sdk-root PATH            Existing extracted rbfx SDK root. Overrides the fetch.
   --rbfx-tag TAG             Release tag of rbfx/rbfx for the SDK. Defaults to latest.
   --target-framework TFM     Override package target framework. Defaults to repo TargetFramework.
@@ -472,10 +472,6 @@ EOF
 
   # Each RID builds in its own tree below the package folder. Builds of different RIDs run in parallel, and
   # the CMake cache of a package build never mixes with a build of the examples.
-  if [ "$rid" != "$(default_rid)" ]; then
-    : "${configure_preset:=$rid}"
-  fi
-  : "${configure_preset:=dev}"
   : "${build_root:=$PACKAGE_ROOT/$rid/build}"
 
   STAGE_DIR="$PACKAGE_ROOT/$rid/stage"
@@ -504,10 +500,14 @@ EOF
       printf -v encoded_argument '%q' "$argument"
       native_configure_arguments+=" $encoded_argument"
     done
+    local preset_arguments=()
+    if [ -n "$configure_preset" ]; then
+      preset_arguments=(-p:RbfxNativePreset="$configure_preset")
+    fi
     "$DOTNET" build "$REPO_ROOT/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" \
+      ${preset_arguments[@]+"${preset_arguments[@]}"} \
       --configuration "$configuration" \
       --nologo \
-      -p:RbfxNativePreset="$configure_preset" \
       -p:RbfxTargetRid="$rid" \
       -p:RbfxRestoreRid="$rid" \
       -p:SharpCppBuildRoot="$build_root" \

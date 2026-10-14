@@ -12,7 +12,7 @@ Like `Example.NativeHost`, this example builds from source with the main CMake p
   - `Example.UserCode.Bindings.dll`: the generated bindings assembly with the `RbfxExamples.RotatingComponent` wrapper.
   - `libExample.UserCode.Native.so` (`Example.UserCode.Native.dll` on Windows): the native library. The example has no hand-written `extern "C"` function.
 
-  At configure time the call also writes `Directory.Build.props`, `Directory.Build.targets`, `Example.UserCode.props` and `Example.UserCode.Bindings.csproj` below `build/native/dev/generated/usercode/Example.UserCode/`. You need no generator knowledge and no bindings project. The generate step runs no `dotnet build` of your project. With `CSPROJ <path>` you supply your own project and the call writes none.
+  At configure time the call also writes `Directory.Build.props`, `Directory.Build.targets`, `Example.UserCode.props` and `Example.UserCode.Bindings.csproj` below `build/native/linux-gcc-x64-dll/generated/usercode/Example.UserCode/`. You need no generator knowledge and no bindings project. The generate step runs no `dotnet build` of your project. With `CSPROJ <path>` you supply your own project and the call writes none.
 
 ## How managed code uses the dll
 

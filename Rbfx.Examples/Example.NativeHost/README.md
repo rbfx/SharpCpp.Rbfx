@@ -31,7 +31,7 @@ cmake --build <build directory> --config Debug
 
 - The `dotnet build` of the solution first builds the generators. CMake needs them in `build/bin/<Config>` and does not build them.
 - The nested `dotnet build` of CMake sets the MSBuild property `RbfxNativeBuildDriver=cmake`. MSBuild then does not start a native build, because CMake is already the driver.
-- `dotnet build SharpCpp.Rbfx.slnx` alone also builds the plugin. In that case MSBuild is the driver and it configures `build/native/dev` with `-DRBFX_CSHARP_BUILD_MANAGED=OFF`. Use another build directory for the CMake build.
+- `dotnet build SharpCpp.Rbfx.slnx` alone also builds the plugin. In that case MSBuild is the driver and it configures `build/native/linux-gcc-x64-dll` with `-DRBFX_CSHARP_BUILD_MANAGED=OFF`. Use another build directory for the CMake build.
 - On Linux, set `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768` for a run with a window.
 - Without `--frames` the application runs until you close the window.
 

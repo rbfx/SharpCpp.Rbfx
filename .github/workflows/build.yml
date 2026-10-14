@@ -129,14 +129,9 @@ jobs:
         shell: bash
         working-directory: SharpCpp.Rbfx
         run: |
-          cmake_args=()
-          if [[ '${{ matrix.rid }}' == 'uap-x64' ]]; then
-            cmake_args+=(--preset uap-x64)
-          fi
           ./packaging/nuget/package.sh create \
             --version "$PACKAGE_VERSION" \
             --rid '${{ matrix.rid }}' \
-            "${cmake_args[@]}" \
             --configuration Release
 
       - name: Build Cross-platform Packages
@@ -244,7 +239,6 @@ jobs:
             --nologo \
             --logger 'trx;LogFileName=SharpCpp.Rbfx.Tests.E2E.trx' \
             --results-directory build/test-results/e2e \
-            -p:RbfxNativePreset=dev \
             -p:RbfxTargetRid='${{ matrix.rid }}'
 
       - name: Upload E2E test results

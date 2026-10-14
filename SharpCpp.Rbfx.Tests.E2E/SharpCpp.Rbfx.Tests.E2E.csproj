@@ -25,6 +25,11 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- The tests read the generator output of the native build tree. The path depends on the CMake preset. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="RbfxGeneratedDir" Value="$(RbfxGeneratedRoot)/rbfx" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

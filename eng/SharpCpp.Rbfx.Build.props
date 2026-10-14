@@ -36,8 +36,19 @@
     <SharpCppNativeOutputRoot Condition="'$(SharpCppNativeOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppNativeOutputRoot>
     <SharpCppIntermediateRoot Condition="'$(SharpCppIntermediateRoot)' == ''">$(SharpCppBuildRoot)/obj/managed/$(Configuration)</SharpCppIntermediateRoot>
 
-    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxIsCrossRid)' == 'true'">$(RbfxTargetRid)</RbfxNativePreset>
-    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == ''">dev</RbfxNativePreset>
+    <!-- The one map from a RID to the CMake configure preset of CMakePresets.json. The RID is the target RID, or the host RID for a host build.
+         An explicit RbfxNativePreset overrides the map. A RID without an entry leaves the preset empty. -->
+    <RbfxPresetRid>$(RbfxTargetRid)</RbfxPresetRid>
+    <RbfxPresetRid Condition="'$(RbfxPresetRid)' == ''">$(RbfxHostRid)</RbfxPresetRid>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'linux-x64'">linux-gcc-x64-dll</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'osx-arm64'">macos-clang-arm64-dll</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'win-x64'">windows-msvc-x64-dll</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'android-arm'">android-clang-arm-dll</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'android-arm64'">android-clang-arm64-dll</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'android-x64'">android-clang-x64-dll</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'ios-arm64'">ios-clang-arm64-lib</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'browser-wasm'">web-emscripten-wasm-lib</RbfxNativePreset>
+    <RbfxNativePreset Condition="'$(RbfxNativePreset)' == '' and '$(RbfxPresetRid)' == 'uap-x64'">uwp-msvc-x64-dll</RbfxNativePreset>
     <RbfxCMakeCommand Condition="'$(RbfxCMakeCommand)' == ''">cmake</RbfxCMakeCommand>
     <RbfxNativeBuildDir Condition="'$(RbfxNativeBuildDir)' == ''">$(SharpCppBuildRoot)/native/$(RbfxNativePreset)</RbfxNativeBuildDir>
     <RbfxNativeLockFile Condition="'$(RbfxNativeLockFile)' == ''">$(RbfxNativeBuildDir)/sharpcpp-rbfx-native.lock</RbfxNativeLockFile>

@@ -59,8 +59,9 @@ endfunction()
 
 # rbfx_csharp_add_plugin(<target> PROJECT <csproj> HOST <executable target>)
 #
-# Builds a managed plugin next to the host executable. The target builds with the target
-# sharpcpp-rbfx-native, so a normal CMake build produces the plugin.
+# Builds a managed plugin next to the host executable. In the build tree of this repository, the target
+# builds with the target sharpcpp-rbfx-native, so a normal CMake build produces the plugin. In a consumer
+# project, the caller adds the target to the build (for example with add_dependencies).
 function(rbfx_csharp_add_plugin target)
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "PROJECT;HOST" "")
   if(NOT arg_PROJECT OR NOT arg_HOST)
@@ -79,6 +80,13 @@ function(rbfx_csharp_add_plugin target)
   if(NOT host_directory)
     message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): HOST '${arg_HOST}' has no RUNTIME_OUTPUT_DIRECTORY.")
   endif()
+  # The engine bindings project reads the generated sources and the plugin loads the native wrapper.
+  # The target sharpcpp-rbfx-runtime exists only in the build tree of this repository. A consumer of the
+  # installed SDK has the wrapper already.
+  set(plugin_dependencies ${arg_HOST})
+  if(TARGET sharpcpp-rbfx-runtime)
+    list(APPEND plugin_dependencies sharpcpp-rbfx-runtime)
+  endif()
   rbfx_csharp_add_dotnet_project(
     ${target}
     PROJECT "${arg_PROJECT}"
@@ -86,7 +94,6 @@ function(rbfx_csharp_add_plugin target)
     BYPRODUCTS
       "${host_directory}/${plugin_name}.dll"
       "${host_directory}/${plugin_name}.runtimeconfig.json"
-    # The engine bindings project reads the generated sources and the plugin loads the native wrapper.
-    DEPENDS ${arg_HOST} sharpcpp-rbfx-runtime)
+    DEPENDS ${plugin_dependencies})
   set_property(GLOBAL APPEND PROPERTY SHARPCPP_RBFX_PLUGIN_TARGETS ${target})
 endfunction()

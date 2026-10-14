@@ -38,8 +38,11 @@
 #                                         of this version instead of the projects.
 #   RBFX_CSHARP_MSBUILD_PROPS, RBFX_CSHARP_MSBUILD_TARGETS  Files that the written Directory.Build.* files import.
 #
-# Required variables (defined by the top-level CMakeLists.txt before this file is included):
-#   SHARPCPP_ROOT, SHARPCPP_GENERATED_ROOT, SHARPCPP_NATIVE_OUTPUT_ROOT, SHARPCPP_MANAGED_OUTPUT_ROOT,
+# Required variables. The top-level CMakeLists.txt defines them before this file is included. In a consumer
+# project, SharpCppRbfxConfig.cmake of the installed SDK defines them and includes this file:
+#   SHARPCPP_GENERATED_ROOT, SHARPCPP_NATIVE_OUTPUT_ROOT, SHARPCPP_MANAGED_OUTPUT_ROOT,
+#   SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY (--sharpcpp-include), SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY (--rbfx-include),
+#   SHARPCPP_RBFX_STALENESS_SCRIPT (SharpCppGeneratedStaleness.cmake),
 #   DOTNET_EXECUTABLE, SHARPCPP_CLANG_RESOURCE_DIRECTORY,
 #   RBFX_SDK_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_GENERATED_ROOT, RBFX_METADATA_FILE,
 #   RBFX_ENGINE_UMBRELLA_DIRECTORY (the folder of SharpCpp.Rbfx.ParseUmbrella.hpp, which the wrapper includes),
@@ -47,6 +50,10 @@
 #   RBFX_SDK_INPUT_HEADERS, RBFX_NATIVE_LIBRARY_TYPE, RBFX_RUNTIME_RPATH, RBFX_URHO3D_TARGET,
 #   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL, RBFX_CSHARP_BINDINGS_PROJECTS, RBFX_CSHARP_BINDINGS_PACKAGE_VERSION,
 #   RBFX_CSHARP_MSBUILD_PROPS, RBFX_CSHARP_MSBUILD_TARGETS.
+# Required commands: sharpcpp_set_native_output() (SharpCppOutput.cmake). Required target: SharpCpp::NativeSupport.
+#
+# The targets sharpcpp-generate-rbfx and sharpcpp-rbfx-runtime exist only in the build tree of this repository.
+# The function adds a dependency on them only when they exist.
 
 define_property(GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS
   BRIEF_DOCS "Targets created by rbfx_csharp_add_usercode()"
@@ -221,7 +228,7 @@ function(rbfx_csharp_add_usercode target)
             "-DGENERATOR_DLL=${SHARPCPP_RBFX_USERCODE_GENERATOR_DLL}"
             "-DGENERATED_STAMP=${generated_stamp}"
             "-DGENERATED_DIR=${generated_root}"
-            -P "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
+            -P "${SHARPCPP_RBFX_STALENESS_SCRIPT}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${generated_root}"
     COMMAND "${CMAKE_COMMAND}" -E env
             "SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY=${SHARPCPP_CLANG_RESOURCE_DIRECTORY}"
@@ -236,8 +243,8 @@ function(rbfx_csharp_add_usercode target)
             --library-name "${WRAP_IMPORT_LIBRARY_NAME}"
             --file-stem "${file_stem}"
             --symbol-prefix "${WRAP_SYMBOL_PREFIX}"
-            --sharpcpp-include "${SHARPCPP_ROOT}/include"
-            --rbfx-include "${PROJECT_SOURCE_DIR}/include"
+            --sharpcpp-include "${SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY}"
+            --rbfx-include "${SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY}"
             --generated-root "${generated_root}"
             --import-binding-metadata "${RBFX_METADATA_FILE}"
             --log-file "${generator_log}"
@@ -268,7 +275,10 @@ function(rbfx_csharp_add_usercode target)
       GENERATED TRUE
       OBJECT_DEPENDS "${generated_stamp}")
   add_library(${target} ${WRAP_LIBRARY_TYPE} "${generated_cpp}")
-  add_dependencies(${target} sharpcpp-generate-${target} sharpcpp-rbfx-runtime)
+  add_dependencies(${target} sharpcpp-generate-${target})
+  if(TARGET sharpcpp-rbfx-runtime)
+    add_dependencies(${target} sharpcpp-rbfx-runtime)
+  endif()
   target_compile_features(${target} PRIVATE cxx_std_20)
   if(MSVC)
     # A unity source of the generated wrappers exceeds the section limit of the default object format.

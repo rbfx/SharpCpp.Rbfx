@@ -2,7 +2,7 @@
 
 include(CMakeFindDependencyMacro)
 
-# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake).
+# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpAddUserCode.cmake and their helpers).
 set(_sharpcpp_rbfx_module_dir "@PACKAGE__rbfx_sdk_module_dir@")
 list(PREPEND CMAKE_MODULE_PATH "${_sharpcpp_rbfx_module_dir}")
 
@@ -19,6 +19,89 @@ include("${CMAKE_CURRENT_LIST_DIR}/SharpCppRbfxTargets.cmake")
 # The functions of RbfxCSharpDotNet.cmake run "dotnet".
 find_program(DOTNET_EXECUTABLE dotnet)
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpDotNet.cmake")
+
+# rbfx_csharp_add_usercode(). The inputs come from this SDK and from the rbfx SDK of the consumer.
+if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
+  set(_sharpcpp_rbfx_data_dir "@PACKAGE__rbfx_sdk_data_dir@")
+  set(_sharpcpp_rbfx_include_dir "@PACKAGE__rbfx_sdk_include_dir@")
+
+  set(RBFX_METADATA_FILE "${_sharpcpp_rbfx_data_dir}/metadata/SharpCpp.Rbfx.Bindings.json")
+  set(RBFX_ENGINE_UMBRELLA_DIRECTORY "${_sharpcpp_rbfx_data_dir}/metadata")
+  # The SDK has no engine generator. The generator commands depend on the metadata file.
+  set(RBFX_GENERATED_STAMP "")
+  set(SHARPCPP_RBFX_USERCODE_GENERATOR_DLL "${_sharpcpp_rbfx_data_dir}/tools/usercode/Rbfx.UserCode.Generator.dll")
+  set(SHARPCPP_CLANG_RESOURCE_DIRECTORY "${_sharpcpp_rbfx_data_dir}/clang-resource")
+  # The SharpCpp headers and the headers of SharpCpp.Rbfx are merged in one include folder.
+  set(SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY "${_sharpcpp_rbfx_include_dir}")
+  set(SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY "${_sharpcpp_rbfx_include_dir}")
+  set(SHARPCPP_RBFX_STALENESS_SCRIPT "${_sharpcpp_rbfx_module_dir}/SharpCppGeneratedStaleness.cmake")
+
+  # The rbfx SDK of the consumer. Urho3D_DIR is <rbfx SDK>/share/Urho3D/CMake.
+  set(RBFX_URHO3D_TARGET Urho3D)
+  if(NOT RBFX_SDK_ROOT)
+    get_filename_component(RBFX_SDK_ROOT "${Urho3D_DIR}/../../.." ABSOLUTE)
+  endif()
+  if(NOT EXISTS "${RBFX_SDK_ROOT}/include/Urho3D")
+    message(FATAL_ERROR "SharpCppRbfx: the rbfx SDK headers are not in '${RBFX_SDK_ROOT}/include/Urho3D'. Set RBFX_SDK_ROOT.")
+  endif()
+  if(NOT RBFX_NATIVE_LIBRARY_TYPE)
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR EMSCRIPTEN)
+      set(RBFX_NATIVE_LIBRARY_TYPE STATIC)
+    else()
+      set(RBFX_NATIVE_LIBRARY_TYPE SHARED)
+    endif()
+  endif()
+  if(APPLE)
+    set(RBFX_RUNTIME_RPATH "@loader_path")
+  else()
+    set(RBFX_RUNTIME_RPATH "$ORIGIN")
+  endif()
+
+  # The parse flags of the rbfx SDK, written for the compiler of the consumer.
+  if(NOT RBFX_SDK_PARSE_LANGUAGE_STANDARD)
+    set(RBFX_SDK_PARSE_LANGUAGE_STANDARD "gnu++20")
+  endif()
+  set(RBFX_SDK_FLAGS_FILE "${CMAKE_BINARY_DIR}/sharpcpp-rbfx/sdk-flags/$<CONFIG>/urho3d-sdk-flags.txt")
+  get_property(_sharpcpp_rbfx_flags_written GLOBAL PROPERTY SHARPCPP_RBFX_SDK_FLAGS_WRITTEN)
+  if(NOT _sharpcpp_rbfx_flags_written)
+    include("${_sharpcpp_rbfx_module_dir}/ExportRbfxSdkParseFlags.cmake")
+    sharpcpp_export_rbfx_sdk_parse_flags(
+      "${RBFX_URHO3D_TARGET}" "${RBFX_SDK_FLAGS_FILE}" "${RBFX_NATIVE_LIBRARY_TYPE}" "${RBFX_SDK_PARSE_LANGUAGE_STANDARD}")
+    set_property(GLOBAL PROPERTY SHARPCPP_RBFX_SDK_FLAGS_WRITTEN TRUE)
+  endif()
+  file(GLOB_RECURSE RBFX_SDK_INPUT_HEADERS CONFIGURE_DEPENDS
+    "${RBFX_SDK_ROOT}/include/Urho3D/*.h"
+    "${RBFX_SDK_ROOT}/include/Urho3D/*.hpp"
+    "${RBFX_SDK_ROOT}/include/RmlUi/*.h"
+    "${RBFX_SDK_ROOT}/include/RmlUi/*.hpp"
+    "${RBFX_SDK_ROOT}/include/ImGui/*.h"
+    "${RBFX_SDK_ROOT}/include/ImGui/*.hpp")
+
+  # The output folders of the consumer.
+  set(SHARPCPP_GENERATED_ROOT "${CMAKE_BINARY_DIR}/generated" CACHE PATH "Root directory for generated binding sources.")
+  set(SHARPCPP_NATIVE_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/bin" CACHE PATH "Root directory for native artifacts.")
+  set(SHARPCPP_MANAGED_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/bin" CACHE PATH "Root directory for managed artifacts.")
+
+  # The header-only marshaller support of SharpCpp.
+  if(NOT TARGET SharpCpp::NativeSupport)
+    add_library(SharpCpp::NativeSupport INTERFACE IMPORTED)
+    set_target_properties(
+      SharpCpp::NativeSupport
+      PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${_sharpcpp_rbfx_include_dir}"
+        INTERFACE_COMPILE_FEATURES cxx_std_20)
+    if(WIN32)
+      set_property(TARGET SharpCpp::NativeSupport PROPERTY INTERFACE_LINK_LIBRARIES ole32)
+    endif()
+  endif()
+
+  include("${_sharpcpp_rbfx_module_dir}/SharpCppOutput.cmake")
+  include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpAddUserCode.cmake")
+
+  unset(_sharpcpp_rbfx_flags_written)
+  unset(_sharpcpp_rbfx_data_dir)
+  unset(_sharpcpp_rbfx_include_dir)
+endif()
 
 unset(_sharpcpp_rbfx_module_dir)
 

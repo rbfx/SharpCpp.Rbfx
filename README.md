@@ -25,6 +25,27 @@ target_link_libraries(my_app PRIVATE SharpCpp::RbfxHost)
 Set `CMAKE_PREFIX_PATH` to the SDK prefix and to the installed rbfx SDK (or set `Urho3D_DIR`).
 Set `BUILD_SHARED_LIBS` in the consumer to the same value as the rbfx SDK. Urho3D checks it.
 
+A consumer project wraps its own C++ headers like this. The consumer needs no SharpCpp or SharpCpp.Rbfx source tree:
+
+```cmake
+find_package(SharpCppRbfx CONFIG REQUIRED)
+add_library(MyGame.Impl STATIC MyGame.cpp)
+target_include_directories(MyGame.Impl PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(MyGame.Impl PUBLIC Urho3D)
+rbfx_csharp_add_usercode(MyGame
+  HEADERS MyGame.hpp
+  INCLUDE_DIRECTORIES .
+  LINK_LIBRARIES MyGame.Impl
+  NAMESPACE MyGame)
+```
+
+The C++ namespace of the wrapped types must be the value of `NAMESPACE`. The generator ignores the other namespaces.
+The package file sets the inputs of the function. They are the installed metadata, generator, headers and Clang headers.
+The parse flags come from the target `Urho3D` and the compiler of the consumer. The rbfx SDK root comes from `Urho3D_DIR`. Set `RBFX_SDK_ROOT` to override it.
+The generated sources go to `<build>/generated` and the native library goes to `<build>/bin/<Config>`.
+Set `SHARPCPP_GENERATED_ROOT` and `SHARPCPP_NATIVE_OUTPUT_ROOT` to change them.
+The generator runs with `dotnet` at build time. The build needs no network and no git.
+
 The installed SDK has these parts:
 
 - The host library `SharpCpp.Rbfx.Host` and the headers `Urho3D/CSharp/DotNetHost.h` and `Urho3D/CSharp/DotNetHostExport.h`.
@@ -46,15 +67,15 @@ The installed SDK has these parts:
 - The SharpCpp headers in `include/SharpCpp` (`Marshaller.hpp` and its includes, and the `detail` marshaller headers of this repository).
   They are the input of `--sharpcpp-include` and `--rbfx-include`.
 - `share/SharpCppRbfx/cmake/SharpCppGeneratedStaleness.cmake`.
+- `share/SharpCppRbfx/cmake/RbfxCSharpAddUserCode.cmake` with `rbfx_csharp_add_usercode()`, its templates and its helper modules
+  (`ExportRbfxSdkParseFlags.cmake`, `SharpCppOutput.cmake`). The package file includes it in a source-mode build with a shared library type.
+- The builtin Clang headers of the generator in `share/SharpCppRbfx/clang-resource/include`.
 
 The managed files come from the output folder of `dotnet build SharpCpp.Rbfx.slnx` for the same configuration.
 The install step does not build them. It stops with a message when a file is missing.
 
-The installed SDK does not have this part today:
-
-- `rbfx_csharp_add_usercode()`.
-
-`rbfx_csharp_add_plugin()` needs the native binding target of the full build tree.
-It needs the target `sharpcpp-rbfx-runtime` of the full build tree, so it does not work in a consumer project yet.
+In a consumer project, `rbfx_csharp_add_usercode()` writes the managed project files, but the SDK has no MSBuild files for them yet.
+Set `RBFX_CSHARP_MSBUILD_PROPS`, `RBFX_CSHARP_MSBUILD_TARGETS` and `RBFX_CSHARP_BINDINGS_PROJECTS` before you build the written project.
+In a consumer project, the target of `rbfx_csharp_add_plugin()` is not part of the default build. Add it with `add_dependencies()`.
 The install step needs a finished build, because the generator writes the metadata files and the build links the wrapper.
 A cross build does not install the engine runtime files.

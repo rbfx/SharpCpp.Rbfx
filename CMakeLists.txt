@@ -269,6 +269,11 @@ set(
   CACHE FILEPATH
   "MSBuild targets file that the written Directory.Build.targets imports.")
 
+# Inputs of RbfxCSharpAddUserCode.cmake. SharpCppRbfxConfig.cmake sets them to the installed files.
+set(SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY "${SHARPCPP_ROOT}/include")
+set(SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set(SHARPCPP_RBFX_STALENESS_SCRIPT "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake")
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
 
@@ -291,6 +296,8 @@ if(RBFX_INSTALL_SDK)
   include(CMakePackageConfigHelpers)
   set(_rbfx_sdk_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/SharpCppRbfx")
   set(_rbfx_sdk_module_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx/cmake")
+  set(_rbfx_sdk_data_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx")
+  set(_rbfx_sdk_include_dir "${CMAKE_INSTALL_INCLUDEDIR}")
 
   if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION MATCHES "^([0-9]+(\\.[0-9]+)*)")
     set(_rbfx_sdk_version "${CMAKE_MATCH_1}")
@@ -304,11 +311,18 @@ if(RBFX_INSTALL_SDK)
     set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST ON)
   endif()
 
+  # rbfx_csharp_add_usercode() needs the metadata and the generator. The SDK has them in a source-mode
+  # build with a shared library type (see SharpCpp.Rbfx.Bindings/CMakeLists.txt).
+  set(SHARPCPP_RBFX_SDK_HAS_USERCODE OFF)
+  if(NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
+    set(SHARPCPP_RBFX_SDK_HAS_USERCODE ON)
+  endif()
+
   configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SharpCppRbfxConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfig.cmake"
     INSTALL_DESTINATION "${_rbfx_sdk_cmake_dir}"
-    PATH_VARS _rbfx_sdk_module_dir)
+    PATH_VARS _rbfx_sdk_module_dir _rbfx_sdk_data_dir _rbfx_sdk_include_dir)
   write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfigVersion.cmake"
     VERSION "${_rbfx_sdk_version}"
@@ -366,8 +380,24 @@ if(RBFX_INSTALL_SDK)
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h")
   install(
-    FILES "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
+    FILES
+      "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
+      "${SHARPCPP_ROOT}/cmake/SharpCppOutput.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ExportRbfxSdkParseFlags.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates"
+    DESTINATION "${_rbfx_sdk_module_dir}")
+
+  # The builtin Clang headers for the user-code generator. A consumer of the SDK needs no network and no git.
+  # The source is often a link to the LLVM checkout (SharpCppClang.cmake). Resolve it, so that the install
+  # step copies the files and not the link.
+  file(REAL_PATH "${SHARPCPP_CLANG_RESOURCE_DIRECTORY}/include" _rbfx_sdk_clang_headers)
+  install(
+    DIRECTORY "${_rbfx_sdk_clang_headers}/"
+    DESTINATION "${_rbfx_sdk_data_dir}/clang-resource/include"
+    PATTERN "CMakeLists.txt" EXCLUDE)
 endif()
 
 add_custom_target(sharpcpp-rbfx-generate)

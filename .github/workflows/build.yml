@@ -63,7 +63,9 @@ jobs:
         # The union job assembles the final managed packages after all platform builds finish.
         # There is no osx-x64 entry, because libclang has no runtime package for that RID.
         # An entry with sdk_tag also builds the SDK archive. The tag is the platform tag of the archive.
-        # It is also the name of the CMake preset of the RID. uap-x64 has no SDK archive.
+        # It is also the name of the CMake preset of the RID. uap-x64, ios-arm64 and browser-wasm have no SDK archive.
+        # An Android entry packs the SDK from the native tree of its cross package build.
+        # The generators run on the host. The SDK of an Android entry is built and checked, and never runs.
         include:
           - rid: linux-x64
             runs_on: ubuntu-latest
@@ -83,14 +85,17 @@ jobs:
           - rid: android-arm
             runs_on: ubuntu-latest
             cross: true
+            sdk_tag: android-clang-arm-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: android-arm64
             runs_on: ubuntu-latest
             cross: true
+            sdk_tag: android-clang-arm64-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: android-x64
             runs_on: ubuntu-latest
             cross: true
+            sdk_tag: android-clang-x64-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: ios-arm64
             runs_on: macos-latest
@@ -786,6 +791,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # An entry with toolchain is a cross build. The consumer is built and not run.
         include:
           - rid: linux-x64
             runs_on: ubuntu-latest
@@ -793,6 +799,15 @@ jobs:
             runs_on: macos-latest
           - rid: win-x64
             runs_on: windows-latest
+          - rid: android-arm
+            runs_on: ubuntu-latest
+            toolchain: cmake/toolchains/android-arm.cmake
+          - rid: android-arm64
+            runs_on: ubuntu-latest
+            toolchain: cmake/toolchains/android-arm64.cmake
+          - rid: android-x64
+            runs_on: ubuntu-latest
+            toolchain: cmake/toolchains/android-x64.cmake
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -833,11 +848,16 @@ jobs:
           test -f "$rbfx_root/share/Urho3D/CMake/Urho3DConfig.cmake"
           archives=(build/sdk-archive/*.7z)
           test "${#archives[@]}" -eq 1
+          cross_args=()
+          if [[ -n '${{ matrix.toolchain }}' ]]; then
+            cross_args+=(--toolchain '${{ matrix.toolchain }}' --cmake-arg -GNinja)
+          fi
           ./packaging/sdk/check-consumer.sh \
             --sdk-archive "${archives[0]}" \
             --rbfx-sdk "$rbfx_root" \
             --config Release \
-            --work build/sdk-consumer
+            --work build/sdk-consumer \
+            "${cross_args[@]}"
 
   Publish-NuGet:
     name: Publish NuGet Packages

@@ -77,6 +77,19 @@ gh run download RUN_ID --repo rbfx/SharpCpp.Rbfx --dir build/union-input
 dotnet run --file packaging/nuget/UnionPackage.cs -- create --input build/union-input --version VERSION
 ```
 
+CI runs the same work in three phases on one output directory. `create` runs all phases in one process.
+
+```bash
+dotnet run --file packaging/nuget/UnionPackage.cs -- reference --input build/union-input
+dotnet run --file packaging/nuget/UnionPackage.cs -- implement --input build/union-input --version VERSION --rid RID
+dotnet run --file packaging/nuget/UnionPackage.cs -- pack --input build/union-input --version VERSION
+```
+
+`reference` writes the union sources, the reference assembly and `state.json`. Run `implement`
+once for each RID in `state.json`. It builds the implementation, runs ApiCompat and stages the
+runtime files. `pack` validates all implementations, makes the remaining packages and runs the
+consumer check. CI moves the output directory between jobs as artifacts and keeps the same paths.
+
 Use an empty output directory. The default is `build/package/union`; `--output`
 selects another directory. Sources, prepared compilations and packages stay there.
 Inputs must include managed assemblies, generated sources, NuGet native packages,

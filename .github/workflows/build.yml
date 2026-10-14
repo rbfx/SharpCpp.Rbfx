@@ -255,12 +255,34 @@ jobs:
           path: SharpCpp.Rbfx/build/test-results/e2e/*.trx
           if-no-files-found: ignore
 
-  Union:
-    name: Union API and Packages
-    needs: [Package, Version]
+  # The union packages come from three jobs. Union Reference builds the union API and the
+  # reference assembly. Union Implementation builds, checks and packs one RID in each entry.
+  # Union validates all RIDs and makes the final packages. The jobs use the same paths below
+  # build/package/union, so the packages are the same as from one UnionPackage.cs create run.
+  Union-Test:
+    name: Union Generator Test
     runs-on: ubuntu-latest
-    env:
-      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
+    steps:
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          path: SharpCpp
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Test Union Generator
+        run: dotnet test SharpCpp/tests/SharpCpp.Tests.ApiUnion/SharpCpp.Tests.ApiUnion.csproj -c Release --nologo
+
+  Union-Reference:
+    name: Union Reference
+    needs: [Package]
+    runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.reference.outputs.platforms }}
+      sharpcpp: ${{ steps.reference.outputs.sharpcpp }}
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -277,26 +299,36 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
-      - name: Install Wasm Tools Workload
-        run: dotnet workload install wasm-tools
-      - name: Download Platform Inputs
+      - name: Download Managed Assemblies
         uses: actions/download-artifact@v8
         with:
+          pattern: managed-*
           path: SharpCpp.Rbfx/build/union-input
-      - name: Install rbfx Runtime Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libopengl0 libglx0 libx11-6 libdbus-1-3 libuuid1
-      - name: Test Union Generator
-        run: dotnet test SharpCpp/tests/SharpCpp.Tests.ApiUnion/SharpCpp.Tests.ApiUnion.csproj -c Release --nologo
-      - name: Build Union Packages
+      - name: Download Managed Package Inputs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: package-input-*
+          path: SharpCpp.Rbfx/build/union-input
+      # The RID list and the SharpCpp commit go to the later union jobs.
+      - name: Build Union Reference
+        id: reference
         working-directory: SharpCpp.Rbfx
-        run: dotnet run --file packaging/nuget/UnionPackage.cs -- create --input build/union-input --version "$PACKAGE_VERSION"
-      - name: Upload Union Packages
+        run: |
+          dotnet run --file packaging/nuget/UnionPackage.cs -- reference --input build/union-input
+          echo "platforms=$(jq -c .Platforms build/package/union/state.json)" >> "$GITHUB_OUTPUT"
+          echo "sharpcpp=$(git -C ../SharpCpp rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Upload Union Reference
         uses: actions/upload-artifact@v7
         with:
-          name: union-nuget
-          path: SharpCpp.Rbfx/build/package/union/packages/*.nupkg
+          name: union-reference
+          path: |
+            SharpCpp.Rbfx/build/package/union/state.json
+            SharpCpp.Rbfx/build/package/union/dependencies/
+            SharpCpp.Rbfx/build/package/union/analyzer/
+            SharpCpp.Rbfx/build/package/union/reference/
+            SharpCpp.Rbfx/build/package/union/sources/
+            !SharpCpp.Rbfx/build/package/union/sources/obj/**
+            !SharpCpp.Rbfx/build/package/union/sources/output/**
           if-no-files-found: error
       - name: Upload Union Sources
         if: always()
@@ -306,8 +338,128 @@ jobs:
           path: |
             SharpCpp.Rbfx/build/package/union/sources/Reference.g.cs
             SharpCpp.Rbfx/build/package/union/sources/Aliases.tsv
-            SharpCpp.Rbfx/build/package/union/sources/*/Stubs.g.cs
           if-no-files-found: warn
+
+  Union-Implementation:
+    name: Union Implementation (${{ matrix.rid }})
+    needs: [Union-Reference, Version]
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: ${{ fromJSON(needs.Union-Reference.outputs.platforms) }}
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          ref: ${{ needs.Union-Reference.outputs.sharpcpp }}
+          path: SharpCpp
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Download Union Reference
+        uses: actions/download-artifact@v8
+        with:
+          name: union-reference
+          path: SharpCpp.Rbfx/build/package/union
+      - name: Download Generated Sources
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/union-input/generated-${{ matrix.rid }}
+      - name: Download Native Packages
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/union-input/nuget-${{ matrix.rid }}
+      - name: Build Union Implementation
+        working-directory: SharpCpp.Rbfx
+        run: >-
+          dotnet run --file packaging/nuget/UnionPackage.cs -- implement --input build/union-input
+          --version "$PACKAGE_VERSION" --rid '${{ matrix.rid }}'
+      - name: Upload Union Stubs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: union-sources-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/package/union/sources/${{ matrix.rid }}/Stubs.g.cs
+          if-no-files-found: warn
+      # android-x64 and linux-x64 have no package here. The Union job packs them as one group.
+      - name: Upload Union Implementation
+        uses: actions/upload-artifact@v7
+        with:
+          name: union-impl-${{ matrix.rid }}
+          path: |
+            SharpCpp.Rbfx/build/package/union/sources/${{ matrix.rid }}/output/SharpCpp.Rbfx.Bindings.dll
+            SharpCpp.Rbfx/build/package/union/stage/runtime/${{ matrix.rid }}/
+            SharpCpp.Rbfx/build/package/union/packages/*.nupkg
+          if-no-files-found: error
+
+  Union:
+    name: Union API and Packages
+    needs: [Union-Reference, Union-Implementation, Union-Test, Version]
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          ref: ${{ needs.Union-Reference.outputs.sharpcpp }}
+          path: SharpCpp
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Wasm Tools Workload
+        run: dotnet workload install wasm-tools
+      - name: Download Union Reference
+        uses: actions/download-artifact@v8
+        with:
+          name: union-reference
+          path: SharpCpp.Rbfx/build/package/union
+      - name: Download Union Implementations
+        uses: actions/download-artifact@v8
+        with:
+          pattern: union-impl-*
+          merge-multiple: true
+          path: SharpCpp.Rbfx/build/package/union
+      # The data packages come from the platform packages.
+      - name: Download Platform Packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: nuget-*
+          path: SharpCpp.Rbfx/build/union-input
+      - name: Install rbfx Runtime Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopengl0 libglx0 libx11-6 libdbus-1-3 libuuid1
+      - name: Build Union Packages
+        working-directory: SharpCpp.Rbfx
+        run: dotnet run --file packaging/nuget/UnionPackage.cs -- pack --input build/union-input --version "$PACKAGE_VERSION"
+      - name: Upload Union Packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: union-nuget
+          path: SharpCpp.Rbfx/build/package/union/packages/*.nupkg
+          if-no-files-found: error
 
   Smoke:
     name: Union Runtime (${{ matrix.rid }})

@@ -11,13 +11,23 @@ using System.Xml.Linq;
 
 // .NET 10 file-based utility. All generated projects and packages stay under build/.
 // dotnet run --file packaging/nuget/UnionPackage.cs -- create --input DIR --version VERSION
+// CI runs the same work in phases that share one output directory:
+//   reference --input DIR
+//   implement --input DIR --version VERSION --rid RID (once for each RID, in parallel jobs)
+//   pack --input DIR --version VERSION
 try
 {
     var options = Options.Parse(args);
-    if (options.Command == "create") UnionPackage.Create(options);
-    else if (options.Command == "smoke") UnionPackage.Smoke(options.Required("packages"), options.Required("version"),
-        options.Required("framework"), options.Values("platform"));
-    else throw new ArgumentException("Expected create or smoke.");
+    switch (options.Command)
+    {
+        case "create": UnionPackage.Create(options); break;
+        case "reference": UnionPackage.Reference(options); break;
+        case "implement": UnionPackage.Implement(options); break;
+        case "pack": UnionPackage.Package(options); break;
+        case "smoke": UnionPackage.Smoke(options.Required("packages"), options.Required("version"),
+            options.Required("framework"), options.Values("platform")); break;
+        default: throw new ArgumentException(Options.Usage);
+    }
 }
 catch (Exception exception)
 {
@@ -31,29 +41,116 @@ static class UnionPackage
     static string SourcePath([CallerFilePath] string path = "") => path;
     static readonly string Repo = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../.."));
 
+    // All phases use the same paths. A CI job continues from the output directory of an earlier job,
+    // so the generated projects and the build outputs are the same as in one create run.
+    sealed class Layout(Options options)
+    {
+        public string Sharp { get; } = Path.GetFullPath(options.Optional("sharp-cpp-root") ?? Path.Combine(Repo, "../SharpCpp"));
+        public string Inputs { get; } = Path.GetFullPath(options.Required("input"));
+        public string Output { get; } = Path.GetFullPath(options.Optional("output") ?? Path.Combine(Repo, "build/package/union"));
+        public string Dependencies => Path.Combine(Output, "dependencies");
+        public string Sources => Path.Combine(Output, "sources");
+        public string Stage => Path.Combine(Output, "stage");
+        public string Packages => Path.Combine(Output, "packages");
+        public string StateFile => Path.Combine(Output, "state.json");
+        public string Implementation(string rid) => Path.Combine(Sources, rid, "output/SharpCpp.Rbfx.Bindings.dll");
+        public string RuntimeLib(string rid, string framework) => Path.Combine(Stage, "runtime", rid, "lib", framework);
+    }
+
+    sealed record Tool(string Assembly, string FrameworkReference);
+
+    // The reference phase writes this record to state.json. The later phases read it.
+    sealed record State(string Framework, string AssemblyVersion, string Analyzer, string Reference, string[] Platforms);
+
     public static void Create(Options options)
     {
-        var sharp = Path.GetFullPath(options.Optional("sharp-cpp-root") ?? Path.Combine(Repo, "../SharpCpp"));
-        var inputs = Path.GetFullPath(options.Required("input"));
+        var layout = new Layout(options);
         var version = options.Required("version");
-        var output = Path.GetFullPath(options.Optional("output") ?? Path.Combine(Repo, "build/package/union"));
+        var tool = BuildTool(layout.Sharp);
+        var state = CreateReference(layout, tool);
+        var built = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+        // Each platform builds in its own folder, so the builds run in parallel.
+        Parallel.ForEach(state.Platforms, new ParallelOptions { MaxDegreeOfParallelism = Math.Min(4, Environment.ProcessorCount) },
+            rid => built[rid] = BuildImplementation(layout, tool, state, rid));
+        var implementations = built.OrderBy(item => item.Key, StringComparer.Ordinal).ToDictionary(item => item.Key, item => item.Value);
+        Validate(tool, state, implementations);
+        var apicompat = InstallApiCompat(layout);
+        foreach (var implementation in implementations.Values) CheckCompatibility(apicompat, tool, state, layout, implementation);
+        foreach (var (rid, implementation) in implementations) StageRuntime(layout, state, rid, implementation);
+        foreach (var rid in state.Platforms) PackRuntime(layout, state, version, rid);
+        PackUnion(layout, state, version);
+    }
+
+    // Phase 1: the union API, the reference assembly and state.json.
+    public static void Reference(Options options)
+    {
+        var layout = new Layout(options);
+        CreateReference(layout, BuildTool(layout.Sharp));
+    }
+
+    // Phase 2: the implementation, ApiCompat and the runtime package of one RID.
+    public static void Implement(Options options)
+    {
+        var layout = new Layout(options);
+        var version = options.Required("version");
+        var rid = options.Required("rid");
+        var state = LoadState(layout);
+        if (!state.Platforms.Contains(rid)) throw new ArgumentException($"{rid} is not a platform of the union reference.");
+        var tool = BuildTool(layout.Sharp);
+        IsolateProjects(layout.Sources);
+        var implementation = BuildImplementation(layout, tool, state, rid);
+        CheckCompatibility(InstallApiCompat(layout), tool, state, layout, implementation);
+        StageRuntime(layout, state, rid, implementation);
+        PackRuntime(layout, state, version, rid);
+    }
+
+    // Phase 3: cross-platform validation, the remaining packages and the consumer smoke test.
+    public static void Package(Options options)
+    {
+        var layout = new Layout(options);
+        var version = options.Required("version");
+        var state = LoadState(layout);
+        var implementations = state.Platforms.ToDictionary(rid => rid, rid =>
+            File.Exists(layout.Implementation(rid)) && File.Exists(Path.Combine(layout.RuntimeLib(rid, state.Framework), "SharpCpp.Rbfx.Bindings.dll"))
+                ? layout.Implementation(rid)
+                : throw new InvalidOperationException($"Missing implementation of {rid}. Run implement for each platform."));
+        Validate(BuildTool(layout.Sharp), state, implementations);
+        PackUnion(layout, state, version);
+    }
+
+    static Tool BuildTool(string sharp)
+    {
+        var toolProject = Path.Combine(sharp, "src/SharpCpp.ApiUnion/SharpCpp.ApiUnion.csproj");
+        Run("dotnet", ["build", toolProject, "-c", "Release", "--nologo"]);
+        using var properties = JsonDocument.Parse(Run("dotnet", ["msbuild", toolProject, "-target:ResolveReferences",
+            "-getProperty:TargetFramework", "-getItem:ReferencePath", "-p:Configuration=Release"], capture: true));
+        var frameworkReference = properties.RootElement.GetProperty("Items").GetProperty("ReferencePath")
+            .EnumerateArray().Select(item => item.GetProperty("FullPath").GetString()!)
+            .Where(path => Path.GetFileName(path) == "System.Runtime.dll").Select(path => Path.GetDirectoryName(path)!).Single();
+        return new Tool(Path.Combine(sharp, "build/bin/Release/SharpCpp.ApiUnion.dll"), frameworkReference);
+    }
+
+    static State CreateReference(Layout layout, Tool tool)
+    {
+        var inputs = layout.Inputs;
+        var output = layout.Output;
         CreateEmptyDirectory(output);
         var platforms = Directory.GetDirectories(inputs, "managed-*")
             .Select(path => Path.GetFileName(path)["managed-".Length..]).Order(StringComparer.Ordinal).ToArray();
         if (platforms.Length == 0) throw new InvalidOperationException("No managed platform artifacts were found.");
 
-        var dependencies = Path.Combine(output, "dependencies");
+        var dependencies = layout.Dependencies;
         Directory.CreateDirectory(dependencies);
         // New runs upload portable dependencies; older runs have a Linux managed package.
         var stageInputs = Directory.GetDirectories(inputs, "package-input-*")
             .SelectMany(path => Directory.Exists(Path.Combine(path, "lib"))
                 ? Directory.GetDirectories(Path.Combine(path, "lib")) : []).Order(StringComparer.Ordinal).ToArray();
-        string framework, analyzer;
+        string framework, analyzerSource;
         if (stageInputs.Length > 0)
         {
             framework = Path.GetFileName(stageInputs[0]);
             CopyDlls(stageInputs[0], dependencies);
-            analyzer = Directory.GetDirectories(inputs, "package-input-*")
+            analyzerSource = Directory.GetDirectories(inputs, "package-input-*")
                 .Select(path => Path.Combine(path, "analyzers/dotnet/cs/SharpCpp.Rbfx.SourceGenerator.dll"))
                 .First(File.Exists);
         }
@@ -66,20 +163,15 @@ static class UnionPackage
             var lib = Directory.GetDirectories(Path.Combine(seed, "lib")).Single();
             framework = Path.GetFileName(lib);
             CopyDlls(lib, dependencies);
-            analyzer = Path.Combine(seed, "analyzers/dotnet/cs/SharpCpp.Rbfx.SourceGenerator.dll");
+            analyzerSource = Path.Combine(seed, "analyzers/dotnet/cs/SharpCpp.Rbfx.SourceGenerator.dll");
         }
+        // The later phases read the analyzer from the output directory, not from the inputs.
+        var analyzer = Path.Combine(output, "analyzer", Path.GetFileName(analyzerSource));
+        CopyDlls(Path.GetDirectoryName(analyzerSource)!, Path.GetDirectoryName(analyzer)!);
 
-        var toolProject = Path.Combine(sharp, "src/SharpCpp.ApiUnion/SharpCpp.ApiUnion.csproj");
-        Run("dotnet", ["build", toolProject, "-c", "Release", "--nologo"]);
-        using var properties = JsonDocument.Parse(Run("dotnet", ["msbuild", toolProject, "-target:ResolveReferences",
-            "-getProperty:TargetFramework", "-getItem:ReferencePath", "-p:Configuration=Release"], capture: true));
-        var frameworkReference = properties.RootElement.GetProperty("Items").GetProperty("ReferencePath")
-            .EnumerateArray().Select(item => item.GetProperty("FullPath").GetString()!)
-            .Where(path => Path.GetFileName(path) == "System.Runtime.dll").Select(path => Path.GetDirectoryName(path)!).Single();
-        var tool = Path.Combine(sharp, "build/bin/Release/SharpCpp.ApiUnion.dll");
-        var sources = Path.Combine(output, "sources");
+        var sources = layout.Sources;
         IsolateProjects(sources);
-        Run("dotnet", [tool, "emit", "--output", sources, "--references", frameworkReference,
+        Run("dotnet", [tool.Assembly, "emit", "--output", sources, "--references", tool.FrameworkReference,
             "--references", dependencies, .. platforms.Select(rid => $"{rid}={Path.Combine(inputs, "managed-" + rid, "SharpCpp.Rbfx.Bindings.dll")}")]);
         using var identity = JsonDocument.Parse(File.ReadAllText(Path.Combine(sources, "AssemblyIdentity.json")));
         var assemblyVersion = identity.RootElement.GetProperty("Version").GetString()!;
@@ -87,58 +179,81 @@ static class UnionPackage
         Project(referenceProject, framework, [Path.Combine(sources, "Reference.g.cs")], dependencies,
             assemblyVersion, reference: true);
         Run("dotnet", ["build", referenceProject, "-c", "Release", "--nologo"]);
-        var reference = Run("dotnet", ["msbuild", referenceProject, "-p:Configuration=Release", "-getProperty:TargetRefPath"], capture: true).Trim();
-        var built = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-        // Each platform builds in its own folder, so the builds run in parallel.
-        Parallel.ForEach(platforms, new ParallelOptions { MaxDegreeOfParallelism = Math.Min(4, Environment.ProcessorCount) }, rid =>
-        {
-            var generated = Directory.GetFiles(Path.Combine(inputs, "generated-" + rid),
-                "SharpCpp.Rbfx.Bindings.Aliases.g.cs", SearchOption.AllDirectories)
-                .Where(path => Path.GetFileName(Path.GetDirectoryName(path)) == "rbfx").Single();
-            var prepared = Path.Combine(sources, rid, "prepared");
-            Run("dotnet", [tool, "prepare", "--output", prepared,
-                "--stubs", Path.Combine(sources, rid, "Stubs.g.cs"), "--concrete", Path.Combine(sources, rid, "ConcreteTypes.txt"),
-                "--sources", Path.GetDirectoryName(generated)!, "--sources", Path.Combine(Repo, "SharpCpp.Rbfx.Bindings")]);
-            var implementationProject = Path.Combine(sources, rid, $"UnionImplementation-{rid}.csproj");
-            Project(implementationProject, framework, Directory.GetFiles(prepared, "*.cs").Order(StringComparer.Ordinal),
-                dependencies, assemblyVersion, analyzer: analyzer, staticRuntime: rid is "ios-arm64" or "browser-wasm",
-                browserWasm: rid == "browser-wasm");
-            Run("dotnet", ["build", implementationProject, "-c", "Release", "--nologo"]);
-            built[rid] = Path.Combine(sources, rid, "output/SharpCpp.Rbfx.Bindings.dll");
-        });
-        var implementations = built.OrderBy(item => item.Key, StringComparer.Ordinal).ToDictionary(item => item.Key, item => item.Value);
-        Run("dotnet", [tool, "validate", $"ref={reference}", .. implementations.Select(item => $"{item.Key}={item.Value}")]);
-        var tools = Path.Combine(output, "tools");
-        Run("dotnet", ["tool", "install", "Microsoft.DotNet.ApiCompat.Tool", "--version", "10.0.100", "--tool-path", tools]);
-        foreach (var implementation in implementations.Values)
-            Run(Path.Combine(tools, "apicompat"), ["-l", reference, "-r", implementation,
-                "--left-assembly-references", $"{frameworkReference},{dependencies}",
-                "--right-assembly-references", $"{frameworkReference},{dependencies}", "--enable-rule-cannot-change-parameter-name"]);
+        var built = Run("dotnet", ["msbuild", referenceProject, "-p:Configuration=Release", "-getProperty:TargetRefPath"], capture: true).Trim();
+        // A copy outside obj/ lets the later phases use the reference without the reference build tree.
+        var reference = Path.Combine(output, "reference", Path.GetFileName(built));
+        Directory.CreateDirectory(Path.GetDirectoryName(reference)!);
+        File.Copy(built, reference);
+        var state = new State(framework, assemblyVersion, analyzer, reference, platforms);
+        SaveState(layout, state);
+        return state;
+    }
 
-        var stage = Path.Combine(output, "stage");
-        var packages = Path.Combine(output, "packages");
+    static string BuildImplementation(Layout layout, Tool tool, State state, string rid)
+    {
+        var sources = layout.Sources;
+        var generated = Directory.GetFiles(Path.Combine(layout.Inputs, "generated-" + rid),
+            "SharpCpp.Rbfx.Bindings.Aliases.g.cs", SearchOption.AllDirectories)
+            .Where(path => Path.GetFileName(Path.GetDirectoryName(path)) == "rbfx").Single();
+        var prepared = Path.Combine(sources, rid, "prepared");
+        Run("dotnet", [tool.Assembly, "prepare", "--output", prepared,
+            "--stubs", Path.Combine(sources, rid, "Stubs.g.cs"), "--concrete", Path.Combine(sources, rid, "ConcreteTypes.txt"),
+            "--sources", Path.GetDirectoryName(generated)!, "--sources", Path.Combine(Repo, "SharpCpp.Rbfx.Bindings")]);
+        var implementationProject = Path.Combine(sources, rid, $"UnionImplementation-{rid}.csproj");
+        Project(implementationProject, state.Framework, Directory.GetFiles(prepared, "*.cs").Order(StringComparer.Ordinal),
+            layout.Dependencies, state.AssemblyVersion, analyzer: state.Analyzer, staticRuntime: rid is "ios-arm64" or "browser-wasm",
+            browserWasm: rid == "browser-wasm");
+        Run("dotnet", ["build", implementationProject, "-c", "Release", "--nologo"]);
+        return layout.Implementation(rid);
+    }
+
+    static void Validate(Tool tool, State state, IReadOnlyDictionary<string, string> implementations) =>
+        Run("dotnet", [tool.Assembly, "validate", $"ref={state.Reference}", .. implementations.Select(item => $"{item.Key}={item.Value}")]);
+
+    static string InstallApiCompat(Layout layout)
+    {
+        var tools = Path.Combine(layout.Output, "tools");
+        Run("dotnet", ["tool", "install", "Microsoft.DotNet.ApiCompat.Tool", "--version", "10.0.100", "--tool-path", tools]);
+        return Path.Combine(tools, "apicompat");
+    }
+
+    static void CheckCompatibility(string apicompat, Tool tool, State state, Layout layout, string implementation) =>
+        Run(apicompat, ["-l", state.Reference, "-r", implementation,
+            "--left-assembly-references", $"{tool.FrameworkReference},{layout.Dependencies}",
+            "--right-assembly-references", $"{tool.FrameworkReference},{layout.Dependencies}", "--enable-rule-cannot-change-parameter-name"]);
+
+    static void StageRuntime(Layout layout, State state, string rid, string implementation)
+    {
+        var payload = Path.Combine(layout.Output, "runtime-" + rid);
+        ExtractPackages(Directory.GetFiles(Path.Combine(layout.Inputs, "nuget-" + rid),
+            "SharpCpp.Rbfx.Bindings.runtime.*.nupkg"), payload);
+        var native = Path.Combine(payload, "runtimes", rid, "native");
+        if (!Directory.Exists(native)) throw new InvalidOperationException($"Missing native package for {rid}.");
+        CopyDirectory(native, Path.Combine(layout.Stage, "runtime", rid, "native"));
+        var targets = Path.Combine(payload, "buildTransitive");
+        if (Directory.Exists(targets)) CopyDirectory(targets, Path.Combine(layout.Stage, "runtime", rid, "buildTransitive"));
+        var runtimeLib = layout.RuntimeLib(rid, state.Framework);
+        Directory.CreateDirectory(runtimeLib);
+        File.Copy(implementation, Path.Combine(runtimeLib, Path.GetFileName(implementation)));
+    }
+
+    // android-x64 and linux-x64 share one runtime package. PackUnion packs that group.
+    static void PackRuntime(Layout layout, State state, string version, string rid)
+    {
+        if (rid is "android-x64" or "linux-x64") return;
+        Directory.CreateDirectory(layout.Packages);
+        Pack("SharpCpp.Rbfx.Bindings.Runtime", rid, version, state.Framework, layout.Stage, layout.Packages);
+    }
+
+    static void PackUnion(Layout layout, State state, string version)
+    {
+        var (stage, packages, framework, platforms) = (layout.Stage, layout.Packages, state.Framework, state.Platforms);
         Directory.CreateDirectory(packages);
-        CopyDlls(dependencies, Path.Combine(stage, "managed/lib", framework), exclude: "SharpCpp.Rbfx.Bindings.dll");
-        CopyDlls(dependencies, Path.Combine(stage, "managed/ref", framework));
-        CopyDlls(Path.GetDirectoryName(analyzer)!, Path.Combine(stage, "managed/analyzers/dotnet/cs"));
-        File.Copy(reference, Path.Combine(stage, "managed/ref", framework, "SharpCpp.Rbfx.Bindings.dll"), overwrite: true);
         // Bindings has no duplicate lib/ implementation: it would override the selected RID DLL.
-        foreach (var (rid, implementation) in implementations)
-        {
-            var payload = Path.Combine(output, "runtime-" + rid);
-            ExtractPackages(Directory.GetFiles(Path.Combine(inputs, "nuget-" + rid),
-                "SharpCpp.Rbfx.Bindings.runtime.*.nupkg"), payload);
-            var native = Path.Combine(payload, "runtimes", rid, "native");
-            if (!Directory.Exists(native)) throw new InvalidOperationException($"Missing native package for {rid}.");
-            CopyDirectory(native, Path.Combine(stage, "runtime", rid, "native"));
-            var targets = Path.Combine(payload, "buildTransitive");
-            if (Directory.Exists(targets)) CopyDirectory(targets, Path.Combine(stage, "runtime", rid, "buildTransitive"));
-            var runtimeLib = Path.Combine(stage, "runtime", rid, "lib", framework);
-            Directory.CreateDirectory(runtimeLib);
-            File.Copy(implementation, Path.Combine(runtimeLib, Path.GetFileName(implementation)));
-        }
-        foreach (var rid in platforms.Where(rid => rid is not ("android-x64" or "linux-x64")))
-            Pack("SharpCpp.Rbfx.Bindings.Runtime", rid, version, framework, stage, packages);
+        CopyDlls(layout.Dependencies, Path.Combine(stage, "managed/lib", framework), exclude: "SharpCpp.Rbfx.Bindings.dll");
+        CopyDlls(layout.Dependencies, Path.Combine(stage, "managed/ref", framework));
+        CopyDlls(Path.GetDirectoryName(state.Analyzer)!, Path.Combine(stage, "managed/analyzers/dotnet/cs"));
+        File.Copy(state.Reference, Path.Combine(stage, "managed/ref", framework, "SharpCpp.Rbfx.Bindings.dll"), overwrite: true);
         if (platforms.Contains("android-x64") && platforms.Contains("linux-x64"))
         {
             var linuxNativeAssets = Path.Combine(stage, "runtime/linux-x64/native-assets");
@@ -153,13 +268,39 @@ static class UnionPackage
         new XDocument(new XElement("Project", new XElement("ItemGroup", runtimePackages.Select(packageId => new XElement("PackageReference",
             new XAttribute("Include", packageId), new XAttribute("Version", version)))))).Save(dependencyProps);
         Pack("SharpCpp.Rbfx.Bindings", platforms[0], version, framework, stage, packages, dependencyProps);
-        foreach (var path in Directory.GetDirectories(inputs, "nuget-*").SelectMany(path => Directory.GetFiles(path, "*.nupkg")))
+        foreach (var path in Directory.GetDirectories(layout.Inputs, "nuget-*").SelectMany(path => Directory.GetFiles(path, "*.nupkg")))
             if (new[] { "SharpCpp.Rbfx.CoreData.", "SharpCpp.Rbfx.Data.", "SharpCpp.Rbfx.EditorData." }.Any(prefix => Path.GetFileName(path).StartsWith(prefix, StringComparison.Ordinal)))
                 File.Copy(path, Path.Combine(packages, Path.GetFileName(path)), overwrite: true);
         // UWP uses the same Windows toolchain and a custom RID graph, so its consumer is
         // verified by the Windows UWP example job rather than this portable RID smoke build.
         Smoke(packages, version, framework, platforms.Where(rid => rid != "uap-x64").ToArray());
         Console.WriteLine($"Union packages: {packages}");
+    }
+
+    // Paths in state.json are relative to the output directory.
+    static void SaveState(Layout layout, State state)
+    {
+        using var stream = File.Create(layout.StateFile);
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        writer.WriteStartObject();
+        writer.WriteString("Framework", state.Framework);
+        writer.WriteString("AssemblyVersion", state.AssemblyVersion);
+        writer.WriteString("Analyzer", Path.GetRelativePath(layout.Output, state.Analyzer));
+        writer.WriteString("Reference", Path.GetRelativePath(layout.Output, state.Reference));
+        writer.WriteStartArray("Platforms");
+        foreach (var rid in state.Platforms) writer.WriteStringValue(rid);
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+
+    static State LoadState(Layout layout)
+    {
+        if (!File.Exists(layout.StateFile)) throw new InvalidOperationException($"Missing {layout.StateFile}. Run reference first.");
+        using var json = JsonDocument.Parse(File.ReadAllText(layout.StateFile));
+        var root = json.RootElement;
+        string Value(string name) => root.GetProperty(name).GetString()!;
+        return new State(Value("Framework"), Value("AssemblyVersion"), Path.Combine(layout.Output, Value("Analyzer")),
+            Path.Combine(layout.Output, Value("Reference")), root.GetProperty("Platforms").EnumerateArray().Select(item => item.GetString()!).ToArray());
     }
 
     public static void Smoke(string packagePath, string version, string framework, IReadOnlyList<string> platforms)
@@ -342,20 +483,21 @@ static class UnionPackage
 
 sealed class Options(string command, Dictionary<string, List<string>> values)
 {
+    public const string Usage = "Expected create, reference, implement, pack or smoke.";
     public string Command => command;
     public string Required(string name) => Optional(name) ?? throw new ArgumentException($"Missing --{name}.");
     public string? Optional(string name) => values.GetValueOrDefault(name)?.Single();
     public IReadOnlyList<string> Values(string name) => values.GetValueOrDefault(name) ?? [];
     public static Options Parse(string[] args)
     {
-        if (args.Length == 0) throw new ArgumentException("Expected create or smoke.");
+        if (args.Length == 0) throw new ArgumentException(Usage);
         var values = new Dictionary<string, List<string>>();
         for (var index = 1; index < args.Length; index += 2)
         {
             if (index + 1 >= args.Length || !args[index].StartsWith("--", StringComparison.Ordinal))
                 throw new ArgumentException($"Expected --option value, got {args[index]}.");
             var key = args[index][2..];
-            if (key is not ("input" or "version" or "output" or "sharp-cpp-root" or "packages" or "framework" or "platform"))
+            if (key is not ("input" or "version" or "output" or "sharp-cpp-root" or "packages" or "framework" or "platform" or "rid"))
                 throw new ArgumentException($"Unknown option: {args[index]}.");
             if (!values.TryGetValue(key, out var list)) values.Add(key, list = []);
             list.Add(args[index + 1]);

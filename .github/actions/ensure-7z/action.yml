@@ -1,0 +1,17 @@
+name: Ensure 7z
+description: Installs 7-Zip when the runner has no 7z or 7zz command.
+
+runs:
+  using: composite
+  steps:
+    - name: Install 7-Zip
+      shell: bash
+      run: |
+        if command -v 7z >/dev/null 2>&1 || command -v 7zz >/dev/null 2>&1; then
+          exit 0
+        fi
+        case "$RUNNER_OS" in
+          Linux) sudo apt-get update && sudo apt-get install -y p7zip-full ;;
+          macOS) brew install sevenzip ;;
+          Windows) choco install 7zip -y --no-progress ;;
+        esac

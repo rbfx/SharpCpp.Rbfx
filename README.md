@@ -78,4 +78,26 @@ In a consumer project, `rbfx_csharp_add_usercode()` writes the managed project f
 Set `RBFX_CSHARP_MSBUILD_PROPS`, `RBFX_CSHARP_MSBUILD_TARGETS` and `RBFX_CSHARP_BINDINGS_PROJECTS` before you build the written project.
 In a consumer project, the target of `rbfx_csharp_add_plugin()` is not part of the default build. Add it with `add_dependencies()`.
 The install step needs a finished build, because the generator writes the metadata files and the build links the wrapper.
+
+### SDK archives
+
+`packaging/sdk/pack-sdk.sh` installs the SDK and packs it into a 7z archive. It needs `7z` and a finished build.
+Configure the build tree with `-DRBFX_HOST_DEFAULT_DOTNET_ROOT=OFF`. The script works in Git Bash on Windows too.
+
+```
+packaging/sdk/pack-sdk.sh --build-dir <tree> --config <Config> --tag <platform tag> --out <dir>
+```
+
+The archive is `<dir>/sharpcpp-rbfx-sdk-<tag>-latest.7z`. It has one root folder with the same name (example tag: `linux-gcc-x64-dll`).
+
+`packaging/sdk/check-consumer.sh` extracts an archive (or takes an extracted folder), then configures and builds the project
+`packaging/sdk-consumer` against it and the rbfx SDK. It fails when the generated wrapper source is missing.
+
+```
+packaging/sdk/check-consumer.sh --sdk-archive <7z> --rbfx-sdk <rbfx install root> --config <Config> --work <dir>
+packaging/sdk/check-consumer.sh --sdk-dir <dir> --rbfx-sdk <rbfx install root> --config <Config> --work <dir>
+```
 A cross build does not install the engine runtime files.
+
+CI builds the archive in the `Package` job for `linux-x64`, `osx-arm64` and `win-x64` (artifact `sdk-<rid>`).
+The `SDK-Consumer` job checks it. The release jobs upload the `.7z` files to the release (`--clobber`). `uap-x64` has no archive.

@@ -62,15 +62,20 @@ jobs:
         # One entry for each runtime package. A failure of an entry stops the release.
         # The union job assembles the final managed packages after all platform builds finish.
         # There is no osx-x64 entry, because libclang has no runtime package for that RID.
+        # An entry with sdk_tag also builds the SDK archive. The tag is the platform tag of the archive.
+        # It is also the name of the CMake preset of the RID. uap-x64 has no SDK archive.
         include:
           - rid: linux-x64
             runs_on: ubuntu-latest
+            sdk_tag: linux-gcc-x64-dll
             packages: '*.nupkg'
           - rid: osx-arm64
             runs_on: macos-latest
+            sdk_tag: macos-clang-arm64-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: win-x64
             runs_on: windows-latest
+            sdk_tag: windows-msvc-x64-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: uap-x64
             runs_on: windows-2022
@@ -144,6 +149,61 @@ jobs:
         run: >-
           dotnet run --file packaging/nuget/CrossPackage.cs -- create
           --version "$PACKAGE_VERSION" --rid '${{ matrix.rid }}'
+
+      - name: Ensure 7z
+        if: matrix.sdk_tag != ''
+        uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
+
+      # The SDK needs the managed output of the generators in the build root of the package build.
+      # Build the user-code generator now. The native tree stays as it is, because a MSBuild
+      # build of the native project would configure it again.
+      - name: Build SDK Managed Output
+        if: matrix.sdk_tag != ''
+        timeout-minutes: 30
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: |
+          build_root="$PWD/build/package/nuget/${{ matrix.rid }}/build"
+          if command -v cygpath >/dev/null 2>&1; then
+            build_root="$(cygpath -m "$build_root")"
+          fi
+          dotnet build Rbfx.UserCode.Generator/Rbfx.UserCode.Generator.csproj \
+            --configuration Release \
+            --nologo \
+            -p:RbfxTargetRid='${{ matrix.rid }}' \
+            -p:SharpCppBuildRoot="$build_root"
+
+      # The SDK host library must not contain the dotnet root of the runner.
+      # The configure step keeps the other cache values of the package build.
+      - name: Build SDK Host
+        if: matrix.sdk_tag != ''
+        timeout-minutes: 60
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: |
+          native_dir="build/package/nuget/${{ matrix.rid }}/build/native/${{ matrix.sdk_tag }}"
+          test -f "$native_dir/CMakeCache.txt"
+          cmake -B "$native_dir" -DRBFX_HOST_DEFAULT_DOTNET_ROOT=OFF
+          cmake --build "$native_dir" --config Release --target sharpcpp-rbfx-host
+
+      - name: Pack SDK
+        if: matrix.sdk_tag != ''
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: |
+          ./packaging/sdk/pack-sdk.sh \
+            --build-dir "build/package/nuget/${{ matrix.rid }}/build/native/${{ matrix.sdk_tag }}" \
+            --config Release \
+            --tag '${{ matrix.sdk_tag }}' \
+            --out build/package/sdk/${{ matrix.rid }}
+
+      - name: Upload SDK Archive
+        if: matrix.sdk_tag != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdk-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/package/sdk/${{ matrix.rid }}/*.7z
+          if-no-files-found: error
 
       - name: Upload Packages
         uses: actions/upload-artifact@v7
@@ -676,6 +736,67 @@ jobs:
           path: SharpCpp.Rbfx/build/**/obj/**/*.log
           if-no-files-found: warn
 
+  # Builds a small C++ project against the SDK archive and the rbfx SDK of the same RID.
+  SDK-Consumer:
+    name: SDK Consumer (${{ matrix.rid }})
+    needs: [Package]
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runs_on: ubuntu-latest
+          - rid: osx-arm64
+            runs_on: macos-latest
+          - rid: win-x64
+            runs_on: windows-latest
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Native Toolchain
+        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
+        with:
+          rid: ${{ matrix.rid }}
+
+      - name: Ensure 7z
+        uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
+
+      - name: Download SDK Archive
+        uses: actions/download-artifact@v8
+        with:
+          name: sdk-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/sdk-archive
+
+      - name: Build Consumer
+        timeout-minutes: 30
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: |
+          rbfx_root="$(./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}' --print-root)"
+          if command -v cygpath >/dev/null 2>&1; then
+            rbfx_root="$(cygpath -m "$rbfx_root")"
+          fi
+          test -f "$rbfx_root/share/Urho3D/CMake/Urho3DConfig.cmake"
+          archives=(build/sdk-archive/*.7z)
+          test "${#archives[@]}" -eq 1
+          ./packaging/sdk/check-consumer.sh \
+            --sdk-archive "${archives[0]}" \
+            --rbfx-sdk "$rbfx_root" \
+            --config Release \
+            --work build/sdk-consumer
+
   Publish-NuGet:
     name: Publish NuGet Packages
     needs: [Union, Smoke, Cross-Consumer, E2E]
@@ -713,7 +834,7 @@ jobs:
 
   Release-Latest:
     name: Release Latest
-    needs: [Union, Smoke, Cross-Consumer, E2E]
+    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer]
     if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     concurrency:
@@ -733,6 +854,13 @@ jobs:
         with:
           name: union-nuget
           path: packages
+          merge-multiple: true
+
+      - name: Download SDK Archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: sdk-*
+          path: sdk
           merge-multiple: true
 
       # GITHUB_TOKEN cannot update the tag when the target commit changes a workflow file.
@@ -759,9 +887,14 @@ jobs:
           done
           gh release upload "$RELEASE_TAG" packages/*.nupkg --clobber
 
+      # The archive names have no version, so --clobber replaces the old assets.
+      - name: Release SDK Archives
+        shell: bash
+        run: gh release upload "$RELEASE_TAG" sdk/*.7z --clobber
+
   Release-Tag:
     name: Release Tag
-    needs: [Union, Smoke, Cross-Consumer, E2E, Version]
+    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Version]
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
@@ -778,6 +911,13 @@ jobs:
           path: packages
           merge-multiple: true
 
+      - name: Download SDK Archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: sdk-*
+          path: sdk
+          merge-multiple: true
+
       - name: Release Packages
         shell: bash
         run: |
@@ -791,3 +931,10 @@ jobs:
               --notes "SharpCpp.Rbfx $PACKAGE_VERSION."
           fi
           gh release upload "$TAG" packages/*.nupkg --clobber
+
+      # The archive names have no version, so --clobber replaces the old assets.
+      - name: Release SDK Archives
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release upload "$TAG" sdk/*.7z --clobber

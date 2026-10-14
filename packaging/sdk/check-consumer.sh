@@ -3,6 +3,10 @@
 #
 # Usage: check-consumer.sh (--sdk-archive <7z> | --sdk-dir <dir>) --rbfx-sdk <rbfx install root>
 #                          --config <Config> --work <dir>
+#                          [--toolchain <file>] [--cmake-arg <arg>]...
+#
+# --toolchain  A CMake toolchain file for a cross build. The script builds the consumer and runs nothing.
+# --cmake-arg  An extra argument for the configure step. The option is repeatable.
 #
 # The script extracts the archive into <work>/sdk, configures and builds the consumer in
 # <work>/build, and checks that the generated wrapper source exists.
@@ -11,11 +15,12 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 (--sdk-archive <7z> | --sdk-dir <dir>) --rbfx-sdk <rbfx install root> --config <Config> --work <dir>" >&2
+  echo "Usage: $0 (--sdk-archive <7z> | --sdk-dir <dir>) --rbfx-sdk <rbfx install root> --config <Config> --work <dir> [--toolchain <file>] [--cmake-arg <arg>]..." >&2
   exit 2
 }
 
-archive="" sdk_dir="" rbfx_sdk="" config="" work=""
+archive="" sdk_dir="" rbfx_sdk="" config="" work="" toolchain=""
+cmake_args=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --sdk-archive) [[ $# -ge 2 ]] || usage; archive="$2"; shift 2 ;;
@@ -23,6 +28,8 @@ while [[ $# -gt 0 ]]; do
     --rbfx-sdk) [[ $# -ge 2 ]] || usage; rbfx_sdk="$2"; shift 2 ;;
     --config) [[ $# -ge 2 ]] || usage; config="$2"; shift 2 ;;
     --work) [[ $# -ge 2 ]] || usage; work="$2"; shift 2 ;;
+    --toolchain) [[ $# -ge 2 ]] || usage; toolchain="$2"; shift 2 ;;
+    --cmake-arg) [[ $# -ge 2 ]] || usage; cmake_args+=("$2"); shift 2 ;;
     *) echo "Unknown argument: $1" >&2; usage ;;
   esac
 done
@@ -32,6 +39,10 @@ if [[ -n "$archive" && -n "$sdk_dir" ]] || [[ -z "$archive" && -z "$sdk_dir" ]];
   usage
 fi
 [[ -d "$rbfx_sdk" ]] || { echo "Error: rbfx SDK not found: $rbfx_sdk" >&2; exit 1; }
+if [[ -n "$toolchain" ]]; then
+  [[ -f "$toolchain" ]] || { echo "Error: toolchain file not found: $toolchain" >&2; exit 1; }
+  toolchain="$(cd "$(dirname "$toolchain")" && pwd)/$(basename "$toolchain")"
+fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 consumer_src="$(cd "$script_dir/../sdk-consumer" && pwd)"
@@ -78,11 +89,19 @@ if command -v cygpath >/dev/null 2>&1; then
   prefix_rbfx="$(cygpath -m "$rbfx_sdk")"
 fi
 
+configure_args=(-S "$consumer_src" -B "$build_dir"
+  "-DCMAKE_BUILD_TYPE=$config"
+  "-DCMAKE_PREFIX_PATH=$prefix_sdk;$prefix_rbfx")
+if [[ -n "$toolchain" ]]; then
+  # A cross build builds the consumer and runs nothing. The consumer picks the library type of the target.
+  configure_args+=("-DCMAKE_TOOLCHAIN_FILE=$toolchain")
+else
+  configure_args+=(-DBUILD_SHARED_LIBS=ON)
+fi
+configure_args+=("${cmake_args[@]+"${cmake_args[@]}"}")
+
 rm -rf "$build_dir"
-cmake -S "$consumer_src" -B "$build_dir" \
-  -DCMAKE_BUILD_TYPE="$config" \
-  -DBUILD_SHARED_LIBS=ON \
-  "-DCMAKE_PREFIX_PATH=$prefix_sdk;$prefix_rbfx"
+cmake "${configure_args[@]}"
 cmake --build "$build_dir" --config "$config"
 
 wrapper="$build_dir/generated/Greeter/Greeter.Bindings.g.cpp"

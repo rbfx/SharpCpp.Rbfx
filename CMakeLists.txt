@@ -166,6 +166,10 @@ if(RBFX_REMAP_SOURCE_PATHS)
     "${RBFX_ENGINE_ROOT}=rbfx-sdk"
     "${CMAKE_CURRENT_SOURCE_DIR}=."
     "${CMAKE_BINARY_DIR}=build")
+  # The headers of the Android NDK name their own paths in assert strings and __FILE__.
+  if(CMAKE_ANDROID_NDK)
+    list(PREPEND _rbfx_path_maps "${CMAKE_ANDROID_NDK}=ndk")
+  endif()
   if(MSVC)
     # The compiler removes the prefix from the file names in __FILE__ and in the debug info.
     foreach(_rbfx_path_map IN LISTS _rbfx_path_maps)

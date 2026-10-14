@@ -4,11 +4,18 @@
 cmake_minimum_required(VERSION 3.28)
 project(SdkConsumer LANGUAGES CXX)
 
-# The rbfx SDK needs a shared library type.
+# The rbfx SDK of Android and of the desktop has shared libraries. The rbfx SDK of iOS and of
+# Emscripten has static libraries.
 if(NOT DEFINED BUILD_SHARED_LIBS)
-  set(BUILD_SHARED_LIBS ON)
+  if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten" OR EMSCRIPTEN)
+    set(BUILD_SHARED_LIBS OFF)
+  else()
+    set(BUILD_SHARED_LIBS ON)
+  endif()
 endif()
 
+# The Android toolchain limits find_package to the target sysroot. The two SDKs are in CMAKE_PREFIX_PATH.
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
 find_package(SharpCppRbfx CONFIG REQUIRED)
 
 add_library(Greeter.Impl STATIC Greeter.cpp)
@@ -23,5 +30,8 @@ rbfx_csharp_add_usercode(Greeter
   LINK_LIBRARIES Greeter.Impl
   NAMESPACE Consumer)
 
-add_executable(GreeterApp main.cpp)
-target_link_libraries(GreeterApp PRIVATE Greeter.Impl)
+# A cross build checks the libraries only. The application needs a target platform entry point.
+if(NOT CMAKE_CROSSCOMPILING)
+  add_executable(GreeterApp main.cpp)
+  target_link_libraries(GreeterApp PRIVATE Greeter.Impl)
+endif()

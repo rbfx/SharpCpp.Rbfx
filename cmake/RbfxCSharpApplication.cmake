@@ -465,7 +465,7 @@ function(_rbfx_csharp_add_wasm_application name)
 
   # The native items need the complete link closure. A later target_link_libraries in this directory can still add to it, so the
   # file is written at the end of the directory of this call. Imported targets are visible only there.
-  # the values go into the code now.
+  # A deferred call reads the variables when it runs, so the values go into the code now.
   cmake_language(EVAL CODE
     "cmake_language(DEFER DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}]==] CALL _rbfx_csharp_write_wasm_native_items [==[${name}]==] [==[${head_dir}/NativeItems.props]==])")
 

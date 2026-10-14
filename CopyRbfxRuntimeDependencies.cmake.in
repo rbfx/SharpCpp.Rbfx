@@ -1,7 +1,12 @@
 set(sdk_root "@RBFX_SDK_ROOT@")
 
+# The files go next to the target by default. The install rules set destination_dir to copy them to the install prefix.
+if(NOT DEFINED destination_dir OR destination_dir STREQUAL "")
+  set(destination_dir "${output_dir}")
+endif()
+
 # The caller passes native paths. The prefix tests below need the CMake path form.
-foreach(path_variable IN ITEMS target_file output_dir urho_dir urho_library_file)
+foreach(path_variable IN ITEMS target_file output_dir destination_dir urho_dir urho_library_file)
   cmake_path(SET ${path_variable} "${${path_variable}}")
 endforeach()
 
@@ -39,7 +44,8 @@ function(copy_runtime_dependency runtime_dependency_source)
   endif()
 
   get_filename_component(runtime_dependency_name "${runtime_dependency_source}" NAME)
-  file(COPY_FILE "${runtime_dependency_source}" "${output_dir}/${runtime_dependency_name}" ONLY_IF_DIFFERENT)
+  file(MAKE_DIRECTORY "${destination_dir}")
+  file(COPY_FILE "${runtime_dependency_source}" "${destination_dir}/${runtime_dependency_name}" ONLY_IF_DIFFERENT)
 endfunction()
 
 file(GET_RUNTIME_DEPENDENCIES

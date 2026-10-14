@@ -324,6 +324,50 @@ if(RBFX_INSTALL_SDK)
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindNetHost.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
+
+  # Package mode has no managed build of its own, so the managed payload belongs to source mode only.
+  if(NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
+    # The managed payload comes from the output folder of "dotnet build". The install step does not
+    # build it. It stops with a message when a file is missing. The set of files is the same as the
+    # lib folder and the analyzer folder of the runtime package (packaging/nuget/package.sh).
+    set(_rbfx_sdk_share_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx")
+    set(_rbfx_sdk_managed_source "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>")
+    install(CODE "
+      if(IS_ABSOLUTE \"${_rbfx_sdk_share_dir}\")
+        set(_rbfx_share_dir \"\$ENV{DESTDIR}${_rbfx_sdk_share_dir}\")
+      else()
+        set(_rbfx_share_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${_rbfx_sdk_share_dir}\")
+      endif()
+      foreach(_rbfx_assembly IN ITEMS
+          SharpCpp.Rbfx.Bindings SharpCpp.Support SharpCpp.Std SharpCpp.Ea SharpCpp.Rbfx.SourceGenerator)
+        if(NOT EXISTS \"${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.dll\")
+          message(FATAL_ERROR \"The managed assembly is missing: ${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.dll. Run dotnet build before the install step.\")
+        endif()
+        foreach(_rbfx_extension IN ITEMS dll pdb xml)
+          if(EXISTS \"${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.\${_rbfx_extension}\")
+            file(INSTALL \"${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.\${_rbfx_extension}\"
+              DESTINATION \"\${_rbfx_share_dir}/managed\")
+          endif()
+        endforeach()
+      endforeach()
+      set(RBFX_GENERATOR_SOURCE_DIR \"${_rbfx_sdk_managed_source}\")
+      set(RBFX_GENERATOR_INSTALL_DIR \"\${_rbfx_share_dir}/tools/usercode\")")
+    install(SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxInstallUserCodeGenerator.cmake")
+  endif()
+
+  # Headers for the user-code generator: --sharpcpp-include and --rbfx-include. Both trees
+  # have the folder SharpCpp, so the files merge in include/SharpCpp.
+  install(
+    DIRECTORY "${SHARPCPP_ROOT}/include/SharpCpp"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h")
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/SharpCpp"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h")
+  install(
+    FILES "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
+    DESTINATION "${_rbfx_sdk_module_dir}")
 endif()
 
 add_custom_target(sharpcpp-rbfx-generate)

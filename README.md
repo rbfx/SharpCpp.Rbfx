@@ -34,13 +34,27 @@ The installed SDK has these parts:
   consumer must put `nethost.dll` next to its executable.
 - `share/SharpCppRbfx/cmake/FindNetHost.cmake`. The package file uses it for a static host library.
 - `share/SharpCppRbfx/cmake/RbfxCSharpDotNet.cmake` with `rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_plugin()`.
+- The native binding wrapper `SharpCpp.Rbfx.Native` with the imported target `SharpCpp::RbfxNative`. This part is in a source-mode build with a shared library type.
+  The install step copies the engine shared library and the other runtime files of the wrapper next to it (`lib` on Linux and macOS, `bin` on Windows).
+  The wrapper finds them through its own run-time path.
+- The binding metadata `SharpCpp.Rbfx.Bindings.json` and `SharpCpp.Rbfx.ParseUmbrella.hpp` in `share/SharpCppRbfx/metadata`.
 - The package files `SharpCppRbfxConfig.cmake` and `SharpCppRbfxConfigVersion.cmake`.
 
-The installed SDK does not have these parts today:
+- The managed assemblies `SharpCpp.Rbfx.Bindings`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea` and `SharpCpp.Rbfx.SourceGenerator` in `share/SharpCppRbfx/managed`.
+- The user-code generator in `share/SharpCppRbfx/tools/usercode`. Run it with `dotnet <prefix>/share/SharpCppRbfx/tools/usercode/Rbfx.UserCode.Generator.dll`.
+  It needs a .NET runtime on the machine. The install step copies the files that the generator needs from the output folder of `dotnet build`.
+- The SharpCpp headers in `include/SharpCpp` (`Marshaller.hpp` and its includes, and the `detail` marshaller headers of this repository).
+  They are the input of `--sharpcpp-include` and `--rbfx-include`.
+- `share/SharpCppRbfx/cmake/SharpCppGeneratedStaleness.cmake`.
 
-- The generated C# bindings and the native binding library.
+The managed files come from the output folder of `dotnet build SharpCpp.Rbfx.slnx` for the same configuration.
+The install step does not build them. It stops with a message when a file is missing.
+
+The installed SDK does not have this part today:
+
 - `rbfx_csharp_add_usercode()`.
-- The managed generators.
 
 `rbfx_csharp_add_plugin()` needs the native binding target of the full build tree.
-It does not work in a consumer project until the SDK has the generated bindings.
+It needs the target `sharpcpp-rbfx-runtime` of the full build tree, so it does not work in a consumer project yet.
+The install step needs a finished build, because the generator writes the metadata files and the build links the wrapper.
+A cross build does not install the engine runtime files.

@@ -87,3 +87,64 @@ else()
   # Cross-target dependencies are staged from the SDK instead of the host loader.
   add_custom_target(sharpcpp-rbfx-runtime DEPENDS SharpCppRbfx_Native)
 endif()
+
+# Install rules of the SDK. They run only for "cmake --install" and do not change the build.
+# The wrapper joins the export set of the host library, so SharpCppRbfxConfig.cmake defines
+# SharpCpp::RbfxNative. A static wrapper is not installed, because its private link
+# dependencies are not in the export set.
+if(RBFX_INSTALL_SDK AND RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED")
+  include(GNUInstallDirs)
+  set(_rbfx_sdk_metadata_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx/metadata")
+  set_target_properties(SharpCppRbfx_Native PROPERTIES EXPORT_NAME RbfxNative)
+  install(
+    TARGETS SharpCppRbfx_Native
+    EXPORT SharpCppRbfxTargets
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+
+  # The engine library and its runtime files go next to the wrapper. The "$ORIGIN" or
+  # "@loader_path" rpath of the wrapper finds them there, and Windows finds them in the DLL directory.
+  # The install step runs the script that the build uses, with the install directory as destination.
+  if(WIN32)
+    set(_rbfx_sdk_runtime_dir "${CMAKE_INSTALL_BINDIR}")
+  else()
+    set(_rbfx_sdk_runtime_dir "${CMAKE_INSTALL_LIBDIR}")
+  endif()
+  if(NOT CMAKE_CROSSCOMPILING)
+    install(CODE "
+      if(IS_ABSOLUTE \"${_rbfx_sdk_runtime_dir}\")
+        set(_rbfx_destination_dir \"\$ENV{DESTDIR}${_rbfx_sdk_runtime_dir}\")
+      else()
+        set(_rbfx_destination_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${_rbfx_sdk_runtime_dir}\")
+      endif()
+      execute_process(
+        COMMAND \"${CMAKE_COMMAND}\"
+          \"-Dtarget_file=$<TARGET_FILE:SharpCppRbfx_Native>\"
+          \"-Doutput_dir=$<TARGET_FILE_DIR:SharpCppRbfx_Native>\"
+          \"-Ddestination_dir=\${_rbfx_destination_dir}\"
+          \"-Durho_dir=$<TARGET_FILE_DIR:${RBFX_URHO3D_TARGET}>\"
+          \"-Durho_library_file=$<TARGET_FILE:${RBFX_URHO3D_TARGET}>\"
+          \"-Dconfig=$<CONFIG>\"
+          -P \"${RBFX_RUNTIME_DEPENDENCIES_SCRIPT}\"
+        RESULT_VARIABLE _rbfx_runtime_result)
+      if(NOT _rbfx_runtime_result EQUAL 0)
+        message(FATAL_ERROR \"Cannot install the runtime files of the wrapper (result: \${_rbfx_runtime_result}).\")
+      endif()")
+  endif()
+
+  # The generator writes these files during the build. Stop with a clear message when they are missing.
+  install(CODE "
+    foreach(_rbfx_generated_file IN ITEMS
+        \"${RBFX_METADATA_FILE}\"
+        \"${RBFX_ENGINE_UMBRELLA_DIRECTORY}/SharpCpp.Rbfx.ParseUmbrella.hpp\")
+      if(NOT EXISTS \"\${_rbfx_generated_file}\")
+        message(FATAL_ERROR \"The generated file is missing: \${_rbfx_generated_file}. Build the project before the install step.\")
+      endif()
+    endforeach()")
+  install(
+    FILES
+      "${RBFX_METADATA_FILE}"
+      "${RBFX_ENGINE_UMBRELLA_DIRECTORY}/SharpCpp.Rbfx.ParseUmbrella.hpp"
+    DESTINATION "${_rbfx_sdk_metadata_dir}")
+endif()

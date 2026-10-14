@@ -1,6 +1,6 @@
 <Project>
   <!-- The one mapping from a RID to the platform items that ship native libraries into an application.
-       Source builds import it through eng/SharpCpp.Rbfx.Consumer.targets. The runtime NuGet packages
+       Source builds import it from eng/SharpCpp.Rbfx.Build.targets. The runtime NuGet packages
        get a copy in buildTransitive/ (packaging/nuget/CrossPackage.cs).
 
        A consumer can import this file several times: one copy for each runtime package. So the mapping
@@ -39,15 +39,14 @@
     <AndroidNativeLibraryNoJniPreload Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('Extension', '.so'))" />
     <!-- NoJniPreload does not put a file into the APK. The libraries of a runtime package arrive through the
          NuGet native assets. The library of a RbfxUserCodeReference does not, so it needs AndroidNativeLibrary with an Abi. -->
-    <AndroidNativeLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm64')->WithMetadataValue('Extension', '.so'))" />
-    <AndroidNativeLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm64')->WithMetadataValue('Extension', '.so'))" Abi="arm64-v8a" />
-    <AndroidNativeLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm')->WithMetadataValue('Extension', '.so'))" />
-    <AndroidNativeLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-arm')->WithMetadataValue('Extension', '.so'))" Abi="armeabi-v7a" />
-    <AndroidNativeLibrary Remove="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-x64')->WithMetadataValue('Extension', '.so'))" />
-    <AndroidNativeLibrary Include="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxUserCode', 'true')->WithMetadataValue('RbfxNativeRid', 'android-x64')->WithMetadataValue('Extension', '.so'))" Abi="x86_64" />
-    <AndroidNativeLibraryNoJniPreload Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxNativeRid', 'android-arm64')->WithMetadataValue('Extension', '.so'))" Abi="arm64-v8a" />
-    <AndroidNativeLibraryNoJniPreload Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxNativeRid', 'android-arm')->WithMetadataValue('Extension', '.so'))" Abi="armeabi-v7a" />
-    <AndroidNativeLibraryNoJniPreload Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('RbfxNativeRid', 'android-x64')->WithMetadataValue('Extension', '.so'))" Abi="x86_64" />
+    <!-- The ABI of a file follows from its RbfxNativeRid. -->
+    <AndroidNativeLibraryNoJniPreload Update="@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'android')->WithMetadataValue('Extension', '.so'))">
+      <Abi Condition="'%(RbfxNativeRid)' == 'android-arm64'">arm64-v8a</Abi>
+      <Abi Condition="'%(RbfxNativeRid)' == 'android-arm'">armeabi-v7a</Abi>
+      <Abi Condition="'%(RbfxNativeRid)' == 'android-x64'">x86_64</Abi>
+    </AndroidNativeLibraryNoJniPreload>
+    <AndroidNativeLibrary Remove="@(AndroidNativeLibraryNoJniPreload->HasMetadata('Abi')->WithMetadataValue('RbfxUserCode', 'true'))" />
+    <AndroidNativeLibrary Include="@(AndroidNativeLibraryNoJniPreload->HasMetadata('Abi')->WithMetadataValue('RbfxUserCode', 'true'))" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(_RbfxNativeConsumerRid)' == 'ios-arm64' and '$(TargetPlatformIdentifier)' == 'ios'">

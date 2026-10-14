@@ -62,8 +62,12 @@
                            RbfxUserCode="true" />
   </ItemGroup>
 
-  <!-- The platform items need the RbfxNativeRuntimeFile items above, so import after them. -->
-  <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Consumer.targets" />
+  <!-- Native items of an application that builds from source. A project adds its native files to
+       RbfxNativeRuntimeFile with the metadata RbfxNativeRid and RbfxNativeKind. The RID of the
+       application is RbfxTargetRid, or else RuntimeIdentifier. With no such item, nothing is mapped.
+       For the RID browser-wasm the import still sets the static EmccExtraLDFlags.
+       The platform items need the RbfxNativeRuntimeFile items above, so import after them. -->
+  <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.NativeItems.targets" />
 
   <!-- Copies the native runtime of an application to its output folder. Only the desktop kind needs
        it. It applies to an application with the output type Exe or WinExe (the UWP app is WinExe). The other
@@ -90,6 +94,12 @@
     </ItemGroup>
   </Target>
 
+  <!-- The target RID as MSBuild properties for a referenced project. Empty for the host build. -->
+  <PropertyGroup>
+    <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
+    <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxRestoreRid)</_RbfxTargetRidProperty>
+  </PropertyGroup>
+
   <Target Name="RbfxResolveUserCodeReferences"
           AfterTargets="ResolveProjectReferences"
           BeforeTargets="ResolveAssemblyReferences"
@@ -98,10 +108,11 @@
          RbfxTargetRid (project property or global property). So the usercode csproj directory
          already lies in the tree of the target RID. The generated project gets the same RID below. -->
     <PropertyGroup>
-      <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
-      <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxRestoreRid)</_RbfxTargetRidProperty>
       <!-- The generated projects of different trees share a project name. Each tree gets its own restore folder. -->
-      <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' == '' and '$(RbfxTargetRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
+      <_RbfxUserCodeRidProperty>$(_RbfxTargetRidProperty)</_RbfxUserCodeRidProperty>
+      <_RbfxUserCodeRidProperty Condition="'$(RbfxRestoreRid)' == '' and '$(RbfxTargetRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxTargetRid)</_RbfxUserCodeRidProperty>
+      <_RbfxUserCodeTargets>Build</_RbfxUserCodeTargets>
+      <_RbfxUserCodeTargets Condition="'$(DesignTimeBuild)' == 'true'">GetTargetPath</_RbfxUserCodeTargets>
       <!-- A restore folder of a tree holds the projects that the generated project references. -->
       <_RbfxRestoreRecursive>false</_RbfxRestoreRecursive>
       <_RbfxRestoreRecursive Condition="'$(RbfxRestoreRid)' != '' or '$(RbfxTargetRid)' != ''">true</_RbfxRestoreRecursive>
@@ -118,21 +129,14 @@
     <!-- Each Restore call uses its own session id. The generated project is not in the solution. -->
     <MSBuild Projects="@(_RbfxUserCodeCandidate)"
              Targets="Restore"
-             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty);RestoreRecursive=$(_RbfxRestoreRecursive);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             Properties="Configuration=$(Configuration)$(_RbfxUserCodeRidProperty);RestoreRecursive=$(_RbfxRestoreRecursive);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
              RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
              Condition="'$(DesignTimeBuild)' != 'true'" />
+    <!-- A design-time build only reads the output path. -->
     <MSBuild Projects="@(_RbfxUserCodeCandidate)"
-             Targets="Build"
-             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty)"
-             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
-             Condition="'$(DesignTimeBuild)' != 'true'">
-      <Output TaskParameter="TargetOutputs" ItemName="_RbfxUserCodeAssembly" />
-    </MSBuild>
-    <MSBuild Projects="@(_RbfxUserCodeCandidate)"
-             Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)$(_RbfxTargetRidProperty)"
-             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
-             Condition="'$(DesignTimeBuild)' == 'true'">
+             Targets="$(_RbfxUserCodeTargets)"
+             Properties="Configuration=$(Configuration)$(_RbfxUserCodeRidProperty)"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained">
       <Output TaskParameter="TargetOutputs" ItemName="_RbfxUserCodeAssembly" />
     </MSBuild>
 
@@ -146,10 +150,6 @@
           BeforeTargets="_GetProjectReferenceTargetFrameworkProperties;ResolveProjectReferences">
     <!-- A project property RbfxTargetRid is not a global property, so it does not flow to referenced
          projects (for example the native project). Pass it in SetConfiguration. Empty for the host build. -->
-    <PropertyGroup>
-      <_RbfxTargetRidProperty Condition="'$(RbfxTargetRid)' != ''">;RbfxTargetRid=$(RbfxTargetRid)</_RbfxTargetRidProperty>
-      <_RbfxTargetRidProperty Condition="'$(RbfxRestoreRid)' != ''">$(_RbfxTargetRidProperty);RbfxRestoreRid=$(RbfxRestoreRid)</_RbfxTargetRidProperty>
-    </PropertyGroup>
     <ItemGroup>
       <_MSBuildProjectReferenceExistent Update="@(_MSBuildProjectReferenceExistent)">
         <SetConfiguration>%(_MSBuildProjectReferenceExistent.SetConfiguration);Configuration=$(Configuration)$(_RbfxTargetRidProperty)</SetConfiguration>

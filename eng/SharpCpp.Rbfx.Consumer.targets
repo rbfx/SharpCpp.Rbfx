@@ -1,7 +1,0 @@
-<Project>
-  <!-- Native items of an application that builds from source. A project adds its native files to
-       RbfxNativeRuntimeFile with the metadata RbfxNativeRid and RbfxNativeKind. The RID of the
-       application is RbfxTargetRid, or else RuntimeIdentifier. With no such item, nothing is mapped.
-       For the RID browser-wasm the import still sets the static EmccExtraLDFlags. -->
-  <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.NativeItems.targets" />
-</Project>

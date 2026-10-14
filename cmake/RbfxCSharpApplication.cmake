@@ -3,6 +3,8 @@ set(_rbfx_csharp_application_dir "${CMAKE_CURRENT_LIST_DIR}")
 
 # One call per application: native executable that hosts the .NET runtime and loads a C# plugin.
 # On Android the call makes an APK: a .NET Android head starts the runtime and loads the native application.
+# On Emscripten the call makes a web folder: a .NET WebAssembly head starts the runtime, and the native application
+# is linked into the runtime.
 #
 # rbfx_csharp_add_application(<name>
 #   SOURCES <files...>
@@ -36,7 +38,7 @@ set(_rbfx_csharp_application_dir "${CMAKE_CURRENT_LIST_DIR}")
 # PROPERTIES    MSBuild properties for the plugin project, as Name=Value. They come after the properties
 #               that this function sets for the package of SharpCpp.Rbfx.
 # RESOURCES, APPLICATION_ID
-#               Accepted and ignored on desktop. Android uses them (see below).
+#               Accepted and ignored on desktop. Android uses them, Emscripten uses RESOURCES (see below).
 #
 # Android (single-configuration generator, NDK toolchain, SharpCpp.Rbfx built in shim mode):
 # - Creates the shared library <name> (lib<name>.so) from SOURCES. URHO3D_DEFINE_APPLICATION_MAIN exports
@@ -57,6 +59,24 @@ set(_rbfx_csharp_application_dir "${CMAKE_CURRENT_LIST_DIR}")
 #   environment variables ANDROID_HOME and JAVA_HOME) go to dotnet as AndroidSdkDirectory and
 #   JavaSdkDirectory. RBFX_CSHARP_ANDROID_JAVA_DIR is the folder with the SDL Java sources
 #   (org/libsdl/app). The default is the folder in the engine SDK.
+#
+# Emscripten (single-configuration generator, Emscripten toolchain, static engine and SharpCpp.Rbfx in shim mode):
+# - The browser has no hostfxr. The .NET WebAssembly head is the entry. The application, the engine, the wrapper
+#   and the host library are static code in dotnet.native.wasm (NativeFileReference items of the head).
+# - Creates the object library <name> from SOURCES and heads/wasm/RbfxWebMain.cpp. The .NET runtime has its own
+#   main, so SOURCES compile with main=rbfx_application_main. RbfxWebMain.cpp exports it as the C function
+#   rbfx_application_start. The library links with Urho3D, SharpCpp::RbfxHost and LINK_LIBRARIES.
+# - Generates the head project in <build>/heads/<name>/ from the templates in heads/wasm/ next to this file.
+#   At the end of the configure step, CMake collects the static libraries, the objects and the link flags of the
+#   link closure of <name> and of SharpCpp::RbfxNative into NativeItems.props of the head. The head references PLUGIN.
+# - main.js of the head starts the runtime, writes the RESOURCES into the file system of Emscripten and runs
+#   Program.Main. Program.Main runs the module initializer of the bindings, so DotNetHost::Initialize finds the
+#   runtime. Then main.js calls rbfx_application_start on the browser thread. The engine main loop then runs there.
+# - A file in RESOURCES becomes a file in the root folder with its file name. A folder becomes a folder with its
+#   name. A generated file in RESOURCES must come from a custom command in the top-level CMakeLists.txt.
+# - The target <name>.CSharp publishes the head with dotnet (Release) and copies the web folder (index.html, main.js,
+#   _framework and the RESOURCES) to <name>/ in the runtime output folder (CMAKE_RUNTIME_OUTPUT_DIRECTORY).
+#   The runtime uses threads, so the web server must send the headers of cross-origin isolation.
 function(rbfx_csharp_add_application name)
   cmake_parse_arguments(
     PARSE_ARGV 1 arg "CONSOLE" "PLUGIN;APPLICATION_ID" "SOURCES;USERCODE;LINK_LIBRARIES;RESOURCES;PROPERTIES")
@@ -66,8 +86,8 @@ function(rbfx_csharp_add_application name)
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "rbfx_csharp_add_application(${name}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
-  if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|visionOS)$")
-    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): only the desktop platforms and Android are supported.")
+  if(CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|visionOS)$")
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): only the desktop platforms, Android and Emscripten are supported.")
   endif()
 
   get_filename_component(plugin_name "${arg_PLUGIN}" NAME_WLE)
@@ -81,6 +101,10 @@ function(rbfx_csharp_add_application name)
 
   if(ANDROID)
     _rbfx_csharp_add_android_application(${name})
+    return()
+  endif()
+  if(EMSCRIPTEN)
+    _rbfx_csharp_add_wasm_application(${name})
     return()
   endif()
 
@@ -370,7 +394,243 @@ function(_rbfx_csharp_add_android_application name)
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
 endfunction()
 
-# The target that makes the files in RESOURCES of an Android application (see above).
+# The Emscripten part of rbfx_csharp_add_application. It reads the variables arg_*, plugin_name and
+# plugin_properties of the caller.
+#
+# The entry of the application: the browser has no hostfxr, so the .NET WebAssembly runtime starts first. The managed
+# side must attach before the native code calls DotNetHost::Initialize. The engine must run on the browser thread:
+# SDL, WebGL and the input events of the canvas are there, and the threaded runtime runs Program.Main on a worker.
+# The engine also calls emscripten_set_main_loop_arg with simulate_infinite_loop. Emscripten then throws a JavaScript
+# exception through all frames below it. Managed frames must not be there. So Program.Main only attaches and returns,
+# and main.js calls the native entry from JavaScript on the browser thread.
+function(_rbfx_csharp_add_wasm_application name)
+  get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+  if(is_multi_config)
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): Emscripten needs a single-configuration generator (for example Ninja).")
+  endif()
+  get_target_property(engine_type Urho3D TYPE)
+  if(NOT engine_type STREQUAL "STATIC_LIBRARY")
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): Emscripten needs the static engine SDK.")
+  endif()
+
+  set(template_dir "${_rbfx_csharp_application_dir}/heads/wasm")
+  set(head_dir "${CMAKE_BINARY_DIR}/heads/${name}")
+  # The C name of the native entry. heads/wasm/RbfxWebMain.cpp defines it.
+  set(entry rbfx_application_start)
+
+  # The application code. An object library links all its objects, as an executable does. So a source file with
+  # only static registrations stays in the link. The definition renames main of URHO3D_DEFINE_APPLICATION_MAIN,
+  # because the .NET runtime defines main.
+  add_library(${name} OBJECT ${arg_SOURCES} "${template_dir}/RbfxWebMain.cpp")
+  target_link_libraries(${name} PRIVATE Urho3D SharpCpp::RbfxHost ${arg_LINK_LIBRARIES})
+  target_compile_definitions(${name} PRIVATE "SHARPCPP_RBFX_PLUGIN_NAME=\"${plugin_name}\"" main=rbfx_application_main)
+  # The network code of the engine needs the JavaScript libraries of libdatachannel-wasm (as web_executable of the
+  # engine adds them). CMake does not link an object library, so these options only go to the head.
+  if(TARGET datachannel-wasm)
+    foreach(candidate IN ITEMS
+        "${Urho3D_PACKAGE_ROOT}/include/libdatachannel-wasm/wasm/js"
+        "${rbfx_SOURCE_DIR}/Source/ThirdParty/libdatachannel-wasm/wasm/js")
+      if(EXISTS "${candidate}/webrtc.js")
+        target_link_options(${name} PRIVATE
+          "SHELL:--js-library \"${candidate}/webrtc.js\""
+          "SHELL:--js-library \"${candidate}/websocket.js\"")
+        break()
+      endif()
+    endforeach()
+  endif()
+
+  # The RESOURCES. The head build copies them next to index.html (heads/wasm/CopyResources.cmake).
+  set(resource_paths)
+  set(resource_files)
+  foreach(resource IN LISTS arg_RESOURCES)
+    get_filename_component(resource "${resource}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    list(APPEND resource_paths "${resource}")
+    if(NOT IS_DIRECTORY "${resource}")
+      list(APPEND resource_files "${resource}")
+    endif()
+  endforeach()
+  list(JOIN resource_paths "\n" resource_text)
+  file(GENERATE OUTPUT "${head_dir}/resources.txt" CONTENT "${resource_text}\n")
+
+  # The head project and the web files.
+  set(RBFX_HEAD_NAME "${name}")
+  set(RBFX_HEAD_ENTRY "${entry}")
+  set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
+  get_filename_component(RBFX_HEAD_PLUGIN "${arg_PLUGIN}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
+  set(head_project "${head_dir}/${name}.Head.csproj")
+  configure_file("${template_dir}/Head.Wasm.csproj.in" "${head_project}" @ONLY)
+  configure_file("${template_dir}/index.html.in" "${head_dir}/wwwroot/index.html" @ONLY)
+  configure_file("${template_dir}/main.js.in" "${head_dir}/wwwroot/main.js" @ONLY)
+
+  # The native items need the complete link closure. A later target_link_libraries in this directory can still add to it, so the
+  # file is written at the end of the directory of this call. Imported targets are visible only there.
+  # the values go into the code now.
+  cmake_language(EVAL CODE
+    "cmake_language(DEFER DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}]==] CALL _rbfx_csharp_write_wasm_native_items [==[${name}]==] [==[${head_dir}/NativeItems.props]==])")
+
+  # The web folder of the application.
+  if(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+    set(web_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${name}")
+  else()
+    set(web_dir "${CMAKE_CURRENT_BINARY_DIR}/${name}")
+  endif()
+
+  # The head build. The bindings of a source build must compile for browser-wasm (RbfxTargetRid, see
+  # eng/SharpCpp.Rbfx.Build.props): then their import names are the file names of the static libraries.
+  set(dotnet_arguments
+    publish "${head_project}"
+    -c Release
+    --nologo
+    -p:RbfxNativeBuildDriver=cmake
+    "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
+    -p:RbfxTargetRid=browser-wasm
+    -p:UseSharedCompilation=false
+    -nodeReuse:false)
+  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES plugin_properties arg_PROPERTIES)
+    list(APPEND dotnet_arguments "-p:${property}")
+  endforeach()
+  if(RBFX_CSHARP_BUILD_MANAGED)
+    add_custom_target(
+      ${name}.Head
+      COMMAND "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E copy_directory "${head_dir}/bin/publish/wwwroot" "${web_dir}"
+      COMMAND "${CMAKE_COMMAND}" "-DRESOURCE_LIST=${head_dir}/resources.txt" "-DOUTPUT_DIR=${web_dir}"
+        -P "${template_dir}/CopyResources.cmake"
+      BYPRODUCTS "${web_dir}/index.html" "${web_dir}/resources.json"
+      WORKING_DIRECTORY "${head_dir}"
+      COMMENT "Building the WebAssembly head of ${name} with dotnet"
+      VERBATIM)
+  else()
+    add_custom_target(${name}.Head)
+  endif()
+  add_dependencies(${name}.Head ${name})
+  if(arg_USERCODE)
+    add_dependencies(${name}.Head ${arg_USERCODE})
+  endif()
+  if(resource_files)
+    # A file in RESOURCES can be the output of a custom command (for example create_pak of the engine).
+    # See the Android part for the deferred target.
+    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
+    foreach(resource IN LISTS resource_files)
+      string(APPEND defer_code " [==[${resource}]==]")
+    endforeach()
+    cmake_language(EVAL CODE "${defer_code})")
+    add_dependencies(${name}.Head ${name}.Resources)
+  endif()
+  foreach(dependency IN ITEMS sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
+    if(TARGET ${dependency})
+      add_dependencies(${name}.Head ${dependency})
+    endif()
+  endforeach()
+  if(NOT SharpCppRbfx_IS_SDK)
+    add_dependencies(${name}.Head SharpCpp::RbfxNative SharpCpp::RbfxHost)
+  endif()
+
+  add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
+endfunction()
+
+# Writes NativeItems.props of the WebAssembly head of <name> (see above). It walks the link closure of the object
+# library <name> and of SharpCpp::RbfxNative. A static library becomes a NativeFileReference, and an object library
+# gives its objects. A flag or a system library (-l<name>) and the INTERFACE_LINK_OPTIONS of the targets go to
+# EmccExtraLDFlags. The file names keep the names of the libraries, so the P/Invoke table of the runtime finds
+# libSharpCpp.Rbfx.Native and libSharpCpp.Rbfx.Host. Generator expressions are evaluated in the context of <name>.
+function(_rbfx_csharp_write_wasm_native_items name output)
+  set(files "$<TARGET_OBJECTS:${name}>")
+  set(flags)
+  get_target_property(options ${name} LINK_OPTIONS)
+  if(options)
+    list(APPEND flags ${options})
+  endif()
+  get_target_property(queue ${name} LINK_LIBRARIES)
+  if(NOT queue)
+    set(queue)
+  endif()
+  # The wrapper is not a link dependency of the application. The bindings call it through P/Invoke.
+  list(APPEND queue SharpCpp::RbfxNative)
+  set(visited ${name})
+  list(LENGTH queue count)
+  while(count GREATER 0)
+    list(POP_FRONT queue item)
+    list(LENGTH queue count)
+    if(item MATCHES "^\\$<LINK_ONLY:(.*)>$")
+      set(item "${CMAKE_MATCH_1}")
+    endif()
+    # A target_link_libraries call from another directory adds the markers ::@(<id>) and ::@.
+    if(item STREQUAL "" OR item MATCHES "^::@")
+      continue()
+    endif()
+    if(TARGET "${item}")
+      get_target_property(aliased "${item}" ALIASED_TARGET)
+      if(aliased)
+        set(item "${aliased}")
+      endif()
+      if(item IN_LIST visited)
+        continue()
+      endif()
+      list(APPEND visited "${item}")
+      get_target_property(type "${item}" TYPE)
+      if(type STREQUAL "STATIC_LIBRARY" OR type STREQUAL "UNKNOWN_LIBRARY")
+        list(APPEND files "$<TARGET_FILE:${item}>")
+      elseif(type STREQUAL "OBJECT_LIBRARY")
+        list(APPEND files "$<TARGET_OBJECTS:${item}>")
+      elseif(type MATCHES "^(SHARED|MODULE)_LIBRARY$")
+        message(FATAL_ERROR "rbfx_csharp_add_application(${name}): ${item} is a shared library. The WebAssembly head links static libraries only.")
+      endif()
+      get_target_property(options "${item}" INTERFACE_LINK_OPTIONS)
+      if(options)
+        list(APPEND flags ${options})
+      endif()
+      get_target_property(dependencies "${item}" INTERFACE_LINK_LIBRARIES)
+      if(dependencies)
+        list(APPEND queue ${dependencies})
+        list(LENGTH queue count)
+      endif()
+    elseif(item MATCHES "^-" OR item MATCHES "^SHELL:" OR item MATCHES "\\$<")
+      list(APPEND flags "${item}")
+    elseif(IS_ABSOLUTE "${item}")
+      list(APPEND files "${item}")
+    elseif(item MATCHES "::")
+      message(FATAL_ERROR "rbfx_csharp_add_application(${name}): the link item ${item} is not a target.")
+    else()
+      list(APPEND flags "-l${item}")
+    endif()
+  endwhile()
+  list(REMOVE_DUPLICATES files)
+  list(REMOVE_DUPLICATES flags)
+
+  set(content "<Project>\n  <!-- Written by rbfx_csharp_add_application (RbfxCSharpApplication.cmake). Do not edit. -->\n")
+  string(APPEND content "  <PropertyGroup>\n    <EmccExtraLDFlags>$(EmccExtraLDFlags)")
+  foreach(flag IN LISTS flags)
+    # A response file line of emcc. SHELL: keeps the words of one option together.
+    string(REGEX REPLACE "^SHELL:" "" flag "${flag}")
+    # The head sets the exception mode (WasmEnableExceptionHandling, -fwasm-exceptions). emcc stops when a library
+    # sets another mode, and the engine SDK exports DISABLE_EXCEPTION_CATCHING in its link options.
+    string(REGEX REPLACE "-s *DISABLE_EXCEPTION_CATCHING=[^ ]*" "" flag "${flag}")
+    string(STRIP "${flag}" flag)
+    if(flag STREQUAL "")
+      continue()
+    endif()
+    if(NOT flag MATCHES "\\$<")
+      # MSBuild and XML special characters. A generator expression keeps its text.
+      string(REPLACE "%" "%25" flag "${flag}")
+      string(REPLACE "$" "%24" flag "${flag}")
+      string(REPLACE "@" "%40" flag "${flag}")
+      string(REPLACE "&" "&amp;" flag "${flag}")
+      string(REPLACE "<" "&lt;" flag "${flag}")
+      string(REPLACE ">" "&gt;" flag "${flag}")
+    endif()
+    string(APPEND content ";${flag}")
+  endforeach()
+  string(APPEND content "</EmccExtraLDFlags>\n  </PropertyGroup>\n  <ItemGroup>\n")
+  foreach(file IN LISTS files)
+    string(APPEND content "    <NativeFileReference Include=\"${file}\" />\n")
+  endforeach()
+  string(APPEND content "  </ItemGroup>\n</Project>\n")
+  file(GENERATE OUTPUT "${output}" CONTENT "${content}" TARGET ${name})
+endfunction()
+
+# The target that makes the files in RESOURCES of an Android or Emscripten application (see above).
 function(_rbfx_csharp_add_resource_target target)
   add_custom_target(${target} DEPENDS ${ARGN})
 endfunction()

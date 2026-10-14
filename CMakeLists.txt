@@ -511,7 +511,7 @@ if(RBFX_INSTALL_SDK)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates"
     DESTINATION "${_rbfx_sdk_module_dir}")
-  # The templates of the application heads (rbfx_csharp_add_application on Android).
+  # The templates of the application heads (rbfx_csharp_add_application on Android and Emscripten).
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/heads"
     DESTINATION "${_rbfx_sdk_module_dir}")

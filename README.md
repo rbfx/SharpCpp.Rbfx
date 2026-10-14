@@ -134,7 +134,7 @@ The install step needs a finished build, because the generator writes the metada
 ### Application in one call
 
 `rbfx_csharp_add_application()` makes a native application that hosts .NET and loads a C# plugin.
-This is the only call that an application needs. The desktop platforms (hostfxr mode) and Android (shim mode) are supported now.
+This is the only call that an application needs. The desktop platforms (hostfxr mode), Android and the web (shim mode) are supported now.
 
 ```cmake
 find_package(Urho3D REQUIRED)
@@ -152,7 +152,7 @@ rbfx_csharp_add_application(MyApp
 - The target `MyApp.CSharp` is part of the default build. It builds the plugin with dotnet and copies the native wrapper
   next to the executable. On Windows it also copies the host library and `nethost.dll`.
 - On Linux the executable links with `--no-as-needed`, so Urho3D stays a start-up dependency.
-- `RESOURCES` and `APPLICATION_ID` are accepted and ignored on desktop. Android uses them.
+- `RESOURCES` and `APPLICATION_ID` are accepted and ignored on desktop. Android uses them. The web uses `RESOURCES`.
 - The function sets the MSBuild properties that the plugin project needs for source mode and for SDK mode. `PROPERTIES` adds more.
 
 #### Android
@@ -180,6 +180,45 @@ A .NET Android head is the entry of the application. The native application runs
 - The head build needs the `android` workload and a JDK 17 or 21. The cache variables `RBFX_CSHARP_ANDROID_SDK_DIR`
   and `RBFX_CSHARP_JAVA_SDK_DIR` (defaults: the environment variables `ANDROID_HOME` and `JAVA_HOME`) go to dotnet.
   `RBFX_CSHARP_ANDROID_JAVA_DIR` sets the folder with the SDL Java sources, if the engine SDK does not have them.
+
+#### Web
+
+The same call, the same launcher source and the same plugin project make a web application (Emscripten, `browser-wasm`).
+The browser has no hostfxr. A .NET WebAssembly head is the entry. The native application is static code in the runtime.
+
+- Configure with the Emscripten toolchain, a single-configuration generator (Ninja), the static web SDK of the engine
+  and the web SDK of SharpCpp.Rbfx on `CMAKE_PREFIX_PATH`. Use the emsdk version of the `wasm-tools` workload of .NET.
+- `MyApp` is an object library. The sources compile with the definition `main=rbfx_application_main`, because the
+  .NET runtime defines `main`. `URHO3D_DEFINE_APPLICATION_MAIN` then defines `rbfx_application_main`. The function adds
+  `cmake/heads/wasm/RbfxWebMain.cpp`, which exports it as the C function `rbfx_application_start`.
+  A source file of `MyApp` must not use the name `main` for other things.
+- The function generates the head project in `<build>/heads/MyApp/` from the templates in `cmake/heads/wasm/`.
+  The head is `net10.0` with the SDK `Microsoft.NET.Sdk.WebAssembly`, threads and WebAssembly exceptions. It references `PLUGIN`.
+- At the end of the configure step, the function walks the link closure of `MyApp` (also `target_link_libraries` calls
+  after the function) and of `SharpCpp::RbfxNative`. It writes `NativeItems.props` of the head: every static library and
+  object is a `NativeFileReference`, and the flags and the `INTERFACE_LINK_OPTIONS` go to `EmccExtraLDFlags`.
+  The head sets the exception mode, so the function removes `DISABLE_EXCEPTION_CATCHING` from the flags.
+  A shared library in the closure is a configure error.
+- The head sets `SharpCppRbfxNativeHost=true` and makes the plugin assembly and the SharpCpp assemblies trimmer roots, as on Android.
+  A source build compiles the bindings with `RbfxTargetRid=browser-wasm`. Then their import names are the file names of
+  `libSharpCpp.Rbfx.Native.a` and `libSharpCpp.Rbfx.Host.a`, and the runtime links the imports statically.
+- A file in `RESOURCES` becomes a file in the root folder of the Emscripten file system. A folder becomes a folder with its name.
+  The head build copies them next to `index.html` and writes the list `resources.json`. `main.js` loads the files
+  into the file system before the engine starts. A generated file (for example a pak from `create_pak`) must come from the top-level `CMakeLists.txt`.
+- The target `MyApp.CSharp` runs `dotnet publish -c Release` for the head and copies the web folder to `MyApp/` in
+  `CMAKE_RUNTIME_OUTPUT_DIRECTORY` (else the binary folder). The folder has `index.html`, `main.js`, `_framework` and the resources.
+  The page has the canvas with the id `canvas`.
+- The runtime uses threads (`SharedArrayBuffer`). The web server must send `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp`.
+
+Why `main.js` calls the native entry, and not `Program.Main`: the threaded .NET runtime runs `Program.Main` on a worker
+(the deputy thread), but SDL, WebGL and the input events of the canvas work on the browser thread. Also,
+`Application::Run` calls `emscripten_set_main_loop_arg` with `simulate_infinite_loop`. Emscripten then throws a JavaScript
+exception through all frames to leave the native code, and managed frames must not be on that stack. So `Program.Main`
+only runs the module initializer of the bindings (the attach to the host library) and returns. Then `main.js` calls
+`Module._rbfx_application_start()` on the browser thread and ignores the `'unwind'` exception. The native code calls the
+managed code on the browser thread after that. `main.js` sets `jsThreadBlockingMode` to `DangerousAllowBlockingWait`, because
+managed code can wait on a lock there.
 
 ### DotNetHost modes
 

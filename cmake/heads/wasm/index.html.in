@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- The page of the WebAssembly head of @RBFX_HEAD_NAME@. rbfx_csharp_add_application generates it. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>@RBFX_HEAD_NAME@</title>
+  <style>
+    html, body { background: #000; height: 100%; margin: 0; overflow: hidden; }
+    #canvas { display: block; height: 100%; width: 100%; }
+    #status { color: #ccc; font: 1rem system-ui; left: 1rem; position: absolute; top: 1rem; }
+  </style>
+</head>
+<body>
+  <!-- The engine (SDL and WebGL) draws into the canvas with the id "canvas". -->
+  <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  <div id="status">Loading...</div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

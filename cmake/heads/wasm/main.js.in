@@ -1,0 +1,53 @@
+// The start script of the WebAssembly head of @RBFX_HEAD_NAME@. rbfx_csharp_add_application generates it.
+//
+// 1. Start the .NET runtime. The engine uses the canvas with the id "canvas".
+// 2. Write the RESOURCES files (resources.json) into the file system of Emscripten.
+// 3. Run Program.Main. It attaches the managed function table to the host library.
+// 4. Call the native entry. The engine starts its main loop and returns to the browser.
+import { dotnet } from './_framework/dotnet.js';
+
+const status = document.getElementById('status');
+const canvas = document.getElementById('canvas');
+
+try {
+  // The native code calls managed code on the browser thread (plugin load, components, events).
+  // Managed code can wait on a lock there, so the runtime must allow a blocking wait on this thread.
+  const runtime = await dotnet
+    .withModuleConfig({ canvas })
+    .withConfig({ pthreadPoolInitialSize: 12, jsThreadBlockingMode: 'DangerousAllowBlockingWait' })
+    .create();
+  const module = runtime.Module;
+
+  status.textContent = 'Loading resources...';
+  const resources = await (await fetch('resources.json')).json();
+  for (const path of resources) {
+    const response = await fetch(encodeURI(path));
+    if (!response.ok) {
+      throw new Error(`The resource '${path}' is not found (${response.status}).`);
+    }
+    const data = new Uint8Array(await response.arrayBuffer());
+    const slash = path.lastIndexOf('/');
+    const folder = slash >= 0 ? path.substring(0, slash) : '';
+    if (folder) {
+      module.FS_createPath('/', folder, true, true);
+    }
+    module.FS_createDataFile(`/${folder}`, path.substring(slash + 1), data, true, true, true);
+  }
+
+  await runtime.runMain();
+  status.remove();
+  canvas.focus();
+
+  // The engine calls emscripten_set_main_loop_arg with simulate_infinite_loop. Emscripten then throws 'unwind'
+  // to leave the native frames. Only native frames and this script are on the stack, so the throw is safe here.
+  try {
+    module._@RBFX_HEAD_ENTRY@();
+  } catch (error) {
+    if (error !== 'unwind') {
+      throw error;
+    }
+  }
+} catch (error) {
+  status.textContent = `${error}`;
+  throw error;
+}

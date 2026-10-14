@@ -7,6 +7,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The trimmer reads the substitutions from the assembly. See eng/SharpCpp.Rbfx.NativeHost.targets. -->
+    <EmbeddedResource Include="ILLink.Substitutions.xml" LogicalName="ILLink.Substitutions.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The attribute that IsTrimmable sets, but without the trim analyzers. An application with the default trim mode partial
+         (Android, iOS) trims only marked assemblies, and the substitutions above need this. -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>IsTrimmable</_Parameter1>
+      <_Parameter2>True</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="SharpCpp.Rbfx.Tests.E2E" />
   </ItemGroup>
 

@@ -8,6 +8,20 @@ using Urho3D.Interop;
 namespace Urho3D.Plugins;
 
 /// <summary>
+/// The feature switch of the native host. The MSBuild property <c>SharpCppRbfxNativeHost</c> sets it
+/// (eng/SharpCpp.Rbfx.NativeHost.targets). The switch is false by default.
+/// The ILLink substitution (ILLink.Substitutions.xml) replaces <see cref="IsEnabled"/> with a constant.
+/// With the value false, the trimmer removes <see cref="NativeHostShim.Attach"/> code and the imports of the host library.
+/// An application with a native host (a head with SharpCpp.Rbfx.Host) sets the property to true.
+/// </summary>
+internal static class NativeHostFeature
+{
+    internal const string SwitchName = "SharpCpp.Rbfx.NativeHost";
+
+    internal static bool IsEnabled => AppContext.TryGetSwitch(SwitchName, out var enabled) && enabled;
+}
+
+/// <summary>
 /// Attaches the managed function table to <c>Urho3D::DotNetHost</c> in shim mode (Android, iOS, browser-wasm).
 /// In shim mode the native class never starts a runtime. It reads the function pointers from this table.
 /// The module initializer runs when the bindings assembly loads. User code and head code do not call this class.
@@ -43,6 +57,12 @@ internal static unsafe partial class NativeHostShim
 #pragma warning restore CA2255
     internal static void Attach()
     {
+        // A NuGet-only application has no host library. With the switch false, the trimmer removes the rest of this method and the imports.
+        if (!NativeHostFeature.IsEnabled)
+        {
+            return;
+        }
+
         if (!OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS() && !OperatingSystem.IsBrowser())
         {
             return;

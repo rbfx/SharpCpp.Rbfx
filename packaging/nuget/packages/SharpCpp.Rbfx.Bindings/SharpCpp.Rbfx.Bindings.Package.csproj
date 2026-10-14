@@ -23,6 +23,7 @@
     <None Include="$(SharpCppNuGetStageRoot)/managed/lib/$(TargetFramework)/*" Pack="true" PackagePath="lib/$(TargetFramework)/%(Filename)%(Extension)" />
     <None Include="$(SharpCppNuGetStageRoot)/managed/analyzers/dotnet/cs/*" Pack="true" PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)" />
     <None Include="buildTransitive/SharpCpp.Rbfx.Bindings.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../../../eng/SharpCpp.Rbfx.NativeHost.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 

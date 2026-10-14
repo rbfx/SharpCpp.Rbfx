@@ -74,7 +74,7 @@ SharpCpp.Tool ───────────┘             |
    `SharpCpp.Rbfx.Bindings.csproj` includes generated `.g.cs` files immediately
    before compilation.
 
-6. **Phase 2 Generation**: `rbfx_csharp_add_usercode()` (`cmake/RbfxCSharpAddUsercode.cmake`) invokes `Rbfx.UserCode.Generator.dll` with `--sdk-root`, `--flags-file`, `--header`, `--include-directory`, `--assembly-name`, `--namespace`, `--library-name`, `--file-stem`, `--symbol-prefix`, `--generated-root`, `--import-binding-metadata` (pointing to phase 1 metadata). It:
+6. **Phase 2 Generation**: `rbfx_csharp_add_usercode()` (`cmake/RbfxCSharpAddUserCode.cmake`) invokes `Rbfx.UserCode.Generator.dll` with `--sdk-root`, `--flags-file`, `--header`, `--include-directory`, `--assembly-name`, `--namespace`, `--library-name`, `--file-stem`, `--symbol-prefix`, `--generated-root`, `--import-binding-metadata` (pointing to phase 1 metadata). It:
    - Loads phase-1 binding metadata as imports
    - Parses the `HEADERS` of the call (for example `RotatingComponent.hpp` of `Example.UserCode`)
    - Applies the bootstrap pipeline with phase-1 types available as imported references
@@ -115,7 +115,7 @@ SharpCpp.Tool ───────────┘             |
 | `SharpCpp.Rbfx.Bindings/` | Phase-1 managed assembly container (generated C# consumed via wildcard) |
 | `SharpCpp.Rbfx.Tests.E2E/` | End-to-end xUnit tests exercising generated SDK wrappers |
 | `Rbfx.UserCode.Generator/` | Phase-2 user-code generator |
-| `cmake/` | `RbfxCSharpAddUsercode.cmake` (`rbfx_csharp_add_usercode()`), `RbfxCSharpDotNet.cmake`, `FindNetHost.cmake`, `SharpCppRbfxConfig.cmake.in` (package config of the installed CMake SDK, option `RBFX_INSTALL_SDK`), `ExportRbfxSdkParseFlags.cmake`, `templates/` |
+| `cmake/` | `RbfxCSharpAddUserCode.cmake` (`rbfx_csharp_add_usercode()`), `RbfxCSharpDotNet.cmake`, `FindNetHost.cmake`, `SharpCppRbfxConfig.cmake.in` (package config of the installed CMake SDK, option `RBFX_INSTALL_SDK`), `ExportRbfxSdkParseFlags.cmake`, `templates/` |
 | `eng/` | Shared MSBuild targets: `RbfxUserCodeReference` handling, `NativeItems.targets` (the one RID to native item mapping, also packed into the Android, iOS and Wasm runtime packages by `CrossPackage.cs targets`) |
 | `Rbfx.Host/` | Native .NET hosting library (nethost/hostfxr), `SharpCpp::RbfxHost`, header `Urho3D/CSharp/DotNetHost.h`. `DotNetHost::LoadPlugin` loads a managed plugin through `Urho3D.Plugins.NativeHostEntryPoints.LoadPlugin` (`SharpCpp.Rbfx.Bindings/Plugins/NativeHostEntryPoints.cs`). The nethost linkage follows `BUILD_SHARED_LIBS` (`NETHOST_PREFER_SHARED`). A shared link copies `libnethost.so`, `libnethost.dylib` or `nethost.dll` next to the host library. MSVC always links `nethost.lib`. |
 | `Rbfx.Examples/Example.UserCode/` | Example: native `RotatingComponent`, `TextTools`, implementation target `Example.UserCode.Impl` + CMake; no managed project |

@@ -269,7 +269,7 @@ set(
   CACHE FILEPATH
   "MSBuild targets file that the written Directory.Build.targets imports.")
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUsercode.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
 
 if(NOT RBFX_ENGINE_METADATA_FILE)

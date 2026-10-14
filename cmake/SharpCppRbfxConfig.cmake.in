@@ -107,10 +107,27 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
     endif()
   endif()
 
+  # The MSBuild files of the written managed project. The consumer can set the variables before find_package().
+  # This block exists only when the SDK has the managed assemblies (no bindings package version).
+  if(NOT RBFX_CSHARP_MSBUILD_PROPS)
+    set(RBFX_CSHARP_MSBUILD_PROPS "${_sharpcpp_rbfx_module_dir}/sdk/SharpCppRbfxUserCode.props")
+  endif()
+  if(NOT RBFX_CSHARP_MSBUILD_TARGETS)
+    set(RBFX_CSHARP_MSBUILD_TARGETS "${_sharpcpp_rbfx_module_dir}/sdk/SharpCppRbfxUserCode.targets")
+  endif()
+  if(NOT RBFX_CSHARP_MSBUILD_PROPERTIES)
+    set(RBFX_CSHARP_MSBUILD_PROPERTIES "SharpCppRbfxIsSdk=true" "SharpCppRbfxManagedDir=${_sharpcpp_rbfx_data_dir}/managed")
+  endif()
+
   include("${_sharpcpp_rbfx_module_dir}/SharpCppOutput.cmake")
   include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpAddUserCode.cmake")
 
   unset(_sharpcpp_rbfx_flags_written)
+else()
+  # A package-version SDK has no managed assemblies and no generator inputs.
+  function(rbfx_csharp_add_usercode target)
+    message(FATAL_ERROR "rbfx_csharp_add_usercode(${target}): this SharpCppRbfx SDK was built with a bindings package version. It has no managed assemblies and no user-code generator. Use an SDK from a build without RBFX_CSHARP_BINDINGS_PACKAGE_VERSION.")
+  endfunction()
 endif()
 
 # Provide path to package root and to the managed assemblies. The source-tree package sets the same variables.

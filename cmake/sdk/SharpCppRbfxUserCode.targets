@@ -1,0 +1,7 @@
+<Project>
+  <!-- The written Directory.Build.targets imports this file in a consumer of the installed SharpCpp.Rbfx SDK. -->
+  <Target Name="RbfxCheckSdkManagedDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(SharpCppRbfxManagedDir)' == '' or !Exists('$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.Bindings.dll')"
+           Text="The managed assemblies of the SharpCpp.Rbfx SDK are not in '$(SharpCppRbfxManagedDir)'. Set the MSBuild property SharpCppRbfxManagedDir." />
+  </Target>
+</Project>

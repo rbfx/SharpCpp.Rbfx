@@ -126,8 +126,11 @@ The installed SDK has these parts:
 The managed files come from the output folder of `dotnet build SharpCpp.Rbfx.slnx` for the same configuration.
 The install step does not build them. It stops with a message when a file is missing.
 
-In a consumer project, `rbfx_csharp_add_usercode()` writes the managed project files, but the SDK has no MSBuild files for them yet.
-Set `RBFX_CSHARP_MSBUILD_PROPS`, `RBFX_CSHARP_MSBUILD_TARGETS` and `RBFX_CSHARP_BINDINGS_PROJECTS` before you build the written project.
+In a consumer project, `rbfx_csharp_add_usercode()` works with the installed SDK and needs no source tree.
+The SDK installs `share/SharpCppRbfx/cmake/sdk/SharpCppRbfxUserCode.props` and `.targets`.
+`find_package(SharpCppRbfx)` sets `RBFX_CSHARP_MSBUILD_PROPS`, `RBFX_CSHARP_MSBUILD_TARGETS` and `RBFX_CSHARP_MSBUILD_PROPERTIES` to these files and to the managed folder of the SDK, unless the consumer sets them before.
+The props file sets the compiler options, compiles the generated sources and references `SharpCpp.Rbfx.Bindings`, `SharpCpp.Support`, `SharpCpp.Std` and `SharpCpp.Ea` from the managed folder.
+An SDK that was built with a bindings package version has no managed folder. Then `rbfx_csharp_add_usercode()` stops with an error message.
 In a consumer project, the target of `rbfx_csharp_add_plugin()` is not part of the default build. Add it with `add_dependencies()`.
 The install step needs a finished build, because the generator writes the metadata files and the build links the wrapper.
 

@@ -1,0 +1,48 @@
+<Project>
+  <!-- MSBuild properties of the managed project that rbfx_csharp_add_usercode() writes in a consumer of the installed
+       SharpCpp.Rbfx SDK. The written Directory.Build.props imports this file. It has no source tree, so it sets
+       the compiler options and references the managed assemblies of the SDK.
+       The written Directory.Build.props sets this MSBuild property before it imports this file:
+         SharpCppRbfxManagedDir - folder with the managed assemblies of the SDK. -->
+  <PropertyGroup>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NuGetAudit>false</NuGetAudit>
+
+    <OutputPath>$(MSBuildProjectDirectory)/bin/</OutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/obj/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)/obj/</MSBuildProjectExtensionsPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!-- The generated sources. RbfxConsumedGeneratedDir comes from <target>.props of the written project.
+       MSBuild evaluates all the properties before the items, so the order of the imports does not matter. -->
+  <ItemGroup Condition="'$(RbfxConsumedGeneratedDir)' != ''">
+    <Compile Include="$(RbfxConsumedGeneratedDir)/**/*.g.cs"
+             LinkBase="Generated"
+             Visible="false"
+             RbfxGeneratedSource="true"
+             Condition="Exists('$(RbfxConsumedGeneratedDir)')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="SharpCpp.Rbfx.Bindings">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.Bindings.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Support">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Support.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Std">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Std.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Ea">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Ea.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

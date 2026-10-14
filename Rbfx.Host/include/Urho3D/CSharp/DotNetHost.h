@@ -24,6 +24,9 @@ struct DotNetHostOptions
 };
 
 /// Hosts the .NET runtime in the current process through hostfxr.
+/// On Android, iOS and Emscripten (RBFX_HOST_MODE=shim) the class is a shim. It starts no runtime.
+/// It reads function pointers that the managed side attached (see DotNetHostShim.h).
+/// The public API and the class layout are the same in both modes.
 /// No function throws across the library boundary. Errors are returned as text.
 /// The runtime stays loaded in the process after Close(). .NET cannot unload it.
 class URHO3D_DOTNETHOST_API DotNetHost
@@ -90,6 +93,8 @@ private:
     void* getFunctionPointerFunction_{};
     void* loadPluginFunction_{};
     std::filesystem::path bindingsAssemblyPath_;
+    /// Used only in shim mode. The layout is the same in both modes.
+    bool shimInitialized_{};
 };
 
 } // namespace Urho3D

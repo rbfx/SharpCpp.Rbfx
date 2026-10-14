@@ -76,7 +76,19 @@ public static class PluginManagerExtensions
             throw new FileNotFoundException($"The plugin assembly '{assemblyPath}' does not exist.", assemblyPath);
         }
 
-        var assembly = PluginRuntime.Load(assemblyPath);
+        return manager.LoadManagedPlugin(PluginRuntime.Load(assemblyPath), name);
+    }
+
+    /// <summary>
+    /// Registers the plugin of the loaded assembly, adds its name to the loaded plugins and commits.
+    /// It does the same as <see cref="LoadManagedPlugin(PluginManager, string, string?)"/>, but it does not load a file.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The plugin does not load, or a second call for a loaded plugin.</exception>
+    public static Plugin LoadManagedPlugin(this PluginManager manager, Assembly assembly, string? name = null)
+    {
+        ArgumentNullException.ThrowIfNull(manager);
+        ArgumentNullException.ThrowIfNull(assembly);
+
         var pluginName = name ?? PluginRuntime.GetPluginName(assembly);
         var plugin = FindFailedPlugin(manager, assembly, pluginName) ?? manager.RegisterManagedPlugin(assembly, pluginName);
 

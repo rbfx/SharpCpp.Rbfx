@@ -1,4 +1,30 @@
 include(GNUInstallDirs)
+
+if(RBFX_HOST_MODE STREQUAL "shim")
+  # Shim mode: DotNetHost starts no runtime. It reads function pointers that the managed side
+  # attached to the native wrapper library (see include/Urho3D/CSharp/DotNetHostShim.h).
+  if(NOT TARGET SharpCppRbfx_Native)
+    message(FATAL_ERROR "RBFX_HOST_MODE=shim needs the SharpCppRbfx_Native target (source mode, not package mode).")
+  endif()
+  target_sources(SharpCppRbfx_Native PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/DotNetHostShim.cpp")
+  target_include_directories(SharpCppRbfx_Native PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
+    target_compile_definitions(SharpCppRbfx_Native PRIVATE URHO3D_DOTNETHOST_STATIC)
+  else()
+    target_compile_definitions(SharpCppRbfx_Native PRIVATE URHO3D_DOTNETHOST_EXPORTS)
+  endif()
+
+  add_library(sharpcpp-rbfx-host INTERFACE)
+  add_library(SharpCpp::RbfxHost ALIAS sharpcpp-rbfx-host)
+  target_include_directories(sharpcpp-rbfx-host INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  target_link_libraries(sharpcpp-rbfx-host INTERFACE SharpCppRbfx_Native)
+  target_compile_definitions(sharpcpp-rbfx-host INTERFACE URHO3D_DOTNETHOST_SHIM)
+  if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
+    target_compile_definitions(sharpcpp-rbfx-host INTERFACE URHO3D_DOTNETHOST_STATIC)
+  endif()
+  return()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 find_package(NetHost REQUIRED)
 

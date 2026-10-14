@@ -130,6 +130,19 @@ Set `RBFX_CSHARP_MSBUILD_PROPS`, `RBFX_CSHARP_MSBUILD_TARGETS` and `RBFX_CSHARP_
 In a consumer project, the target of `rbfx_csharp_add_plugin()` is not part of the default build. Add it with `add_dependencies()`.
 The install step needs a finished build, because the generator writes the metadata files and the build links the wrapper.
 
+### DotNetHost modes
+
+`Urho3D::DotNetHost` has the same public API in two modes. The cache variable `RBFX_HOST_MODE` selects the mode.
+
+- `hostfxr` is the default on desktop. `DotNetHost` loads hostfxr and starts the .NET runtime. This mode needs nethost.
+- `shim` is the default on Android, iOS and Emscripten. `DotNetHost` never starts a runtime. The .NET head starts the runtime.
+  The managed side pushes a function table (`SharpCppRbfxManagedHost`, header `Urho3D/CSharp/DotNetHostShim.h`) into the native
+  wrapper library through `sharpcpp_rbfx_attach_managed_host`. The shim code is part of `SharpCpp.Rbfx.Native`.
+  `SharpCpp::RbfxHost` is then an interface target that links `SharpCppRbfx_Native`.
+  `DotNetHost::Initialize` returns false and gives an error text while no table is attached. In this mode `RBFX_INSTALL_SDK` is ignored.
+  `DotNetHost::GetFunctionPointer` accepts only an empty `delegateTypeName` (an `[UnmanagedCallersOnly]` method).
+  The bindings attach the table automatically when the `SharpCpp.Rbfx.Bindings` assembly is first used, so the head code does not call it.
+
 ### SDK archives
 
 `packaging/sdk/pack-sdk.sh` installs the SDK and packs it into a 7z archive. It needs `7z` and a finished build.

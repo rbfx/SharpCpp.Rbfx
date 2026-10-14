@@ -1,4 +1,4 @@
-set(sdk_root "@RBFX_SDK_ROOT@")
+set(sdk_root "@RBFX_ENGINE_ROOT@")
 
 # The files go next to the target by default. The install rules set destination_dir to copy them to the install prefix.
 if(NOT DEFINED destination_dir OR destination_dir STREQUAL "")

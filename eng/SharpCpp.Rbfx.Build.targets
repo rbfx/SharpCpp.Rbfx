@@ -88,7 +88,7 @@
                           Condition="'$(RbfxBindingsPackageVersion)' == ''" />
     </ItemGroup>
     <Error Condition="!Exists('%(_RbfxDesktopNative.FullPath)')"
-           Text="The native library '%(_RbfxDesktopNative.FullPath)' is missing. Build the native code first with RBFX_SDK_ROOT set. The native library of a RbfxUserCodeReference needs the CMake option RBFX_BUILD_USERCODE (ON by default)." />
+           Text="The native library '%(_RbfxDesktopNative.FullPath)' is missing. Build the native code first with CMAKE_PREFIX_PATH set to an installed rbfx SDK. The native library of a RbfxUserCodeReference needs the CMake option RBFX_BUILD_USERCODE (ON by default)." />
     <ItemGroup>
       <AllItemsFullPathWithTargetPath Include="@(_RbfxDesktopNative->'%(FullPath)')"
                                       TargetPath="%(Filename)%(Extension)"

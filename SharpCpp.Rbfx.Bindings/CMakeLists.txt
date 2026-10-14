@@ -33,6 +33,11 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/RefCountedRuntime.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/ScriptRuntime.cpp")
 add_dependencies(SharpCppRbfx_Native sharpcpp-generate-rbfx)
+# Source mode: the same name as the imported target of an installed SDK, so a consumer uses one name.
+# A consumer does not call find_package(SharpCppRbfx) in the same tree, because the names clash.
+if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED" AND NOT TARGET SharpCpp::RbfxNative)
+  add_library(SharpCpp::RbfxNative ALIAS SharpCppRbfx_Native)
+endif()
 target_compile_features(SharpCppRbfx_Native PRIVATE cxx_std_20)
 if(MSVC)
   # A unity source of the generated wrappers exceeds the section limit of the default object format.

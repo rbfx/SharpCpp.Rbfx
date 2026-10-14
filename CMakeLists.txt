@@ -75,12 +75,6 @@ else()
   set(RBFX_RUNTIME_RPATH "$ORIGIN")
 endif()
 
-get_filename_component(_rbfx_default_sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../rbfx-sdk" ABSOLUTE)
-if(DEFINED ENV{RBFX_SDK_ROOT} AND EXISTS "$ENV{RBFX_SDK_ROOT}")
-  set(_rbfx_default_sdk_root "$ENV{RBFX_SDK_ROOT}")
-endif()
-
-set(RBFX_SDK_ROOT "${_rbfx_default_sdk_root}" CACHE PATH "Path to the installed rbfx SDK root.")
 set(
   RBFX_SDK_PARSE_LANGUAGE_STANDARD
   "gnu++20"
@@ -96,12 +90,40 @@ option(
   "Use the target platform compiler's builtin Clang headers when parsing the rbfx SDK."
   OFF)
 
-if(NOT EXISTS "${RBFX_SDK_ROOT}/share/Urho3D/CMake/Urho3DConfig.cmake")
-  message(FATAL_ERROR "Set RBFX_SDK_ROOT to an installed rbfx SDK before configuring SharpCpp.Rbfx.")
-endif()
-if(NOT EXISTS "${RBFX_SDK_ROOT}/include/Urho3D")
-  message(FATAL_ERROR "rbfx SDK headers were not found at '${RBFX_SDK_ROOT}/include/Urho3D'.")
-endif()
+# The engine comes from CMAKE_PREFIX_PATH (CMAKE_FIND_ROOT_PATH for web builds, or Urho3D_DIR) through find_package(Urho3D). RBFX_ENGINE_ROOT is
+# the root of the installed SDK. The generator reads the engine headers from it. The variable is internal.
+# When the including project already has a target Urho3D, it must come from an installed SDK, because the
+# root derives from Urho3D_DIR. An engine in source mode is not supported yet.
+function(sharpcpp_find_rbfx_sdk)
+  if(NOT TARGET Urho3D)
+    if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
+      set(BUILD_SHARED_LIBS OFF)
+    else()
+      set(BUILD_SHARED_LIBS ON)
+    endif()
+    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
+    set(CMAKE_DISABLE_FIND_PACKAGE_TBB TRUE)
+    set(CMAKE_DISABLE_FIND_PACKAGE_Vulkan TRUE)
+    # Web builds of rbfx-ci give the SDK in CMAKE_FIND_ROOT_PATH instead of CMAKE_PREFIX_PATH. Search both.
+    find_package(Urho3D 0.0.0 CONFIG REQUIRED PATHS ${CMAKE_FIND_ROOT_PATH} NO_CMAKE_FIND_ROOT_PATH)
+    if(NOT Urho3D_IS_SDK)
+      message(FATAL_ERROR "SharpCpp.Rbfx: find_package(Urho3D) found '${Urho3D_DIR}', which is not an installed rbfx SDK.")
+    endif()
+  endif()
+  if(NOT Urho3D_DIR)
+    message(FATAL_ERROR
+      "SharpCpp.Rbfx: the target Urho3D exists, but it does not come from an installed rbfx SDK. "
+      "An engine in source mode is not supported yet. Add the installed SDK to CMAKE_PREFIX_PATH.")
+  endif()
+  # Urho3D_DIR is <SDK root>/share/Urho3D/CMake.
+  get_filename_component(engine_root "${Urho3D_DIR}/../../.." ABSOLUTE)
+  if(NOT EXISTS "${engine_root}/include/Urho3D")
+    message(FATAL_ERROR "SharpCpp.Rbfx: the rbfx SDK headers were not found at '${engine_root}/include/Urho3D'.")
+  endif()
+  set(RBFX_ENGINE_ROOT "${engine_root}" PARENT_SCOPE)
+endfunction()
+
+sharpcpp_find_rbfx_sdk()
 
 # Package builds map the source, build, SharpCpp, SDK and dotnet directories to short relative names in
 # debug info, __FILE__ and assert strings. The libraries then carry no path of the build machine.
@@ -113,7 +135,7 @@ if(RBFX_REMAP_SOURCE_PATHS)
   # is a string prefix of the name of this directory (SharpCpp and SharpCpp.Rbfx).
   set(_rbfx_path_maps
     "${SHARPCPP_ROOT}=SharpCpp"
-    "${RBFX_SDK_ROOT}=rbfx-sdk"
+    "${RBFX_ENGINE_ROOT}=rbfx-sdk"
     "${CMAKE_CURRENT_SOURCE_DIR}=."
     "${CMAKE_BINARY_DIR}=build")
   if(MSVC)
@@ -134,26 +156,6 @@ if(RBFX_REMAP_SOURCE_PATHS)
   endif()
 endif()
 
-function(sharpcpp_find_rbfx_sdk)
-  if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
-    set(BUILD_SHARED_LIBS OFF)
-  else()
-    set(BUILD_SHARED_LIBS ON)
-  endif()
-  set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
-  set(CMAKE_DISABLE_FIND_PACKAGE_TBB TRUE)
-  set(CMAKE_DISABLE_FIND_PACKAGE_Vulkan TRUE)
-  # Urho3DConfig.cmake finds the Urho3DThirdParty package of the same SDK with the default search.
-  list(PREPEND CMAKE_PREFIX_PATH "${RBFX_SDK_ROOT}")
-  find_package(
-    Urho3D 0.0.0 CONFIG REQUIRED
-    PATHS
-      "${RBFX_SDK_ROOT}"
-      "${RBFX_SDK_ROOT}/share/Urho3D/CMake"
-    NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-endfunction()
-
-sharpcpp_find_rbfx_sdk()
 set(RBFX_URHO3D_TARGET Urho3D)
 
 function(sharpcpp_map_imported_rbfx_configurations target_name)
@@ -272,12 +274,12 @@ sharpcpp_export_rbfx_sdk_parse_flags(
   "${RBFX_SDK_PARSE_LANGUAGE_STANDARD}")
 
 file(GLOB_RECURSE RBFX_SDK_INPUT_HEADERS CONFIGURE_DEPENDS
-  "${RBFX_SDK_ROOT}/include/Urho3D/*.h"
-  "${RBFX_SDK_ROOT}/include/Urho3D/*.hpp"
-  "${RBFX_SDK_ROOT}/include/RmlUi/*.h"
-  "${RBFX_SDK_ROOT}/include/RmlUi/*.hpp"
-  "${RBFX_SDK_ROOT}/include/ImGui/*.h"
-  "${RBFX_SDK_ROOT}/include/ImGui/*.hpp")
+  "${RBFX_ENGINE_ROOT}/include/Urho3D/*.h"
+  "${RBFX_ENGINE_ROOT}/include/Urho3D/*.hpp"
+  "${RBFX_ENGINE_ROOT}/include/RmlUi/*.h"
+  "${RBFX_ENGINE_ROOT}/include/RmlUi/*.hpp"
+  "${RBFX_ENGINE_ROOT}/include/ImGui/*.h"
+  "${RBFX_ENGINE_ROOT}/include/ImGui/*.hpp")
 
 set(
   RBFX_CSHARP_BINDINGS_PROJECTS

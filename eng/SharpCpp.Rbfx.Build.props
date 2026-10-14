@@ -13,8 +13,8 @@
     <RbfxIsCrossRid Condition="'$(RbfxTargetRid)' != '' and '$(RbfxTargetRid)' != '$(RbfxHostRid)'">true</RbfxIsCrossRid>
     <RbfxIsCrossRid Condition="'$(RbfxIsCrossRid)' == ''">false</RbfxIsCrossRid>
 
-    <!-- SDK root chain: explicit, RBFX_SDK_ROOT (host only), build/sdk/<target rid>, build/sdk/<host rid> (host only), legacy ../../rbfx-sdk (host only). -->
-    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and '$(RBFX_SDK_ROOT)' != ''">$(RBFX_SDK_ROOT)</RbfxSdkRoot>
+    <!-- SDK root chain: explicit, CMAKE_PREFIX_PATH (host only), build/sdk/<target rid>, build/sdk/<host rid> (host only), legacy ../../rbfx-sdk (host only). -->
+    <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and '$(CMAKE_PREFIX_PATH)' != '' and Exists('$(CMAKE_PREFIX_PATH)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(CMAKE_PREFIX_PATH)</RbfxSdkRoot>
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxTargetRid)' != '' and Exists('$(SharpCppRbfxRoot)/build/sdk/$(RbfxTargetRid)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(SharpCppRbfxRoot)/build/sdk/$(RbfxTargetRid)</RbfxSdkRoot>
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)</RbfxSdkRoot>
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/../../rbfx-sdk')">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../../rbfx-sdk'))</RbfxSdkRoot>

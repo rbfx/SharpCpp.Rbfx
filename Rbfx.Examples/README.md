@@ -15,7 +15,7 @@ so the cube also shows the native `RotatingComponent`. They need the native buil
 with two modes. The MSBuild property `RbfxBindingsPackageVersion` selects the mode:
 
 - Source mode (the property is empty, the default): `Example.Common` references the bindings source
-  projects and the generated `Example.UserCode.Bindings` assembly. It needs `RBFX_SDK_ROOT` (or the SDK
+  projects and the generated `Example.UserCode.Bindings` assembly. It needs `CMAKE_PREFIX_PATH` (or the SDK
   of the target RID in `build/sdk/<rid>`).
 - Package mode (for example `-p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION`):
   `Example.Common` references the `SharpCpp.Rbfx.Bindings` package. The engine natives come from the

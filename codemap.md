@@ -53,7 +53,7 @@ SharpCpp.Tool ───────────┘             |
 
 ### End-to-End Generation Pipeline
 
-1. **SDK Discovery**: `RBFX_SDK_ROOT` points to an installed rbfx SDK. `find_package(Urho3D)` locates the SDK CMake config. Build flags, include directories, and compile definitions are recursively collected from the `Urho3D` CMake target into `RBFX_URHO3D_INCLUDE_DIRECTORIES`, `RBFX_URHO3D_COMPILE_DEFINITIONS`, `RBFX_URHO3D_COMPILE_OPTIONS`.
+1. **SDK Discovery**: `CMAKE_PREFIX_PATH` points to an installed rbfx SDK. `find_package(Urho3D)` locates the SDK CMake config. Build flags, include directories, and compile definitions are recursively collected from the `Urho3D` CMake target into `RBFX_URHO3D_INCLUDE_DIRECTORIES`, `RBFX_URHO3D_COMPILE_DEFINITIONS`, `RBFX_URHO3D_COMPILE_OPTIONS`.
 
 2. **Flags File Generation**: A per-config `urho3d-sdk-flags.txt` is written with `compiler_path`, `language_standard`, include directories, defines, and clang arguments. This file is consumed by both generators.
 
@@ -105,7 +105,7 @@ SharpCpp.Tool ───────────┘             |
 | `Example.Common` (package mode, `RbfxBindingsPackageVersion` set) | `SharpCpp.Rbfx.Bindings` NuGet package, `Example.UserCode.Bindings.dll` | `RbfxUserCodeReference` + package reference |
 | `Rbfx.NativeHost.Managed` | `SharpCpp.Rbfx.Bindings`, `SharpCpp.Rbfx.SourceGenerator` | .NET project references |
 | `SharpCpp.Rbfx.Tests.E2E` | `SharpCpp.Rbfx.Bindings`, xUnit, .NET Test SDK | .NET project + package references |
-| `rbfx/CMakeLists.txt` | `rbfx-sdk` installed at `RBFX_SDK_ROOT` | `find_package(Urho3D CONFIG)` |
+| `rbfx/CMakeLists.txt` | `rbfx-sdk` installed at the `CMAKE_PREFIX_PATH` entry | `find_package(Urho3D CONFIG)` |
 
 ### Directory Map
 

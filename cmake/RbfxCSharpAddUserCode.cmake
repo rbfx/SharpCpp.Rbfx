@@ -44,7 +44,7 @@
 #   SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY (--sharpcpp-include), SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY (--rbfx-include),
 #   SHARPCPP_RBFX_STALENESS_SCRIPT (SharpCppGeneratedStaleness.cmake),
 #   DOTNET_EXECUTABLE, SHARPCPP_CLANG_RESOURCE_DIRECTORY,
-#   RBFX_SDK_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_GENERATED_ROOT, RBFX_METADATA_FILE,
+#   RBFX_ENGINE_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_GENERATED_ROOT, RBFX_METADATA_FILE,
 #   RBFX_ENGINE_UMBRELLA_DIRECTORY (the folder of SharpCpp.Rbfx.ParseUmbrella.hpp, which the wrapper includes),
 #   RBFX_GENERATED_STAMP (empty in package mode, which has no engine generator),
 #   RBFX_SDK_INPUT_HEADERS, RBFX_NATIVE_LIBRARY_TYPE, RBFX_RUNTIME_RPATH, RBFX_URHO3D_TARGET,
@@ -233,7 +233,7 @@ function(rbfx_csharp_add_usercode target)
     COMMAND "${CMAKE_COMMAND}" -E env
             "SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY=${SHARPCPP_CLANG_RESOURCE_DIRECTORY}"
             "${DOTNET_EXECUTABLE}" "${SHARPCPP_RBFX_USERCODE_GENERATOR_DLL}"
-            --sdk-root "${RBFX_SDK_ROOT}"
+            --sdk-root "${RBFX_ENGINE_ROOT}"
             --flags-file "${RBFX_SDK_FLAGS_FILE}"
             --header "${parse_header}"
             ${include_directory_arguments}

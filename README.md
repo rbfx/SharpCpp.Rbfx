@@ -41,7 +41,7 @@ rbfx_csharp_add_usercode(MyGame
 
 The C++ namespace of the wrapped types must be the value of `NAMESPACE`. The generator ignores the other namespaces.
 The package file sets the inputs of the function. They are the installed metadata, generator, headers and Clang headers.
-The parse flags come from the target `Urho3D` and the compiler of the consumer. The rbfx SDK root comes from `Urho3D_DIR`. Set `RBFX_SDK_ROOT` to override it.
+The parse flags come from the target `Urho3D` and the compiler of the consumer. The rbfx SDK root comes from `Urho3D_DIR`.
 The generated sources go to `<build>/generated` and the native library goes to `<build>/bin/<Config>`.
 Set `SHARPCPP_GENERATED_ROOT` and `SHARPCPP_NATIVE_OUTPUT_ROOT` to change them.
 The generator runs with `dotnet` at build time. The build needs no network and no git.

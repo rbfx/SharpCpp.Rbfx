@@ -317,7 +317,7 @@ jobs:
           fi
           test -f "$sdk_root/share/Urho3D/CMake/Urho3DConfig.cmake"
           mkdir -p build/test-results/e2e
-          RBFX_SDK_ROOT="$sdk_root" dotnet test \
+          CMAKE_PREFIX_PATH="$sdk_root" dotnet test \
             SharpCpp.Rbfx.Tests.E2E/SharpCpp.Rbfx.Tests.E2E.csproj \
             --configuration Release \
             --nologo \

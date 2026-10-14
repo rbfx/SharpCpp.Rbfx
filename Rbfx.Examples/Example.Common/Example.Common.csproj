@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Common code of the examples, built with the native user code Example.UserCode. It has two modes.
        Source mode (RbfxBindingsPackageVersion is empty): the project references the source projects of
-       SharpCpp.Rbfx.Bindings and of the source generator. It needs RBFX_SDK_ROOT.
+       SharpCpp.Rbfx.Bindings and of the source generator. It needs CMAKE_PREFIX_PATH.
        Package mode (RbfxBindingsPackageVersion is set): the project references the NuGet package
        SharpCpp.Rbfx.Bindings of that version. The package carries the source generator. The host
        library is not built. -->

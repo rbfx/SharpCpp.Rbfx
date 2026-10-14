@@ -28,10 +28,10 @@ A managed project that wants the dll declares `<RbfxUserCodeReference Include="E
 
 ## Build and run
 
-The build needs `RBFX_SDK_ROOT` and the native build (about 7 minutes the first time).
+The build needs `CMAKE_PREFIX_PATH` and the native build (about 7 minutes the first time).
 
 ```
-export RBFX_SDK_ROOT=<path of the installed rbfx SDK>
+export CMAKE_PREFIX_PATH=<path of the installed rbfx SDK>
 dotnet build SharpCpp.Rbfx.slnx --configuration Debug
 dotnet build Rbfx.Examples/Example.Desktop --configuration Debug
 GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768 dotnet build/bin/Debug/Example.Desktop.dll

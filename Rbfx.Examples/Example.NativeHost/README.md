@@ -22,7 +22,7 @@ Like Example.Desktop and Example.Common, this example builds from source with th
 Build with CMake. The target `Rbfx.NativeHost.Managed` runs `dotnet build` for the plugin project and puts the plugin next to the executable. The call is `rbfx_csharp_add_plugin` (`cmake/RbfxCSharpDotNet.cmake`). The target `sharpcpp-rbfx-native` (part of the default build) includes it.
 
 ```
-export RBFX_SDK_ROOT=<path of the installed rbfx SDK>
+export CMAKE_PREFIX_PATH=<path of the installed rbfx SDK>
 dotnet build SharpCpp.Rbfx.slnx --configuration Debug
 cmake -S . -B <build directory> -G "Ninja Multi-Config"
 cmake --build <build directory> --config Debug

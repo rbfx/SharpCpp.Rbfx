@@ -24,8 +24,12 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 
 - `SharpCppRoot` (MSBuild) / `SHARPCPP_ROOT` (CMake): SharpCpp checkout; defaults to the
   sibling `../SharpCpp`.
-- `RbfxSdkRoot` (MSBuild) / `RBFX_SDK_ROOT` (CMake or environment): installed
-  shared-library rbfx SDK; defaults to `../../rbfx-sdk` when present.
+- `RbfxSdkRoot` (MSBuild) / `CMAKE_PREFIX_PATH` (CMake or environment): installed
+  shared-library rbfx SDK. CMake finds the engine only with `find_package(Urho3D)` through
+  `CMAKE_PREFIX_PATH`, and derives the internal SDK root `RBFX_ENGINE_ROOT` from `Urho3D_DIR`.
+  MSBuild takes `RbfxSdkRoot` (default: the environment variable `CMAKE_PREFIX_PATH`, then
+  `build/sdk/<rid>`, then `../../rbfx-sdk`) and passes it to CMake as `CMAKE_PREFIX_PATH`.
+  An engine target from source mode is not supported yet.
 
 ## Wrap user C++ code
 
@@ -56,7 +60,7 @@ So the wrapped user code gives a dll that other modules use.
 
 ## Run the examples
 
-- `Example.Desktop`, `Example.Common` and the mobile and UWP apps need the native build of `Example.UserCode` (about 7 minutes the first time). Source mode needs `RBFX_SDK_ROOT`. Package mode (`-p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION`) restores the packages of that version, and the engine natives come from the runtime package.
+- `Example.Desktop`, `Example.Common` and the mobile and UWP apps need the native build of `Example.UserCode` (about 7 minutes the first time). Source mode needs `CMAKE_PREFIX_PATH` (the installed rbfx SDK). Package mode (`-p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION`) restores the packages of that version, and the engine natives come from the runtime package.
 - `Rbfx.Examples.slnx` also needs the SDK now.
 - A Linux desktop run needs `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768`.
 
@@ -72,7 +76,7 @@ dotnet test SharpCpp.Rbfx.Tests.E2E --configuration Debug --no-build --no-restor
 
 Fetch a prebuilt rbfx SDK with `eng/fetch-rbfx-sdk.sh --rid <rid>` (default: the host RID).
 It needs `curl`, `jq` and `7z`. It extracts the SDK into `build/sdk/<rid>` and does nothing if the
-SDK is current. Set `RBFX_SDK_ROOT="$(eng/fetch-rbfx-sdk.sh --rid linux-x64 --print-root)"` before
+SDK is current. Set `CMAKE_PREFIX_PATH="$(eng/fetch-rbfx-sdk.sh --rid linux-x64 --print-root)"` before
 CMake or MSBuild. `--print-cache-key` prints the CI cache key. `browser-wasm` comes from the
 SharpCpp.Rbfx release `latest`. See `--help` for all options.
 

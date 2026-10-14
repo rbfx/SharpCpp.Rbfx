@@ -24,9 +24,9 @@
        would wait on the native lock or start a second build of the same tree. -->
   <Target Name="RbfxBuildNative" AfterTargets="Build" Condition="'$(RbfxNativeBuildDriver)' != 'cmake'">
     <Error Condition="'$(RbfxSdkRoot)' == ''"
-           Text="Set RbfxSdkRoot (or RBFX_SDK_ROOT) to an installed shared-library rbfx SDK." />
+           Text="Set RbfxSdkRoot (or the environment variable CMAKE_PREFIX_PATH) to an installed shared-library rbfx SDK." />
     <MakeDir Directories="$(SharpCppBuildRoot);$(SharpCppOutputDir)" />
     <Exec WorkingDirectory="$(SharpCppRbfxRoot)"
-          Command="&quot;$(RbfxCMakeCommand)&quot; -DRBFX_SOURCE_DIR=&quot;$(SharpCppRbfxRoot)&quot; -DRBFX_NATIVE_PRESET=&quot;$(RbfxNativePreset)&quot; -DRBFX_NATIVE_BUILD_DIR=&quot;$(RbfxNativeBuildDir)&quot; -DRBFX_CONFIGURATION=&quot;$(Configuration)&quot; -DRBFX_NATIVE_LOCK_FILE=&quot;$(RbfxNativeLockFile)&quot; -DSHARPCPP_ROOT=&quot;$(SharpCppRoot)&quot; -DRBFX_SDK_ROOT=&quot;$(RbfxSdkRoot)&quot; -DSHARPCPP_MANAGED_OUTPUT_ROOT=&quot;$(SharpCppManagedOutputRoot)&quot; -DSHARPCPP_NATIVE_OUTPUT_ROOT=&quot;$(SharpCppNativeOutputRoot)&quot; -DRBFX_NATIVE_CONFIGURE_ARGUMENTS=&quot;$(RbfxNativeConfigureArguments)&quot; -DRBFX_ENGINE_METADATA_FILE=&quot;$(RbfxEngineMetadataFile)&quot; -P &quot;$(MSBuildThisFileDirectory)BuildNative.cmake&quot;" />
+          Command="&quot;$(RbfxCMakeCommand)&quot; -DRBFX_SOURCE_DIR=&quot;$(SharpCppRbfxRoot)&quot; -DRBFX_NATIVE_PRESET=&quot;$(RbfxNativePreset)&quot; -DRBFX_NATIVE_BUILD_DIR=&quot;$(RbfxNativeBuildDir)&quot; -DRBFX_CONFIGURATION=&quot;$(Configuration)&quot; -DRBFX_NATIVE_LOCK_FILE=&quot;$(RbfxNativeLockFile)&quot; -DSHARPCPP_ROOT=&quot;$(SharpCppRoot)&quot; -DCMAKE_PREFIX_PATH=&quot;$(RbfxSdkRoot)&quot; -DSHARPCPP_MANAGED_OUTPUT_ROOT=&quot;$(SharpCppManagedOutputRoot)&quot; -DSHARPCPP_NATIVE_OUTPUT_ROOT=&quot;$(SharpCppNativeOutputRoot)&quot; -DRBFX_NATIVE_CONFIGURE_ARGUMENTS=&quot;$(RbfxNativeConfigureArguments)&quot; -DRBFX_ENGINE_METADATA_FILE=&quot;$(RbfxEngineMetadataFile)&quot; -P &quot;$(MSBuildThisFileDirectory)BuildNative.cmake&quot;" />
   </Target>
 </Project>

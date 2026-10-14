@@ -18,9 +18,12 @@ option(
 #   PROJECT <csproj>
 #   [OUTPUT_DIRECTORY <dir>]
 #   [BYPRODUCTS <files>]
-#   [DEPENDS <targets>])
+#   [DEPENDS <targets>]
+#   [PROPERTIES <Name=Value>...])
+#
+# PROPERTIES adds one MSBuild property for each item to the dotnet command line as -p:Name=Value.
 function(rbfx_csharp_add_dotnet_project target)
-  cmake_parse_arguments(PARSE_ARGV 1 arg "" "PROJECT;OUTPUT_DIRECTORY" "BYPRODUCTS;DEPENDS")
+  cmake_parse_arguments(PARSE_ARGV 1 arg "" "PROJECT;OUTPUT_DIRECTORY" "BYPRODUCTS;DEPENDS;PROPERTIES")
   if(NOT arg_PROJECT)
     message(FATAL_ERROR "rbfx_csharp_add_dotnet_project(${target}): PROJECT is required.")
   endif()
@@ -44,6 +47,9 @@ function(rbfx_csharp_add_dotnet_project target)
   if(arg_OUTPUT_DIRECTORY)
     list(APPEND dotnet_arguments "-p:OutDir=${arg_OUTPUT_DIRECTORY}/")
   endif()
+  foreach(property IN LISTS arg_PROPERTIES)
+    list(APPEND dotnet_arguments "-p:${property}")
+  endforeach()
 
   add_custom_target(
     ${target}
@@ -57,13 +63,15 @@ function(rbfx_csharp_add_dotnet_project target)
   endif()
 endfunction()
 
-# rbfx_csharp_add_plugin(<target> PROJECT <csproj> HOST <executable target>)
+# rbfx_csharp_add_plugin(<target> PROJECT <csproj> HOST <executable target>
+#   [PROPERTIES <Name=Value>...])
 #
+# PROPERTIES goes to rbfx_csharp_add_dotnet_project() as MSBuild properties (-p:Name=Value).
 # Builds a managed plugin next to the host executable. In the build tree of this repository, the target
 # builds with the target sharpcpp-rbfx-native, so a normal CMake build produces the plugin. In a consumer
 # project, the caller adds the target to the build (for example with add_dependencies).
 function(rbfx_csharp_add_plugin target)
-  cmake_parse_arguments(PARSE_ARGV 1 arg "" "PROJECT;HOST" "")
+  cmake_parse_arguments(PARSE_ARGV 1 arg "" "PROJECT;HOST" "PROPERTIES")
   if(NOT arg_PROJECT OR NOT arg_HOST)
     message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): PROJECT and HOST are required.")
   endif()
@@ -94,6 +102,7 @@ function(rbfx_csharp_add_plugin target)
     BYPRODUCTS
       "${host_directory}/${plugin_name}.dll"
       "${host_directory}/${plugin_name}.runtimeconfig.json"
-    DEPENDS ${plugin_dependencies})
+    DEPENDS ${plugin_dependencies}
+    PROPERTIES ${arg_PROPERTIES})
   set_property(GLOBAL APPEND PROPERTY SHARPCPP_RBFX_PLUGIN_TARGETS ${target})
 endfunction()

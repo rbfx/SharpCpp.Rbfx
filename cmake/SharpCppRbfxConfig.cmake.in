@@ -38,11 +38,9 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
 
   # The rbfx SDK of the consumer. Urho3D_DIR is <rbfx SDK>/share/Urho3D/CMake.
   set(RBFX_URHO3D_TARGET Urho3D)
-  if(NOT RBFX_SDK_ROOT)
-    get_filename_component(RBFX_SDK_ROOT "${Urho3D_DIR}/../../.." ABSOLUTE)
-  endif()
-  if(NOT EXISTS "${RBFX_SDK_ROOT}/include/Urho3D")
-    message(FATAL_ERROR "SharpCppRbfx: the rbfx SDK headers are not in '${RBFX_SDK_ROOT}/include/Urho3D'. Set RBFX_SDK_ROOT.")
+  get_filename_component(RBFX_ENGINE_ROOT "${Urho3D_DIR}/../../.." ABSOLUTE)
+  if(NOT EXISTS "${RBFX_ENGINE_ROOT}/include/Urho3D")
+    message(FATAL_ERROR "SharpCppRbfx: the rbfx SDK headers are not in '${RBFX_ENGINE_ROOT}/include/Urho3D'. Add the installed rbfx SDK to CMAKE_PREFIX_PATH.")
   endif()
   if(NOT RBFX_NATIVE_LIBRARY_TYPE)
     if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR EMSCRIPTEN)
@@ -70,12 +68,12 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
     set_property(GLOBAL PROPERTY SHARPCPP_RBFX_SDK_FLAGS_WRITTEN TRUE)
   endif()
   file(GLOB_RECURSE RBFX_SDK_INPUT_HEADERS CONFIGURE_DEPENDS
-    "${RBFX_SDK_ROOT}/include/Urho3D/*.h"
-    "${RBFX_SDK_ROOT}/include/Urho3D/*.hpp"
-    "${RBFX_SDK_ROOT}/include/RmlUi/*.h"
-    "${RBFX_SDK_ROOT}/include/RmlUi/*.hpp"
-    "${RBFX_SDK_ROOT}/include/ImGui/*.h"
-    "${RBFX_SDK_ROOT}/include/ImGui/*.hpp")
+    "${RBFX_ENGINE_ROOT}/include/Urho3D/*.h"
+    "${RBFX_ENGINE_ROOT}/include/Urho3D/*.hpp"
+    "${RBFX_ENGINE_ROOT}/include/RmlUi/*.h"
+    "${RBFX_ENGINE_ROOT}/include/RmlUi/*.hpp"
+    "${RBFX_ENGINE_ROOT}/include/ImGui/*.h"
+    "${RBFX_ENGINE_ROOT}/include/ImGui/*.hpp")
 
   # The output folders of the consumer.
   set(SHARPCPP_GENERATED_ROOT "${CMAKE_BINARY_DIR}/generated" CACHE PATH "Root directory for generated binding sources.")

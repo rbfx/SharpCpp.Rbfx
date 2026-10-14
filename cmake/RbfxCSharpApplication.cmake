@@ -5,6 +5,8 @@ set(_rbfx_csharp_application_dir "${CMAKE_CURRENT_LIST_DIR}")
 # On Android the call makes an APK: a .NET Android head starts the runtime and loads the native application.
 # On Emscripten the call makes a web folder: a .NET WebAssembly head starts the runtime, and the native application
 # is linked into the runtime.
+# On iOS the call makes an app bundle: a .NET iOS head starts the runtime, and the native application is linked
+# into the executable of the app.
 #
 # rbfx_csharp_add_application(<name>
 #   SOURCES <files...>
@@ -38,7 +40,7 @@ set(_rbfx_csharp_application_dir "${CMAKE_CURRENT_LIST_DIR}")
 # PROPERTIES    MSBuild properties for the plugin project, as Name=Value. They come after the properties
 #               that this function sets for the package of SharpCpp.Rbfx.
 # RESOURCES, APPLICATION_ID
-#               Accepted and ignored on desktop. Android uses them, Emscripten uses RESOURCES (see below).
+#               Accepted and ignored on desktop. Android and iOS use them, Emscripten uses RESOURCES (see below).
 #
 # Android (single-configuration generator, NDK toolchain, SharpCpp.Rbfx built in shim mode):
 # - Creates the shared library <name> (lib<name>.so) from SOURCES. URHO3D_DEFINE_APPLICATION_MAIN exports
@@ -77,6 +79,28 @@ set(_rbfx_csharp_application_dir "${CMAKE_CURRENT_LIST_DIR}")
 # - The target <name>.CSharp publishes the head with dotnet (Release) and copies the web folder (index.html, main.js,
 #   _framework and the RESOURCES) to <name>/ in the runtime output folder (CMAKE_RUNTIME_OUTPUT_DIRECTORY).
 #   The runtime uses threads, so the web server must send the headers of cross-origin isolation.
+#
+# iOS (CMAKE_SYSTEM_NAME iOS, device arm64, single-configuration generator, static engine SDK ios-clang-arm64-lib,
+# SharpCpp.Rbfx in shim mode):
+# - An iOS app has one executable, and the .NET iOS SDK links it. So the .NET iOS head is the entry. The application,
+#   the engine, the wrapper and the host library are static code in the executable (NativeReference items of the head).
+# - Creates the static library <name> (lib<name>.a) from SOURCES and heads/ios/RbfxIosMain.cpp. On iOS
+#   URHO3D_DEFINE_APPLICATION_MAIN defines SDL_main. RbfxIosMain.cpp exports the C function rbfx_application_start.
+#   It gives SDL_main to SDL_UIKitRunApp. The library links with Urho3D, SharpCpp::RbfxHost and LINK_LIBRARIES.
+# - Generates the head project in <build>/heads/<name>/ from the templates in heads/ios/ next to this file. At the end
+#   of the configure step, CMake collects the static libraries and the link flags of the link closure of <name>, of
+#   SharpCpp::RbfxNative and of USERCODE into NativeItems.props of the head. The head references PLUGIN.
+# - Program.Main of the head runs the module initializer of the bindings, so DotNetHost::Initialize finds the runtime.
+#   Then it calls rbfx_application_start. SDL starts UIKit and calls SDL_main when the application is ready.
+# - The application library, the wrapper, the host library and the USERCODE libraries are force-loaded: the managed
+#   side finds their exports with __Internal. The other libraries are not force-loaded. The engine library has the
+#   main of SDL, and the executable has the main of .NET.
+# - A file in RESOURCES becomes a file in the root folder of the app bundle with its file name. A folder becomes a
+#   folder with its name. A generated file in RESOURCES must come from a custom command in the top-level CMakeLists.txt.
+# - APPLICATION_ID is the bundle identifier. The default is org.rbfx.<name in lower case>.
+# - The target <name>.CSharp builds the head with dotnet and copies the app bundle to <name>.app in the runtime output
+#   folder (CMAKE_RUNTIME_OUTPUT_DIRECTORY). The head does not sign the app, unless the MSBuild properties ask for it
+#   (EnableCodeSigning, CodesignKey and CodesignProvision in PROPERTIES or RBFX_CSHARP_MSBUILD_PROPERTIES).
 function(rbfx_csharp_add_application name)
   cmake_parse_arguments(
     PARSE_ARGV 1 arg "CONSOLE" "PLUGIN;APPLICATION_ID" "SOURCES;USERCODE;LINK_LIBRARIES;RESOURCES;PROPERTIES")
@@ -86,8 +110,8 @@ function(rbfx_csharp_add_application name)
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "rbfx_csharp_add_application(${name}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
-  if(CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|visionOS)$")
-    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): only the desktop platforms, Android and Emscripten are supported.")
+  if(CMAKE_SYSTEM_NAME MATCHES "^(tvOS|visionOS|watchOS)$")
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): only the desktop platforms, Android, iOS and Emscripten are supported.")
   endif()
 
   get_filename_component(plugin_name "${arg_PLUGIN}" NAME_WLE)
@@ -105,6 +129,10 @@ function(rbfx_csharp_add_application name)
   endif()
   if(EMSCRIPTEN)
     _rbfx_csharp_add_wasm_application(${name})
+    return()
+  endif()
+  if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    _rbfx_csharp_add_ios_application(${name})
     return()
   endif()
 
@@ -530,13 +558,157 @@ function(_rbfx_csharp_add_wasm_application name)
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
 endfunction()
 
-# Writes NativeItems.props of the WebAssembly head of <name> (see above). It walks the link closure of the object
-# library <name> and of SharpCpp::RbfxNative. A static library becomes a NativeFileReference, and an object library
-# gives its objects. A flag or a system library (-l<name>) and the INTERFACE_LINK_OPTIONS of the targets go to
-# EmccExtraLDFlags. The file names keep the names of the libraries, so the P/Invoke table of the runtime finds
-# libSharpCpp.Rbfx.Native and libSharpCpp.Rbfx.Host. Generator expressions are evaluated in the context of <name>.
-function(_rbfx_csharp_write_wasm_native_items name output)
-  set(files "$<TARGET_OBJECTS:${name}>")
+# The iOS part of rbfx_csharp_add_application. It reads the variables arg_*, plugin_name and
+# plugin_properties of the caller.
+#
+# The entry of the application: an iOS app has one executable, and the .NET iOS SDK links it. So the runtime starts
+# first, and Program.Main of the head attaches the managed side before the native code calls DotNetHost::Initialize.
+# Then Program.Main calls the native entry. It gives SDL_main to SDL_UIKitRunApp, which runs UIApplicationMain with
+# the application delegate of SDL. The engine main loop then runs in the callbacks of UIKit.
+function(_rbfx_csharp_add_ios_application name)
+  get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+  if(is_multi_config)
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): iOS needs a single-configuration generator (for example Ninja).")
+  endif()
+  get_target_property(engine_type Urho3D TYPE)
+  if(NOT engine_type STREQUAL "STATIC_LIBRARY")
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): iOS needs the static engine SDK.")
+  endif()
+  # The engine SDK and the SharpCpp.Rbfx SDK of iOS are for devices (ios-arm64).
+  if(CMAKE_OSX_SYSROOT MATCHES "[Ss]imulator" OR (CMAKE_OSX_ARCHITECTURES AND NOT CMAKE_OSX_ARCHITECTURES STREQUAL "arm64"))
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): iOS supports devices with arm64 only (ios-arm64).")
+  endif()
+  set(rid ios-arm64)
+
+  set(min_os 15.0)
+  if(CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(min_os "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+  endif()
+
+  # A bundle identifier has letters, digits, hyphens and periods.
+  if(arg_APPLICATION_ID)
+    set(application_id "${arg_APPLICATION_ID}")
+  else()
+    string(TOLOWER "${name}" application_id)
+    string(REGEX REPLACE "[^a-z0-9-]" "-" application_id "${application_id}")
+    set(application_id "org.rbfx.${application_id}")
+  endif()
+
+  set(template_dir "${_rbfx_csharp_application_dir}/heads/ios")
+  set(head_dir "${CMAKE_BINARY_DIR}/heads/${name}")
+
+  # The application code. The head force-loads the archive, so a source file with only static registrations stays
+  # in the link.
+  add_library(${name} STATIC ${arg_SOURCES} "${template_dir}/RbfxIosMain.cpp")
+  target_link_libraries(${name} PRIVATE Urho3D SharpCpp::RbfxHost ${arg_LINK_LIBRARIES})
+  target_compile_definitions(${name} PRIVATE "SHARPCPP_RBFX_PLUGIN_NAME=\"${plugin_name}\"")
+
+  # The RESOURCES. They go into the root folder of the app bundle.
+  set(items "")
+  set(resource_files)
+  foreach(resource IN LISTS arg_RESOURCES)
+    get_filename_component(resource "${resource}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    get_filename_component(resource_name "${resource}" NAME)
+    if(IS_DIRECTORY "${resource}")
+      string(APPEND items "    <BundleResource Include=\"${resource}/**/*\" Link=\"${resource_name}/%(RecursiveDir)%(Filename)%(Extension)\" />\n")
+    else()
+      string(APPEND items "    <BundleResource Include=\"${resource}\" Link=\"${resource_name}\" />\n")
+      list(APPEND resource_files "${resource}")
+    endif()
+  endforeach()
+
+  # The head project.
+  set(RBFX_HEAD_NAME "${name}")
+  set(RBFX_HEAD_RID "${rid}")
+  set(RBFX_HEAD_MIN_OS "${min_os}")
+  set(RBFX_HEAD_APPLICATION_ID "${application_id}")
+  set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
+  get_filename_component(RBFX_HEAD_PLUGIN "${arg_PLUGIN}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
+  set(RBFX_HEAD_ITEMS "${items}")
+  set(head_project "${head_dir}/${name}.Head.csproj")
+  configure_file("${template_dir}/Head.Ios.csproj.in" "${head_project}" @ONLY)
+
+  # The native items need the complete link closure (see the Emscripten part).
+  set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}]==] CALL _rbfx_csharp_write_ios_native_items [==[${name}]==] [==[${head_dir}/NativeItems.props]==]")
+  foreach(usercode IN LISTS arg_USERCODE)
+    string(APPEND defer_code " [==[${usercode}]==]")
+  endforeach()
+  cmake_language(EVAL CODE "${defer_code})")
+
+  if(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+    set(output_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+  else()
+    set(output_dir "${CMAKE_CURRENT_BINARY_DIR}")
+  endif()
+
+  # The head build. The bindings of a source build must compile for ios-arm64 (RbfxTargetRid, see
+  # eng/SharpCpp.Rbfx.Build.props): then their import name is __Internal. The app bundle has the assembly name.
+  set(configuration "$<IF:$<CONFIG:Debug>,Debug,Release>")
+  set(app_bundle "${head_dir}/bin/${configuration}/${name}.Head.app")
+  set(dotnet_arguments
+    build "${head_project}"
+    -c "${configuration}"
+    --nologo
+    -p:RbfxNativeBuildDriver=cmake
+    "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
+    "-p:RbfxTargetRid=${rid}"
+    -p:UseSharedCompilation=false
+    -nodeReuse:false)
+  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES plugin_properties arg_PROPERTIES)
+    list(APPEND dotnet_arguments "-p:${property}")
+  endforeach()
+  if(RBFX_CSHARP_BUILD_MANAGED)
+    add_custom_target(
+      ${name}.Head
+      COMMAND "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E rm -rf "${output_dir}/${name}.app"
+      COMMAND "${CMAKE_COMMAND}" -E copy_directory "${app_bundle}" "${output_dir}/${name}.app"
+      BYPRODUCTS "${output_dir}/${name}.app/Info.plist"
+      WORKING_DIRECTORY "${head_dir}"
+      COMMENT "Building the iOS head of ${name} with dotnet"
+      VERBATIM)
+  else()
+    add_custom_target(${name}.Head)
+  endif()
+  add_dependencies(${name}.Head ${name})
+  if(arg_USERCODE)
+    add_dependencies(${name}.Head ${arg_USERCODE})
+  endif()
+  if(resource_files)
+    # A file in RESOURCES can be the output of a custom command (for example create_pak of the engine).
+    # See the Android part for the deferred target.
+    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
+    foreach(resource IN LISTS resource_files)
+      string(APPEND defer_code " [==[${resource}]==]")
+    endforeach()
+    cmake_language(EVAL CODE "${defer_code})")
+    add_dependencies(${name}.Head ${name}.Resources)
+  endif()
+  foreach(dependency IN ITEMS sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
+    if(TARGET ${dependency})
+      add_dependencies(${name}.Head ${dependency})
+    endif()
+  endforeach()
+  if(NOT SharpCppRbfx_IS_SDK)
+    add_dependencies(${name}.Head SharpCpp::RbfxNative SharpCpp::RbfxHost)
+  endif()
+
+  add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
+endfunction()
+
+# Collects the native link items of the head of <name>. <kind> is wasm or ios. It walks the link closure of <name>, of
+# SharpCpp::RbfxNative and of the targets in ARGN. It sets <files_var> to the static libraries and objects, and
+# <flags_var> to the flags, the system libraries (-l<name>) and the INTERFACE_LINK_OPTIONS of the targets.
+# wasm: <name> is an object library. An object library gives its objects.
+# ios:  <name> is a static library. An object library gives no file: the archive of the static library that links it
+#       directly has its objects (the archive of <name> for its own LINK_LIBRARIES).
+function(_rbfx_csharp_collect_native_link_items name kind files_var flags_var)
+  if(kind STREQUAL "wasm")
+    set(files "$<TARGET_OBJECTS:${name}>")
+  else()
+    set(files "$<TARGET_FILE:${name}>")
+  endif()
   set(flags)
   get_target_property(options ${name} LINK_OPTIONS)
   if(options)
@@ -547,7 +719,7 @@ function(_rbfx_csharp_write_wasm_native_items name output)
     set(queue)
   endif()
   # The wrapper is not a link dependency of the application. The bindings call it through P/Invoke.
-  list(APPEND queue SharpCpp::RbfxNative)
+  list(APPEND queue SharpCpp::RbfxNative ${ARGN})
   set(visited ${name})
   list(LENGTH queue count)
   while(count GREATER 0)
@@ -573,9 +745,11 @@ function(_rbfx_csharp_write_wasm_native_items name output)
       if(type STREQUAL "STATIC_LIBRARY" OR type STREQUAL "UNKNOWN_LIBRARY")
         list(APPEND files "$<TARGET_FILE:${item}>")
       elseif(type STREQUAL "OBJECT_LIBRARY")
-        list(APPEND files "$<TARGET_OBJECTS:${item}>")
+        if(kind STREQUAL "wasm")
+          list(APPEND files "$<TARGET_OBJECTS:${item}>")
+        endif()
       elseif(type MATCHES "^(SHARED|MODULE)_LIBRARY$")
-        message(FATAL_ERROR "rbfx_csharp_add_application(${name}): ${item} is a shared library. The WebAssembly head links static libraries only.")
+        message(FATAL_ERROR "rbfx_csharp_add_application(${name}): ${item} is a shared library. The ${kind} head links static libraries only.")
       endif()
       get_target_property(options "${item}" INTERFACE_LINK_OPTIONS)
       if(options)
@@ -598,6 +772,16 @@ function(_rbfx_csharp_write_wasm_native_items name output)
   endwhile()
   list(REMOVE_DUPLICATES files)
   list(REMOVE_DUPLICATES flags)
+  set(${files_var} "${files}" PARENT_SCOPE)
+  set(${flags_var} "${flags}" PARENT_SCOPE)
+endfunction()
+
+# Writes NativeItems.props of the WebAssembly head of <name> (see above). A static library or an object becomes a
+# NativeFileReference. The flags go to EmccExtraLDFlags. The file names keep the names of the libraries, so the
+# P/Invoke table of the runtime finds libSharpCpp.Rbfx.Native and libSharpCpp.Rbfx.Host. Generator expressions are
+# evaluated in the context of <name>.
+function(_rbfx_csharp_write_wasm_native_items name output)
+  _rbfx_csharp_collect_native_link_items(${name} wasm files flags)
 
   set(content "<Project>\n  <!-- Written by rbfx_csharp_add_application (RbfxCSharpApplication.cmake). Do not edit. -->\n")
   string(APPEND content "  <PropertyGroup>\n    <EmccExtraLDFlags>$(EmccExtraLDFlags)")
@@ -630,7 +814,69 @@ function(_rbfx_csharp_write_wasm_native_items name output)
   file(GENERATE OUTPUT "${output}" CONTENT "${content}" TARGET ${name})
 endfunction()
 
-# The target that makes the files in RESOURCES of an Android or Emscripten application (see above).
+# Writes NativeItems.props of the iOS head of <name> (see above). ARGN has the USERCODE targets. Every static library
+# of the link closure becomes a static NativeReference. The archives of <name>, of the wrapper, of the host library and
+# of the USERCODE targets are force-loaded: the managed side finds their exports with __Internal. The other archives
+# are not force-loaded: the engine archive has the main of SDL (SDL_uikit_main.c), and the executable has the main of
+# .NET. The flags go to LinkerFlags of <name>. The frameworks and the flags -lc++ -liconv are the same as for the
+# wrapper in eng/SharpCpp.Rbfx.NativeItems.targets. Generator expressions are evaluated in the context of <name>.
+function(_rbfx_csharp_write_ios_native_items name output)
+  _rbfx_csharp_collect_native_link_items(${name} ios files flags ${ARGN})
+
+  set(force_load_files)
+  foreach(target IN ITEMS ${name} SharpCpp::RbfxNative SharpCpp::RbfxHost ${ARGN})
+    if(TARGET "${target}")
+      get_target_property(aliased "${target}" ALIASED_TARGET)
+      if(aliased)
+        set(target "${aliased}")
+      endif()
+      list(APPEND force_load_files "$<TARGET_FILE:${target}>")
+    endif()
+  endforeach()
+
+  set(linker_flags "-lc++ -liconv")
+  foreach(flag IN LISTS flags)
+    string(REGEX REPLACE "^SHELL:" "" flag "${flag}")
+    if(flag MATCHES "^LINKER:(.*)$")
+      set(flag "-Wl,${CMAKE_MATCH_1}")
+    endif()
+    string(STRIP "${flag}" flag)
+    if(flag STREQUAL "")
+      continue()
+    endif()
+    if(NOT flag MATCHES "\\$<")
+      # MSBuild and XML special characters. A generator expression keeps its text.
+      string(REPLACE "%" "%25" flag "${flag}")
+      string(REPLACE "$" "%24" flag "${flag}")
+      string(REPLACE "@" "%40" flag "${flag}")
+      string(REPLACE ";" "%3B" flag "${flag}")
+      string(REPLACE "&" "&amp;" flag "${flag}")
+      string(REPLACE "<" "&lt;" flag "${flag}")
+      string(REPLACE ">" "&gt;" flag "${flag}")
+    endif()
+    string(APPEND linker_flags " ${flag}")
+  endforeach()
+
+  set(content "<Project>\n  <!-- Written by rbfx_csharp_add_application (RbfxCSharpApplication.cmake). Do not edit. -->\n  <ItemGroup>\n")
+  foreach(file IN LISTS files)
+    string(APPEND content "    <NativeReference Include=\"${file}\">\n      <Kind>Static</Kind>\n      <IsCxx>true</IsCxx>\n")
+    if(file IN_LIST force_load_files)
+      string(APPEND content "      <ForceLoad>true</ForceLoad>\n")
+    else()
+      string(APPEND content "      <ForceLoad>false</ForceLoad>\n      <SmartLink>true</SmartLink>\n")
+    endif()
+    if(file STREQUAL "$<TARGET_FILE:${name}>")
+      string(APPEND content "      <LinkerFlags>${linker_flags}</LinkerFlags>\n")
+      string(APPEND content "      <Frameworks>CoreVideo CoreAudio AudioToolbox AVFoundation CoreBluetooth CoreGraphics CoreMotion Foundation Metal OpenGLES QuartzCore UIKit</Frameworks>\n")
+      string(APPEND content "      <WeakFrameworks>GameController CoreHaptics</WeakFrameworks>\n")
+    endif()
+    string(APPEND content "    </NativeReference>\n")
+  endforeach()
+  string(APPEND content "  </ItemGroup>\n</Project>\n")
+  file(GENERATE OUTPUT "${output}" CONTENT "${content}" TARGET ${name})
+endfunction()
+
+# The target that makes the files in RESOURCES of an Android, iOS or Emscripten application (see above).
 function(_rbfx_csharp_add_resource_target target)
   add_custom_target(${target} DEPENDS ${ARGN})
 endfunction()

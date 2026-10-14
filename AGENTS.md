@@ -59,6 +59,22 @@ So the wrapped user code gives a dll that other modules use.
 
 `eng/SharpCpp.Rbfx.NativeItems.targets` is the one mapping from a RID to the platform items for native libraries (Android `AndroidNativeLibraryNoJniPreload` for every `*.so`, iOS `NativeReference`, Wasm `NativeFileReference` and `--js-library` flags). Its input is the `RbfxNativeRuntimeFile` items with the metadata `RbfxNativeRid` and `RbfxNativeKind`. It maps only the items of the RID of the consumer (`RbfxTargetRid`, else `RuntimeIdentifier`) and is idempotent. `eng/SharpCpp.Rbfx.Build.targets` imports it. `packaging/nuget/CrossPackage.cs targets` lists the staged files as `RbfxNativeRuntimeFile` and copies the shared file to `buildTransitive/SharpCpp.Rbfx.NativeItems.<rid>.targets` of the runtime package.
 
+## Application heads
+
+`rbfx_csharp_add_application` (`cmake/RbfxCSharpApplication.cmake`) makes a desktop executable, or on Android, iOS and
+Emscripten a .NET head from the templates in `cmake/heads/<platform>/`. README.md describes each platform.
+
+- The dispatch is in `rbfx_csharp_add_application`: `ANDROID`, `EMSCRIPTEN`, then `CMAKE_SYSTEM_NAME` `iOS`. tvOS and visionOS are a configure error.
+- iOS (`_rbfx_csharp_add_ios_application`): the static library `<name>` (SOURCES and `cmake/heads/ios/RbfxIosMain.cpp`), the head
+  `<build>/heads/<name>/<name>.Head.csproj` (`net10.0-ios`, `ios-arm64`) and the deferred `NativeItems.props` (`NativeReference` items).
+  `Program.cs` attaches the native host and calls `rbfx_application_start`. That function calls `SDL_UIKitRunApp` with the `SDL_main` of `URHO3D_DEFINE_APPLICATION_MAIN`.
+- Only the application library, the wrapper, the host library and the USERCODE libraries have `ForceLoad`. The engine archive has the `main` of SDL. A force load of it gives a second `main`.
+- The heads write their own native items. They do not import `eng/SharpCpp.Rbfx.NativeItems.targets`. Keep the iOS frameworks and the flags `-lc++ -liconv` in `_rbfx_csharp_write_ios_native_items` the same as for the wrapper in that file.
+- `_rbfx_csharp_collect_native_link_items` walks the link closure for the wasm and the iOS heads.
+- Verification of the iOS head on Linux: configure a project that calls the function with fake imported static targets, a toolchain with
+  `CMAKE_SYSTEM_NAME` `iOS`, `CMAKE_OSX_SYSROOT` in a folder with the name `iPhoneOS.sdk` and `CMAKE_CXX_COMPILER_FORCED`. Then check the generated XML with `xmllint`.
+  A real head build needs macOS, Xcode and the `ios` workload.
+
 ## Run the examples
 
 - `Example.Desktop`, `Example.Common` and the mobile and UWP apps need the native build of `Example.UserCode` (about 7 minutes the first time). Source mode needs `CMAKE_PREFIX_PATH` (the installed rbfx SDK). Package mode (`-p:RbfxBindingsPackageVersion=VERSION -p:RbfxPackageVersion=VERSION`) restores the packages of that version, and the engine natives come from the runtime package.

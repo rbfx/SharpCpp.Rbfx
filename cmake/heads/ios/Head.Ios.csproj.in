@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The .NET iOS head of the application @RBFX_HEAD_NAME@. rbfx_csharp_add_application (RbfxCSharpApplication.cmake)
+       generates this file into the build tree. Do not edit it: CMake writes it again on each configure. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier>@RBFX_HEAD_RID@</RuntimeIdentifier>
+    <SupportedOSPlatformVersion>@RBFX_HEAD_MIN_OS@</SupportedOSPlatformVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+    <AssemblyName>@RBFX_HEAD_NAME@.Head</AssemblyName>
+    <RootNamespace>Rbfx.Head</RootNamespace>
+    <ApplicationId>@RBFX_HEAD_APPLICATION_ID@</ApplicationId>
+    <ApplicationTitle>@RBFX_HEAD_NAME@</ApplicationTitle>
+    <AppBundleManifest>@RBFX_HEAD_TEMPLATE_DIR@/Info.plist</AppBundleManifest>
+    <!-- The build signs the app only on request (for example -p:EnableCodeSigning=true -p:CodesignKey=...
+         in PROPERTIES or RBFX_CSHARP_MSBUILD_PROPERTIES). A device runs a signed app only. -->
+    <EnableCodeSigning Condition="'$(EnableCodeSigning)' == ''">false</EnableCodeSigning>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NuGetAudit>false</NuGetAudit>
+    <OutputPath>bin/$(Configuration)/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/Program.cs" />
+
+    <!-- The managed plugin of the application. -->
+    <ProjectReference Include="@RBFX_HEAD_PLUGIN@" />
+
+    <!-- The native host: attaches the managed function table to the host library (SharpCpp.Rbfx.Host). Only heads
+         reference it. SDK mode: the assembly of the SDK. Source mode: the project of the source tree. -->
+    <Reference Include="SharpCpp.Rbfx.NativeHost" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.NativeHost.dll</HintPath>
+    </Reference>
+    <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'" />
+
+    <!-- Only native code calls the managed entry points of these assemblies (UnmanagedCallersOnly methods,
+         the module initializer of the native host and the plugin class). The trimmer must keep them. -->
+    <TrimmerRootAssembly Include="@RBFX_HEAD_PLUGIN_NAME@" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Rbfx.Bindings" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Rbfx.NativeHost" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
+  </ItemGroup>
+
+  <!-- Resources of the application. They go into the root folder of the app bundle. -->
+  <ItemGroup>
+@RBFX_HEAD_ITEMS@
+  </ItemGroup>
+
+  <!-- The static libraries of the application (NativeReference items) and their link flags. CMake writes this file
+       at the end of the configure step, when all targets of the link exist. -->
+  <Import Project="NativeItems.props" />
+</Project>

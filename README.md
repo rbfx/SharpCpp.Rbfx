@@ -137,7 +137,7 @@ The install step needs a finished build, because the generator writes the metada
 ### Application in one call
 
 `rbfx_csharp_add_application()` makes a native application that hosts .NET and loads a C# plugin.
-This is the only call that an application needs. The desktop platforms (hostfxr mode), Android and the web (shim mode) are supported now.
+This is the only call that an application needs. The desktop platforms (hostfxr mode), Android, iOS and the web (shim mode) are supported now.
 
 ```cmake
 find_package(Urho3D REQUIRED)
@@ -155,7 +155,7 @@ rbfx_csharp_add_application(MyApp
 - The target `MyApp.CSharp` is part of the default build. It builds the plugin with dotnet and copies the native wrapper
   next to the executable. On Windows it also copies the host library and `nethost.dll`.
 - On Linux the executable links with `--no-as-needed`, so Urho3D stays a start-up dependency.
-- `RESOURCES` and `APPLICATION_ID` are accepted and ignored on desktop. Android uses them. The web uses `RESOURCES`.
+- `RESOURCES` and `APPLICATION_ID` are accepted and ignored on desktop. Android and iOS use them. The web uses `RESOURCES`.
 - The function sets the MSBuild properties that the plugin project needs for source mode and for SDK mode. `PROPERTIES` adds more.
 
 #### Android
@@ -222,6 +222,51 @@ only runs the module initializer of `SharpCpp.Rbfx.NativeHost` (the attach to th
 `Module._rbfx_application_start()` on the browser thread and ignores the `'unwind'` exception. The native code calls the
 managed code on the browser thread after that. `main.js` sets `jsThreadBlockingMode` to `DangerousAllowBlockingWait`, because
 managed code can wait on a lock there.
+
+#### iOS
+
+The same call, the same launcher source and the same plugin project make an iOS app bundle (`ios-arm64`, devices only).
+An iOS app has one executable, and the .NET iOS SDK links it. So a .NET iOS head is the entry, and the native application
+is static code in the executable of the app.
+
+- Configure on macOS with `CMAKE_SYSTEM_NAME` `iOS` (for example `cmake/toolchains/ios-arm64.cmake`), a single-configuration
+  generator (Ninja), the static iOS SDK of the engine (`ios-clang-arm64-lib`) and the iOS SDK of SharpCpp.Rbfx on `CMAKE_PREFIX_PATH`.
+  The head build needs Xcode and the `ios` workload of .NET. The simulator is not supported.
+- `MyApp` is a static library (`libMyApp.a`). On iOS `URHO3D_DEFINE_APPLICATION_MAIN` defines `SDL_main`, not `main`.
+  The function adds `cmake/heads/ios/RbfxIosMain.cpp`. It exports the C function `rbfx_application_start`, which calls
+  `SDL_UIKitRunApp(argc, argv, SDL_main)`. The source needs no iOS code.
+- The function generates the head project in `<build>/heads/MyApp/` from the templates in `cmake/heads/ios/`.
+  The head is `net10.0-ios` with the RID `ios-arm64`. It references `PLUGIN`. `SupportedOSPlatformVersion` is
+  `CMAKE_OSX_DEPLOYMENT_TARGET` (default 15.0). The manifest is `cmake/heads/ios/Info.plist` (full screen, no launch storyboard).
+- `Program.Main` of the head runs the module initializer of `SharpCpp.Rbfx.NativeHost` (the attach to the host library).
+  Then it calls `rbfx_application_start` through `[DllImport("__Internal")]`. SDL runs `UIApplicationMain` with its own
+  application delegate and calls `SDL_main` on the main thread. There is no `dlsym` and no shared library.
+- At the end of the configure step, the function walks the link closure of `MyApp` (also `target_link_libraries` calls
+  after the function), of `SharpCpp::RbfxNative` and of `USERCODE`. It writes `NativeItems.props` of the head: every
+  static library is a static `NativeReference`. The flags and the `INTERFACE_LINK_OPTIONS` go to `LinkerFlags` of `libMyApp.a`.
+  An object library gives no file, because the archive of the static library that links it has its objects.
+  A shared library in the closure is a configure error.
+- `libMyApp.a`, the wrapper, the host library and the `USERCODE` libraries have `ForceLoad`: the managed side finds their
+  exports with `__Internal`. The engine libraries do not have `ForceLoad`. The engine archive has the `main` of SDL, and the
+  executable has the `main` of .NET.
+- The head makes the plugin assembly and the SharpCpp assemblies trimmer roots, as on Android. A source build compiles the
+  bindings with `RbfxTargetRid=ios-arm64`, so their import name is `__Internal`.
+- A file in `RESOURCES` becomes a file in the root folder of the app bundle (`BundleResource`). A folder becomes a folder with its name.
+  A generated file (for example a pak from `create_pak`) must come from the top-level `CMakeLists.txt`.
+- `APPLICATION_ID` is the bundle identifier. The default is `org.rbfx.<name in lower case>`.
+- The target `MyApp.CSharp` builds the head with dotnet and copies the app bundle to `MyApp.app` in `CMAKE_RUNTIME_OUTPUT_DIRECTORY`
+  (else the binary folder). Debug builds make a Debug head. All other configurations make a Release head.
+- The head does not sign the app by default. A device runs a signed app only. Give `EnableCodeSigning=true`, `CodesignKey`
+  and `CodesignProvision` in `PROPERTIES` or in `RBFX_CSHARP_MSBUILD_PROPERTIES`.
+
+Generated files of an iOS application `MyApp`:
+
+| File | Content |
+| --- | --- |
+| `<build>/heads/MyApp/MyApp.Head.csproj` | The head project, from `cmake/heads/ios/Head.Ios.csproj.in`. It compiles `cmake/heads/ios/Program.cs` and has the `BundleResource` items. |
+| `<build>/heads/MyApp/NativeItems.props` | The `NativeReference` items and the link flags. CMake writes it at the end of the configure step. |
+| `libMyApp.a` | The application library: `SOURCES` and `cmake/heads/ios/RbfxIosMain.cpp`. |
+| `MyApp.app` | The app bundle, after the target `MyApp.CSharp`. |
 
 ### DotNetHost modes
 

@@ -41,7 +41,6 @@
     },
     {
       "name": "linux-gcc-x64-dll",
-      "displayName": "Linux GCC x64 (shared)",
       "inherits": [
         "base-native",
         "base-gcc"
@@ -54,7 +53,6 @@
     },
     {
       "name": "macos-clang-arm64-dll",
-      "displayName": "macOS Clang arm64 (shared)",
       "inherits": [
         "base-native",
         "base-clang"
@@ -67,7 +65,6 @@
     },
     {
       "name": "windows-msvc-x64-dll",
-      "displayName": "Windows MSVC x64 (shared)",
       "inherits": "base-native",
       "condition": {
         "type": "equals",
@@ -77,37 +74,31 @@
     },
     {
       "name": "android-clang-arm-dll",
-      "displayName": "Android Clang arm (shared)",
       "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm.cmake"
     },
     {
       "name": "android-clang-arm64-dll",
-      "displayName": "Android Clang arm64 (shared)",
       "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm64.cmake"
     },
     {
       "name": "android-clang-x64-dll",
-      "displayName": "Android Clang x64 (shared)",
       "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-x64.cmake"
     },
     {
       "name": "ios-clang-arm64-lib",
-      "displayName": "iOS Clang arm64 (static)",
       "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/ios-arm64.cmake"
     },
     {
       "name": "web-emscripten-wasm-lib",
-      "displayName": "Web Emscripten wasm (static)",
       "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/browser-wasm.cmake"
     },
     {
       "name": "uwp-msvc-x64-dll",
-      "displayName": "UWP MSVC x64 (shared)",
       "inherits": "base-cross",
       "toolchainFile": "${sourceDir}/cmake/toolchains/uap-x64.cmake"
     }

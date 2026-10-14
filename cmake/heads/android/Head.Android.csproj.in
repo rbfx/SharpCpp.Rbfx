@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The .NET Android head of the application @RBFX_HEAD_NAME@. rbfx_csharp_add_application (RbfxCSharpApplication.cmake)
+       generates this file into the build tree. Do not edit it: CMake writes it again on each configure. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier>@RBFX_HEAD_RID@</RuntimeIdentifier>
+    <SupportedOSPlatformVersion>@RBFX_HEAD_MIN_API@</SupportedOSPlatformVersion>
+    <AssemblyName>@RBFX_HEAD_NAME@.Head</AssemblyName>
+    <RootNamespace>Rbfx.Head</RootNamespace>
+    <ApplicationId>@RBFX_HEAD_APPLICATION_ID@</ApplicationId>
+    <ApplicationTitle>@RBFX_HEAD_NAME@</ApplicationTitle>
+    <AndroidManifest>AndroidManifest.xml</AndroidManifest>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <!-- The APK has all assemblies also in Debug, so it does not need a fast deployment to a device. -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NuGetAudit>false</NuGetAudit>
+    <!-- The head loads the native host library SharpCpp.Rbfx.Host, so the attach code of the bindings must stay.
+         Without this property the trimmer removes the attach code (eng/SharpCpp.Rbfx.NativeHost.targets).
+         A head of iOS or browser-wasm that uses the host library sets the property in the same way. -->
+    <SharpCppRbfxNativeHost>true</SharpCppRbfxNativeHost>
+    <OutputPath>bin/$(Configuration)/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/RbfxApplication.cs" />
+
+    <!-- The Java side: the SDL activity of the engine and the activity of the head. -->
+    <AndroidJavaSource Include="@RBFX_HEAD_SDL_JAVA_DIR@/org/libsdl/app/*.java" Bind="false" />
+    <AndroidJavaSource Include="@RBFX_HEAD_DIR@/java/io/urho3d/UrhoActivity.java" Bind="false" />
+    <AndroidJavaSource Include="@RBFX_HEAD_TEMPLATE_DIR@/java/org/rbfx/RbfxActivity.java" Bind="false" />
+
+    <!-- The managed plugin of the application. -->
+    <ProjectReference Include="@RBFX_HEAD_PLUGIN@" />
+
+    <!-- Only native code calls the managed entry points of these assemblies (UnmanagedCallersOnly methods,
+         the module initializer of the bindings and the plugin class). The trimmer must keep them. -->
+    <TrimmerRootAssembly Include="@RBFX_HEAD_PLUGIN_NAME@" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Rbfx.Bindings" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
+  </ItemGroup>
+
+  <!-- Native libraries and resources of the application. -->
+  <ItemGroup>
+@RBFX_HEAD_ITEMS@
+  </ItemGroup>
+</Project>

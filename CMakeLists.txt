@@ -511,6 +511,10 @@ if(RBFX_INSTALL_SDK)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates"
     DESTINATION "${_rbfx_sdk_module_dir}")
+  # The templates of the application heads (rbfx_csharp_add_application on Android).
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/heads"
+    DESTINATION "${_rbfx_sdk_module_dir}")
 
   # The builtin Clang headers for the user-code generator. A consumer of the SDK needs no network and no git.
   # The source is often a link to the LLVM checkout (SharpCppClang.cmake). Resolve it, so that the install

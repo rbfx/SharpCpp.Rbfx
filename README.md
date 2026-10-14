@@ -134,7 +134,7 @@ The install step needs a finished build, because the generator writes the metada
 ### Application in one call
 
 `rbfx_csharp_add_application()` makes a native application that hosts .NET and loads a C# plugin.
-This is the only call that an application needs. The desktop platforms (hostfxr mode) are supported now.
+This is the only call that an application needs. The desktop platforms (hostfxr mode) and Android (shim mode) are supported now.
 
 ```cmake
 find_package(Urho3D REQUIRED)
@@ -152,8 +152,34 @@ rbfx_csharp_add_application(MyApp
 - The target `MyApp.CSharp` is part of the default build. It builds the plugin with dotnet and copies the native wrapper
   next to the executable. On Windows it also copies the host library and `nethost.dll`.
 - On Linux the executable links with `--no-as-needed`, so Urho3D stays a start-up dependency.
-- `RESOURCES` and `APPLICATION_ID` are accepted and ignored on desktop. Mobile and web platforms use them.
+- `RESOURCES` and `APPLICATION_ID` are accepted and ignored on desktop. Android uses them.
 - The function sets the MSBuild properties that the plugin project needs for source mode and for SDK mode. `PROPERTIES` adds more.
+
+#### Android
+
+The same call, the same launcher source and the same plugin project make an APK. The Android build has no hostfxr.
+A .NET Android head is the entry of the application. The native application runs as a library in the SDL activity.
+
+- Configure with the NDK toolchain (for example `cmake/toolchains/android-arm64.cmake`), a single-configuration
+  generator (Ninja), `-DBUILD_SHARED_LIBS=ON` and the Android SDKs of the engine and of SharpCpp.Rbfx on `CMAKE_PREFIX_PATH`.
+  The NDK toolchain finds packages only in its sysroot. Add `-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH`.
+- `MyApp` is a shared library (`libMyApp.so`). `URHO3D_DEFINE_APPLICATION_MAIN` exports `SDL_main` from it.
+- The function generates the head project in `<build>/heads/MyApp/` from the templates in `cmake/heads/android/`.
+  The head is `net10.0-android`. It references `PLUGIN`. It packs `libc++_shared.so`, `libUrho3D.so`, the wrapper,
+  the host library, the shared libraries in `LINK_LIBRARIES` and `libMyApp.so`. It compiles the SDL Java sources of the engine SDK.
+- A file in `RESOURCES` becomes an asset with its file name. A folder becomes a folder of assets.
+  A generated file (for example a pak from `create_pak`) must come from the top-level `CMakeLists.txt`.
+- `APPLICATION_ID` is the package name. The default is `org.rbfx.<name in lower case>`.
+- The application class of the head runs the module initializer of the bindings before the activity starts `SDL_main`.
+  The initializer attaches the managed function table to the host library. `DotNetHost::Initialize` and `LoadPlugin`
+  then work as on desktop. The launcher needs no Android code.
+- Only native code calls the `[UnmanagedCallersOnly]` methods and the plugin class. The IL trimmer cannot see these calls.
+  So the head makes the plugin assembly and the SharpCpp assemblies trimmer roots (`TrimmerRootAssembly`).
+- The target `MyApp.CSharp` builds the head with dotnet and copies the debug-signed APK to `MyApp.apk` next to `libMyApp.so`.
+  Debug builds make a Debug head. All other configurations make a Release head.
+- The head build needs the `android` workload and a JDK 17 or 21. The cache variables `RBFX_CSHARP_ANDROID_SDK_DIR`
+  and `RBFX_CSHARP_JAVA_SDK_DIR` (defaults: the environment variables `ANDROID_HOME` and `JAVA_HOME`) go to dotnet.
+  `RBFX_CSHARP_ANDROID_JAVA_DIR` sets the folder with the SDL Java sources, if the engine SDK does not have them.
 
 ### DotNetHost modes
 

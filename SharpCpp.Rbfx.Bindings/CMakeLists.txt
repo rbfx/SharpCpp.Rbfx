@@ -34,7 +34,9 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/Interop/ScriptRuntime.cpp")
 add_dependencies(SharpCppRbfx_Native sharpcpp-generate-rbfx)
 # Source mode: the same name as the imported target of an installed SDK, so a consumer uses one name.
-# A consumer does not call find_package(SharpCppRbfx) in the same tree, because the names clash.
+# A tree that adds this directory with add_subdirectory() gets the target SharpCpp::RbfxNative. The shim
+# package of the source tree (cmake/SharpCppRbfx) does this, so find_package(SharpCppRbfx) and the SDK
+# package give the same name.
 if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "SHARED" AND NOT TARGET SharpCpp::RbfxNative)
   add_library(SharpCpp::RbfxNative ALIAS SharpCppRbfx_Native)
 endif()

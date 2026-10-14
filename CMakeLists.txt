@@ -44,14 +44,23 @@ if(NOT EXISTS "${SHARPCPP_ROOT}/include/SharpCpp/Marshaller.hpp")
   message(FATAL_ERROR "SharpCpp was not found at '${SHARPCPP_ROOT}'. Set SHARPCPP_ROOT to a SharpCpp checkout.")
 endif()
 
+# The top-level developer build writes to <repo>/build/bin. A consumer tree (add_subdirectory or the
+# find_package shim) writes below its own build directory. A value from the user always wins.
+if(PROJECT_IS_TOP_LEVEL)
+  set(_rbfx_default_native_output_root "${CMAKE_CURRENT_SOURCE_DIR}/build/bin")
+  set(_rbfx_default_managed_output_root "${CMAKE_CURRENT_SOURCE_DIR}/build/bin")
+else()
+  set(_rbfx_default_native_output_root "${CMAKE_BINARY_DIR}/SharpCppRbfx/bin")
+  set(_rbfx_default_managed_output_root "${CMAKE_BINARY_DIR}/SharpCppRbfx/managed")
+endif()
 set(
   SHARPCPP_NATIVE_OUTPUT_ROOT
-  "${CMAKE_CURRENT_SOURCE_DIR}/build/bin"
+  "${_rbfx_default_native_output_root}"
   CACHE PATH
   "Root directory for native artifacts.")
 set(
   SHARPCPP_MANAGED_OUTPUT_ROOT
-  "${CMAKE_CURRENT_SOURCE_DIR}/build/bin"
+  "${_rbfx_default_managed_output_root}"
   CACHE PATH
   "Root directory containing the prebuilt managed generators.")
 set(
@@ -67,7 +76,12 @@ add_subdirectory("${SHARPCPP_ROOT}" sharpcpp EXCLUDE_FROM_ALL)
 list(APPEND CMAKE_MODULE_PATH "${SHARPCPP_ROOT}/cmake")
 include(SharpCppOutput)
 include(SharpCppClang)
-find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
+find_program(DOTNET_EXECUTABLE dotnet)
+if(NOT DOTNET_EXECUTABLE)
+  message(FATAL_ERROR
+    "SharpCpp.Rbfx: the dotnet command was not found. The .NET SDK is necessary to run the generators. "
+    "Install the .NET SDK or set DOTNET_EXECUTABLE.")
+endif()
 
 if(APPLE)
   set(RBFX_RUNTIME_RPATH "@loader_path")
@@ -105,7 +119,7 @@ function(sharpcpp_find_rbfx_sdk)
     set(CMAKE_DISABLE_FIND_PACKAGE_TBB TRUE)
     set(CMAKE_DISABLE_FIND_PACKAGE_Vulkan TRUE)
     # Web builds of rbfx-ci give the SDK in CMAKE_FIND_ROOT_PATH instead of CMAKE_PREFIX_PATH. Search both.
-    find_package(Urho3D 0.0.0 CONFIG REQUIRED PATHS ${CMAKE_FIND_ROOT_PATH} NO_CMAKE_FIND_ROOT_PATH)
+    find_package(Urho3D CONFIG REQUIRED PATHS ${CMAKE_FIND_ROOT_PATH} NO_CMAKE_FIND_ROOT_PATH)
     if(NOT Urho3D_IS_SDK)
       message(FATAL_ERROR "SharpCpp.Rbfx: find_package(Urho3D) found '${Urho3D_DIR}', which is not an installed rbfx SDK.")
     endif()
@@ -310,10 +324,63 @@ set(SHARPCPP_RBFX_STALENESS_SCRIPT "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStal
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
 
+# A consumer tree (add_subdirectory or the find_package shim) needs only CMAKE_PREFIX_PATH. This build
+# runs "dotnet build" for the generators into SHARPCPP_MANAGED_OUTPUT_ROOT. The top-level developer build
+# expects built generators (dotnet build SharpCpp.Rbfx.slnx). MSBuild sets RBFX_CSHARP_BUILD_MANAGED=OFF.
+if(PROJECT_IS_TOP_LEVEL)
+  set(_rbfx_build_generators_default OFF)
+else()
+  set(_rbfx_build_generators_default ON)
+endif()
+option(
+  RBFX_CSHARP_BUILD_GENERATORS
+  "Build the managed generators with dotnet from this CMake build. It needs RBFX_CSHARP_BUILD_MANAGED."
+  ${_rbfx_build_generators_default})
+# A consumer tree: every dotnet build that CMake starts or writes gets the same output root and the same
+# intermediate root, so that SHARPCPP_MANAGED_OUTPUT_ROOT holds all the managed assemblies.
+# The MSBuild-driven and the top-level developer builds keep the root of eng/SharpCpp.Rbfx.Build.props.
+if(NOT PROJECT_IS_TOP_LEVEL)
+  set(RBFX_CSHARP_MSBUILD_PROPERTIES
+    "SharpCppManagedOutputRoot=${SHARPCPP_MANAGED_OUTPUT_ROOT}"
+    "SharpCppNativeOutputRoot=${SHARPCPP_NATIVE_OUTPUT_ROOT}"
+    "SharpCppBuildRoot=${CMAKE_BINARY_DIR}/SharpCppRbfx/dotnet")
+endif()
+if(RBFX_CSHARP_BUILD_GENERATORS AND RBFX_CSHARP_BUILD_MANAGED)
+  # The projects share the referenced projects. Run them one after the other.
+  rbfx_csharp_add_dotnet_project(
+    sharpcpp-rbfx-build-generator
+    PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.Generator/SharpCpp.Rbfx.Generator.csproj"
+    BYPRODUCTS "${SHARPCPP_RBFX_GENERATOR_DLL}")
+  rbfx_csharp_add_dotnet_project(
+    sharpcpp-rbfx-build-usercode-generator
+    PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/Rbfx.UserCode.Generator/Rbfx.UserCode.Generator.csproj"
+    BYPRODUCTS "${SHARPCPP_RBFX_USERCODE_GENERATOR_DLL}"
+    DEPENDS sharpcpp-rbfx-build-generator)
+endif()
+
 if(NOT RBFX_ENGINE_METADATA_FILE)
   add_subdirectory(SharpCpp.Rbfx.Generator)
 endif()
+if(TARGET sharpcpp-generate-rbfx AND TARGET sharpcpp-rbfx-build-generator)
+  add_dependencies(sharpcpp-generate-rbfx sharpcpp-rbfx-build-generator)
+endif()
 add_subdirectory(SharpCpp.Rbfx.Bindings)
+# The managed bindings project (and the projects that it references: SharpCpp.Ea, SharpCpp.Std and SharpCpp.Support)
+# reads the generated engine sources. A project of the consumer references it.
+if(TARGET sharpcpp-rbfx-build-usercode-generator AND TARGET sharpcpp-generate-rbfx AND NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
+  rbfx_csharp_add_dotnet_project(
+    sharpcpp-rbfx-build-managed
+    PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj"
+    BYPRODUCTS
+      "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Rbfx.Bindings.dll"
+      "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Std.dll"
+      "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Ea.dll"
+    DEPENDS sharpcpp-rbfx-build-usercode-generator sharpcpp-generate-rbfx)
+  # The project checks that the native wrapper exists.
+  if(TARGET sharpcpp-rbfx-runtime)
+    add_dependencies(sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
+  endif()
+endif()
 if(RBFX_BUILD_USERCODE)
   add_subdirectory(Rbfx.Examples/Example.UserCode)
 endif()
@@ -332,12 +399,6 @@ if(RBFX_INSTALL_SDK)
   set(_rbfx_sdk_data_dir "${CMAKE_INSTALL_DATADIR}/SharpCppRbfx")
   set(_rbfx_sdk_include_dir "${CMAKE_INSTALL_INCLUDEDIR}")
 
-  if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION MATCHES "^([0-9]+(\\.[0-9]+)*)")
-    set(_rbfx_sdk_version "${CMAKE_MATCH_1}")
-  else()
-    set(_rbfx_sdk_version "${PROJECT_VERSION}")
-  endif()
-
   # A static host exports a link dependency on NetHost::NetHost. A shared host needs no NetHost.
   set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST OFF)
   if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
@@ -351,20 +412,21 @@ if(RBFX_INSTALL_SDK)
     set(SHARPCPP_RBFX_SDK_HAS_USERCODE ON)
   endif()
 
+  # The managed payload is installed in source mode only (see below).
+  set(SHARPCPP_RBFX_SDK_HAS_MANAGED OFF)
+  if(NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
+    set(SHARPCPP_RBFX_SDK_HAS_MANAGED ON)
+  endif()
+
   configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SharpCppRbfxConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfig.cmake"
     INSTALL_DESTINATION "${_rbfx_sdk_cmake_dir}"
     PATH_VARS _rbfx_sdk_module_dir _rbfx_sdk_data_dir _rbfx_sdk_include_dir)
-  write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfigVersion.cmake"
-    VERSION "${_rbfx_sdk_version}"
-    COMPATIBILITY SameMajorVersion)
 
   install(
     FILES
       "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfig.cmake"
-      "${CMAKE_CURRENT_BINARY_DIR}/SharpCppRbfxConfigVersion.cmake"
     DESTINATION "${_rbfx_sdk_cmake_dir}")
   install(
     FILES

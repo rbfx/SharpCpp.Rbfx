@@ -108,7 +108,10 @@ function(sharpcpp_export_rbfx_sdk_parse_flags target_name output_file native_lib
     endif()
   endforeach()
 
-  file(GENERATE OUTPUT "${output_file}" CONTENT "${flags_content}")
+  # The options can hold $<COMPILE_LANGUAGE:CXX>. CMake then evaluates the content once for each enabled
+  # language and fails when a consumer enables C too and the files differ. The condition keeps the CXX
+  # evaluation only, which is the one that the parse needs.
+  file(GENERATE OUTPUT "${output_file}" CONTENT "${flags_content}" CONDITION "$<COMPILE_LANGUAGE:CXX>")
   set(RBFX_URHO3D_INCLUDE_DIRECTORIES "${include_directories}" PARENT_SCOPE)
   set(RBFX_URHO3D_COMPILE_DEFINITIONS "${compile_definitions}" PARENT_SCOPE)
   set(RBFX_URHO3D_COMPILE_OPTIONS "${compile_options}" PARENT_SCOPE)

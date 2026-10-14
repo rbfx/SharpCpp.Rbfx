@@ -6,8 +6,9 @@
 # run, so there is no second native build and no lock wait. The native tree configured by
 # MSBuild sets RBFX_CSHARP_BUILD_MANAGED=OFF, so these targets do nothing there.
 #
-# The generators SharpCpp.Rbfx.Generator.dll and Rbfx.UserCode.Generator.dll must already exist
-# in the managed output directory. Build SharpCpp.Rbfx.slnx with dotnet first.
+# The generators SharpCpp.Rbfx.Generator.dll and Rbfx.UserCode.Generator.dll must exist in the managed
+# output directory. A consumer tree builds them (RBFX_CSHARP_BUILD_GENERATORS in the root CMakeLists.txt).
+# The top-level build of this repository needs them built first: build SharpCpp.Rbfx.slnx with dotnet.
 
 option(
   RBFX_CSHARP_BUILD_MANAGED
@@ -47,7 +48,8 @@ function(rbfx_csharp_add_dotnet_project target)
   if(arg_OUTPUT_DIRECTORY)
     list(APPEND dotnet_arguments "-p:OutDir=${arg_OUTPUT_DIRECTORY}/")
   endif()
-  foreach(property IN LISTS arg_PROPERTIES)
+  # RBFX_CSHARP_MSBUILD_PROPERTIES comes first, so that a PROPERTIES item of the caller wins.
+  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES arg_PROPERTIES)
     list(APPEND dotnet_arguments "-p:${property}")
   endforeach()
 
@@ -60,6 +62,11 @@ function(rbfx_csharp_add_dotnet_project target)
     VERBATIM)
   if(arg_DEPENDS)
     add_dependencies(${target} ${arg_DEPENDS})
+  endif()
+  # The consumer build of the source tree builds the managed bindings project itself. A project that
+  # references it builds after it, because two dotnet builds of the same project must not run together.
+  if(TARGET sharpcpp-rbfx-build-managed AND NOT "${target}" STREQUAL "sharpcpp-rbfx-build-managed")
+    add_dependencies(${target} sharpcpp-rbfx-build-managed)
   endif()
 endfunction()
 

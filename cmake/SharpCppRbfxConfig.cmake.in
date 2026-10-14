@@ -1,5 +1,11 @@
 @PACKAGE_INIT@
 
+# find_dependency(Urho3D) can overwrite PACKAGE_PREFIX_DIR (CMake 3.28 and 3.29). Save the prefix and
+# expand all the package paths now, before the first find_dependency().
+set(_sharpcpp_rbfx_prefix "${PACKAGE_PREFIX_DIR}")
+set(_sharpcpp_rbfx_data_dir "@PACKAGE__rbfx_sdk_data_dir@")
+set(_sharpcpp_rbfx_include_dir "@PACKAGE__rbfx_sdk_include_dir@")
+
 include(CMakeFindDependencyMacro)
 
 # The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpAddUserCode.cmake and their helpers).
@@ -22,9 +28,6 @@ include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpDotNet.cmake")
 
 # rbfx_csharp_add_usercode(). The inputs come from this SDK and from the rbfx SDK of the consumer.
 if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
-  set(_sharpcpp_rbfx_data_dir "@PACKAGE__rbfx_sdk_data_dir@")
-  set(_sharpcpp_rbfx_include_dir "@PACKAGE__rbfx_sdk_include_dir@")
-
   set(RBFX_METADATA_FILE "${_sharpcpp_rbfx_data_dir}/metadata/SharpCpp.Rbfx.Bindings.json")
   set(RBFX_ENGINE_UMBRELLA_DIRECTORY "${_sharpcpp_rbfx_data_dir}/metadata")
   # The SDK has no engine generator. The generator commands depend on the metadata file.
@@ -97,10 +100,21 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
   include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpAddUserCode.cmake")
 
   unset(_sharpcpp_rbfx_flags_written)
-  unset(_sharpcpp_rbfx_data_dir)
-  unset(_sharpcpp_rbfx_include_dir)
 endif()
 
+# Provide path to package root and to the managed assemblies. The source-tree package sets the same variables.
+# The managed assemblies are in the SDK only when it was built without a bindings package version.
+set(SharpCppRbfx_PACKAGE_ROOT "${_sharpcpp_rbfx_prefix}")
+if(@SHARPCPP_RBFX_SDK_HAS_MANAGED@)
+  set(SharpCppRbfx_MANAGED_DIR "${_sharpcpp_rbfx_data_dir}/managed")
+else()
+  unset(SharpCppRbfx_MANAGED_DIR)
+endif()
+set(SharpCppRbfx_IS_SDK ON)
+
 unset(_sharpcpp_rbfx_module_dir)
+unset(_sharpcpp_rbfx_data_dir)
+unset(_sharpcpp_rbfx_include_dir)
+unset(_sharpcpp_rbfx_prefix)
 
 check_required_components(SharpCppRbfx)

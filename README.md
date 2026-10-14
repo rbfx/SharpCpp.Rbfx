@@ -46,6 +46,57 @@ The generated sources go to `<build>/generated` and the native library goes to `
 Set `SHARPCPP_GENERATED_ROOT` and `SHARPCPP_NATIVE_OUTPUT_ROOT` to change them.
 The generator runs with `dotnet` at build time. The build needs no network and no git.
 
+### Consume with find_package
+
+Two prefixes give the package `SharpCppRbfx`. Both prefixes give the same targets, functions and variables.
+The engine must come from an installed rbfx SDK. The two prefixes differ in how they find it.
+
+- SDK prefix. Put the prefix of `cmake --install` on `CMAKE_PREFIX_PATH`. The package uses the installed files.
+  The package calls `find_dependency(Urho3D)` itself. Set `Urho3D_DIR` or `CMAKE_PREFIX_PATH` to the rbfx SDK.
+- Shim prefix. Put the folder `cmake/SharpCppRbfx` of this repository on `CMAKE_PREFIX_PATH`. The package builds this source tree
+  with `add_subdirectory()` in `<build>/SharpCppRbfx`. A SharpCpp checkout must be at `SHARPCPP_ROOT` (default `../SharpCpp`).
+  The shim sets `RBFX_BUILD_USERCODE`, `RBFX_BUILD_EXAMPLES` and `RBFX_INSTALL_SDK` to OFF and `RBFX_BUILD_HOST` to ON, when the consumer did not define them.
+  The consumer must call `find_package(Urho3D)` before `find_package(SharpCppRbfx)`. Only the desktop shared engine is supported.
+  A static engine and an engine in source mode are not supported.
+  The first call adds the source tree. A second call (also from a sibling directory) only sets the variables below.
+  The default `SHARPCPP_NATIVE_OUTPUT_ROOT` is `<build>/SharpCppRbfx/bin` and the default `SHARPCPP_MANAGED_OUTPUT_ROOT` is
+  `<build>/SharpCppRbfx/managed`. A value from the consumer wins.
+  The shim build runs `dotnet build` itself for the generators (`SharpCpp.Rbfx.Generator` and `Rbfx.UserCode.Generator`), so the consumer
+  needs only `CMAKE_PREFIX_PATH`. The .NET SDK (`dotnet`) must be installed. CMake stops with a message when it is not found.
+  With `RBFX_CSHARP_BUILD_GENERATORS` ON (the default for the shim), the target `sharpcpp-rbfx-build-managed` runs `dotnet build` for
+  `SharpCpp.Rbfx.Bindings` after the native wrapper. The managed folder then holds `SharpCpp.Rbfx.Bindings`, `SharpCpp.Std`,
+  `SharpCpp.Ea` and `SharpCpp.Support`. The folder is full only when the build runs this target. The targets of `rbfx_csharp_add_dotnet_project()` and
+  `rbfx_csharp_add_plugin()` depend on it. The targets of `rbfx_csharp_add_usercode()` do not. A consumer target that reads
+  `SharpCppRbfx_MANAGED_DIR` in its own custom command must call `add_dependencies(<target> sharpcpp-rbfx-build-managed)`.
+  Set `RBFX_CSHARP_BUILD_GENERATORS` to OFF to use generators that you built before in `SHARPCPP_MANAGED_OUTPUT_ROOT/<Config>`.
+  Then the managed folder is not filled by CMake either.
+
+```cmake
+find_package(Urho3D REQUIRED)
+find_package(SharpCppRbfx CONFIG REQUIRED)
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE Urho3D SharpCpp::RbfxHost)
+```
+
+```
+cmake -G Ninja -S <consumer> -B <build> -DCMAKE_PREFIX_PATH="<rbfx SDK prefix>;<SDK prefix or <repo>/cmake/SharpCppRbfx>"
+```
+
+Both prefixes set these variables:
+
+- `SharpCppRbfx_FOUND`: TRUE.
+- `SharpCppRbfx_IS_SDK`: ON for the SDK prefix, OFF for the shim prefix.
+- `SharpCppRbfx_PACKAGE_ROOT`: the SDK prefix, or the root of this repository.
+- `SharpCppRbfx_MANAGED_DIR`: the folder of the managed assemblies (`SharpCpp.Rbfx.Bindings`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea`).
+  In the shim package the value is a generator expression, `<SHARPCPP_MANAGED_OUTPUT_ROOT>/$<CONFIG>`. Use it only where CMake
+  evaluates generator expressions: in the `COMMAND` of `add_custom_command()` and `add_custom_target()`, and in the `PROPERTIES` of
+  the `rbfx_csharp_add_*` functions. The target `sharpcpp-rbfx-build-managed` fills the folder (see above). It exists only when `RBFX_CSHARP_BUILD_GENERATORS` is ON.
+  In the SDK package the value is a plain path, `<prefix>/share/SharpCppRbfx/managed`. The SDK package leaves the variable unset
+  when the SDK was built with `RBFX_CSHARP_BINDINGS_PACKAGE_VERSION`, because it then has no managed files.
+
+The package gives the targets `SharpCpp::RbfxHost` and `SharpCpp::RbfxNative` and the functions `rbfx_csharp_add_plugin()`,
+`rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_usercode()`.
+
 The installed SDK has these parts:
 
 - The host library `SharpCpp.Rbfx.Host` and the headers `Urho3D/CSharp/DotNetHost.h` and `Urho3D/CSharp/DotNetHostExport.h`.
@@ -59,7 +110,7 @@ The installed SDK has these parts:
   The install step copies the engine shared library and the other runtime files of the wrapper next to it (`lib` on Linux and macOS, `bin` on Windows).
   The wrapper finds them through its own run-time path.
 - The binding metadata `SharpCpp.Rbfx.Bindings.json` and `SharpCpp.Rbfx.ParseUmbrella.hpp` in `share/SharpCppRbfx/metadata`.
-- The package files `SharpCppRbfxConfig.cmake` and `SharpCppRbfxConfigVersion.cmake`.
+- The package file `SharpCppRbfxConfig.cmake`.
 
 - The managed assemblies `SharpCpp.Rbfx.Bindings`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea` and `SharpCpp.Rbfx.SourceGenerator` in `share/SharpCppRbfx/managed`.
 - The user-code generator in `share/SharpCppRbfx/tools/usercode`. Run it with `dotnet <prefix>/share/SharpCppRbfx/tools/usercode/Rbfx.UserCode.Generator.dll`.

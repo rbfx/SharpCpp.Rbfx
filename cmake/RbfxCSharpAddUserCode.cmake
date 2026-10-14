@@ -44,16 +44,35 @@
 #   SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY (--sharpcpp-include), SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY (--rbfx-include),
 #   SHARPCPP_RBFX_STALENESS_SCRIPT (SharpCppGeneratedStaleness.cmake),
 #   DOTNET_EXECUTABLE, SHARPCPP_CLANG_RESOURCE_DIRECTORY,
-#   RBFX_ENGINE_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_GENERATED_ROOT, RBFX_METADATA_FILE,
+#   RBFX_ENGINE_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_METADATA_FILE,
 #   RBFX_ENGINE_UMBRELLA_DIRECTORY (the folder of SharpCpp.Rbfx.ParseUmbrella.hpp, which the wrapper includes),
 #   RBFX_GENERATED_STAMP (empty in package mode, which has no engine generator),
 #   RBFX_SDK_INPUT_HEADERS, RBFX_NATIVE_LIBRARY_TYPE, RBFX_RUNTIME_RPATH, RBFX_URHO3D_TARGET,
-#   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL, RBFX_CSHARP_BINDINGS_PROJECTS, RBFX_CSHARP_BINDINGS_PACKAGE_VERSION,
-#   RBFX_CSHARP_MSBUILD_PROPS, RBFX_CSHARP_MSBUILD_TARGETS.
+#   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL.
+# Optional variables (the installed SDK does not set them): RBFX_CSHARP_BINDINGS_PROJECTS, RBFX_CSHARP_BINDINGS_PACKAGE_VERSION,
+#   RBFX_CSHARP_MSBUILD_PROPS, RBFX_CSHARP_MSBUILD_TARGETS, RBFX_CSHARP_MSBUILD_PROPERTIES.
 # Required commands: sharpcpp_set_native_output() (SharpCppOutput.cmake). Required target: SharpCpp::NativeSupport.
 #
 # The targets sharpcpp-generate-rbfx and sharpcpp-rbfx-runtime exist only in the build tree of this repository.
 # The function adds a dependency on them only when they exist.
+
+# The variables that the function reads. The one list is used for the check in the function and by the
+# shim package (cmake/SharpCppRbfx), which copies them from the directory of the source tree to the
+# scope of the consumer. Keep it equal to the "Required variables" above.
+set_property(GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_INPUT_VARIABLES
+  SHARPCPP_GENERATED_ROOT SHARPCPP_NATIVE_OUTPUT_ROOT SHARPCPP_MANAGED_OUTPUT_ROOT
+  SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY SHARPCPP_RBFX_STALENESS_SCRIPT
+  DOTNET_EXECUTABLE SHARPCPP_CLANG_RESOURCE_DIRECTORY
+  RBFX_ENGINE_ROOT RBFX_SDK_FLAGS_FILE RBFX_METADATA_FILE
+  RBFX_ENGINE_UMBRELLA_DIRECTORY RBFX_GENERATED_STAMP
+  RBFX_SDK_INPUT_HEADERS RBFX_NATIVE_LIBRARY_TYPE RBFX_RUNTIME_RPATH RBFX_URHO3D_TARGET
+  SHARPCPP_RBFX_USERCODE_GENERATOR_DLL)
+# Optional variables. They can be undefined or empty (the installed SDK does not set them).
+# RBFX_CSHARP_MSBUILD_PROPERTIES is a list of Name=Value items. The consumer build of the source tree
+# sets it, so that all the dotnet builds write below the same managed output root.
+set_property(GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_OPTIONAL_VARIABLES
+  RBFX_CSHARP_BINDINGS_PROJECTS RBFX_CSHARP_BINDINGS_PACKAGE_VERSION
+  RBFX_CSHARP_MSBUILD_PROPS RBFX_CSHARP_MSBUILD_TARGETS RBFX_CSHARP_MSBUILD_PROPERTIES)
 
 define_property(GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS
   BRIEF_DOCS "Targets created by rbfx_csharp_add_usercode()"
@@ -73,6 +92,15 @@ function(rbfx_csharp_add_usercode target)
   if(NOT WRAP_HEADERS)
     message(FATAL_ERROR "rbfx_csharp_add_usercode(${target}): HEADERS is required.")
   endif()
+
+  get_property(_required_variables GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_INPUT_VARIABLES)
+  foreach(_required_variable IN LISTS _required_variables)
+    if(NOT DEFINED ${_required_variable})
+      message(FATAL_ERROR
+        "rbfx_csharp_add_usercode(${target}): the variable ${_required_variable} is not defined. "
+        "Call find_package(SharpCppRbfx CONFIG REQUIRED) in this directory or above it first.")
+    endif()
+  endforeach()
 
   # Defaults.
   if(NOT WRAP_NAMESPACE)
@@ -147,6 +175,17 @@ function(rbfx_csharp_add_usercode target)
       list(APPEND references "    <ProjectReference Include=\"${reference}\" />")
     endforeach()
     list(JOIN references "\n" RBFX_CSHARP_MANAGED_REFERENCES)
+  endif()
+  # MSBuild properties that the written Directory.Build.props sets before it imports the common props.
+  set(RBFX_CSHARP_MSBUILD_ROOT_PROPERTIES "")
+  if(RBFX_CSHARP_MSBUILD_PROPERTIES)
+    set(RBFX_CSHARP_MSBUILD_ROOT_PROPERTIES "  <PropertyGroup>\n")
+    foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES)
+      if(property MATCHES "^([^=]+)=(.*)$")
+        string(APPEND RBFX_CSHARP_MSBUILD_ROOT_PROPERTIES "    <${CMAKE_MATCH_1}>${CMAKE_MATCH_2}</${CMAKE_MATCH_1}>\n")
+      endif()
+    endforeach()
+    string(APPEND RBFX_CSHARP_MSBUILD_ROOT_PROPERTIES "  </PropertyGroup>\n")
   endif()
   set(templates_directory "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/templates")
   set(managed_files
@@ -276,6 +315,10 @@ function(rbfx_csharp_add_usercode target)
       OBJECT_DEPENDS "${generated_stamp}")
   add_library(${target} ${WRAP_LIBRARY_TYPE} "${generated_cpp}")
   add_dependencies(${target} sharpcpp-generate-${target})
+  # The source-tree build of a consumer builds the user-code generator itself.
+  if(TARGET sharpcpp-rbfx-build-usercode-generator)
+    add_dependencies(sharpcpp-generate-${target} sharpcpp-rbfx-build-usercode-generator)
+  endif()
   if(TARGET sharpcpp-rbfx-runtime)
     add_dependencies(${target} sharpcpp-rbfx-runtime)
   endif()

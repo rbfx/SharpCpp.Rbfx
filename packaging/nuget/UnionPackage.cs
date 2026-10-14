@@ -39,7 +39,18 @@ return 0;
 static class UnionPackage
 {
     static string SourcePath([CallerFilePath] string path = "") => path;
-    static readonly string Repo = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../.."));
+    // The path map of a CI build rewrites the caller path, so fall back to a search from the working directory.
+    static string FindRepo()
+    {
+        var fromSource = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../.."));
+        if (File.Exists(Path.Combine(fromSource, "eng/SharpCpp.Rbfx.Deterministic.props")))
+            return fromSource;
+        for (var dir = new DirectoryInfo(Directory.GetCurrentDirectory()); dir != null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "eng/SharpCpp.Rbfx.Deterministic.props")))
+                return dir.FullName;
+        throw new InvalidOperationException("Cannot find the repository root.");
+    }
+    static readonly string Repo = FindRepo();
     static readonly string DeterministicProps = Path.GetFullPath(Path.Combine(Repo, "eng/SharpCpp.Rbfx.Deterministic.props"));
 
     // The build of a shipped assembly maps the directories of this machine to fixed names. The generated projects

@@ -39,7 +39,18 @@ return 0;
 static class CrossPackage
 {
     static string SourcePath([CallerFilePath] string path = "") => path;
-    static readonly string Repo = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../.."));
+    // The path map of a CI build rewrites the caller path, so fall back to a search from the working directory.
+    static string FindRepo()
+    {
+        var fromSource = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../.."));
+        if (File.Exists(Path.Combine(fromSource, "eng/SharpCpp.Rbfx.Deterministic.props")))
+            return fromSource;
+        for (var dir = new DirectoryInfo(Directory.GetCurrentDirectory()); dir != null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "eng/SharpCpp.Rbfx.Deterministic.props")))
+                return dir.FullName;
+        throw new InvalidOperationException("Cannot find the repository root.");
+    }
+    static readonly string Repo = FindRepo();
     const string NdkVersion = "27.2.12479018";
     const string EmscriptenVersion = "3.1.56";
     const string RbfxRepository = "https://github.com/rbfx/rbfx.git";

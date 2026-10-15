@@ -867,18 +867,29 @@ jobs:
             --work build/sdk-consumer \
             "${cross_args[@]}"
 
+  Sample-Matrix:
+    name: Sample Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.prepare.outputs.matrix }}
+    steps:
+      - name: Prepare rbfx matrix
+        id: prepare
+        uses: rbfx/ci/.github/actions/ci-prepare-matrix@v1
+        with:
+          platforms: |
+            linux-gcc-x64-dll
+            windows-msvc-x64-dll
+
   Sample:
-    name: Sample (${{ matrix.rid }})
-    needs: [Package]
+    name: Sample (${{ matrix.ci_job_name }})
+    needs: [Package, Sample-Matrix]
     runs-on: ${{ matrix.runs_on }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - rid: linux-x64
-            runs_on: ubuntu-latest
-          - rid: win-x64
-            runs_on: windows-latest
+      matrix: ${{ fromJSON(needs.Sample-Matrix.outputs.matrix) }}
+    env:
+      DOTNET_VERSION: 10.0.x
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -894,15 +905,14 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Install Native Toolchain
-        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
-        with:
-          rid: ${{ matrix.rid }}
+      - name: Select Runtime Identifier
+        shell: bash
+        run: |
+          case '${{ matrix.ci_platform_tag }}' in
+            linux-*-x64-*) echo "SAMPLE_RID=linux-x64" >> "$GITHUB_ENV" ;;
+            windows-*-x64-*) echo "SAMPLE_RID=win-x64" >> "$GITHUB_ENV" ;;
+            *) echo "Unsupported platform tag: ${{ matrix.ci_platform_tag }}"; exit 1 ;;
+          esac
 
       - name: Ensure 7z
         uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
@@ -910,31 +920,40 @@ jobs:
       - name: Download SDK Archive
         uses: actions/download-artifact@v8
         with:
-          name: sdk-${{ matrix.rid }}
+          name: sdk-${{ env.SAMPLE_RID }}
           path: SharpCpp.Rbfx/build/sdk-archive
 
-      - name: Build Sample
-        timeout-minutes: 45
+      - name: Extract SDKs
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          rbfx_root="$(cd SharpCpp.Rbfx && ./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}' --print-root)"
+          rbfx_root="$(cd SharpCpp.Rbfx && ./eng/fetch-rbfx-sdk.sh --rid "$SAMPLE_RID" --print-root)"
           archives=(SharpCpp.Rbfx/build/sdk-archive/*.7z)
           test "${#archives[@]}" -eq 1
           mkdir -p sdk-extract
           (cd sdk-extract && 7z x -y "../${archives[0]}" >/dev/null)
           roots=(sdk-extract/*/)
           test "${#roots[@]}" -eq 1
-          sdk_root="$(cd "${roots[0]}" && pwd)"
-          if command -v cygpath >/dev/null 2>&1; then
-            rbfx_root="$(cygpath -m "$rbfx_root")"
-            sdk_root="$(cygpath -m "$sdk_root")"
-          fi
-          prefix="$rbfx_root;$sdk_root"
-          cmake -S sample-project -B sample-build -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON -DSAMPLE_PROJECT_CSHARP=ON "-DCMAKE_PREFIX_PATH=$prefix"
-          cmake --build sample-build --config Release
+          echo "RBFX_SDK_ROOT=$rbfx_root" >> "$GITHUB_ENV"
+          echo "SHARPCPP_SDK_ROOT=$(cd "${roots[0]}" && pwd)" >> "$GITHUB_ENV"
+
+      - name: Prepare rbfx environment
+        uses: rbfx/ci/.github/actions/ci-prepare-platform@v1
+        with:
+          profile: downstream
+          cmake_prefix_path: |
+            ${{ env.RBFX_SDK_ROOT }}
+            ${{ env.SHARPCPP_SDK_ROOT }}
+
+      - name: Build sample project
+        timeout-minutes: 60
+        uses: rbfx/ci/.github/actions/ci-build-project@v1
+        with:
+          project_dir: sample-project
+          build_dir: sample-build/${{ matrix.ci_platform_tag }}
+          cmake_cache_vars: |
+            SAMPLE_PROJECT_CSHARP:BOOL=ON
 
   Publish-NuGet:
     name: Publish NuGet Packages

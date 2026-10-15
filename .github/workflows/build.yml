@@ -991,6 +991,16 @@ jobs:
           profile: downstream
           ci_platform_tag: android-clang-arm64-dll
 
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$(find -L "$sdk_root/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -n "$sdkmanager"
+          "$sdkmanager" --install 'ndk;27.2.12479018'
+          echo "ANDROID_NDK_HOME=$sdk_root/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$sdk_root/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
       - name: Ensure 7z
         uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
 

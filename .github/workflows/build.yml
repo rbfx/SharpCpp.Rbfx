@@ -937,7 +937,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rid: [android-arm64]
+        include:
+          - rid: android-arm64
+            ci_platform_tag: android-clang-arm64-dll
+          - rid: android-arm
+            ci_platform_tag: android-clang-arm-dll
+          - rid: android-x64
+            ci_platform_tag: android-clang-x64-dll
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5
@@ -985,7 +991,7 @@ jobs:
           DOTNET_VERSION: 10.0.x
         with:
           profile: downstream
-          ci_platform_tag: android-clang-arm64-dll
+          ci_platform_tag: ${{ matrix.ci_platform_tag }}
           cmake_prefix_path: |
             ${{ env.RBFX_SDK_ROOT }}
             ${{ env.RBFX_HOST_SDK_ROOT }}

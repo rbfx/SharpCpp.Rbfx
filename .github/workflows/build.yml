@@ -934,7 +934,8 @@ jobs:
           archives=(SharpCpp.Rbfx/build/sdk-archive/*.7z)
           test "${#archives[@]}" -eq 1
           mkdir -p sdk-extract
-          (cd sdk-extract && 7z x -y "../${archives[0]}" >/dev/null)
+          sevenzip="$(command -v 7z || command -v 7zz)"
+          (cd sdk-extract && "$sevenzip" x -y "../${archives[0]}" >/dev/null)
           roots=(sdk-extract/*/)
           test "${#roots[@]}" -eq 1
           sharpcpp_root="$(cd "${roots[0]}" && pwd)"

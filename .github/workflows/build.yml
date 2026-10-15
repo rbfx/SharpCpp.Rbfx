@@ -933,7 +933,7 @@ jobs:
           fi
           prefix="$rbfx_root;$sdk_root"
           cmake -S sample-project -B sample-build -DCMAKE_BUILD_TYPE=Release \
-            -DSAMPLE_PROJECT_CSHARP=ON "-DCMAKE_PREFIX_PATH=$prefix"
+            -DBUILD_SHARED_LIBS=ON -DSAMPLE_PROJECT_CSHARP=ON "-DCMAKE_PREFIX_PATH=$prefix"
           cmake --build sample-build --config Release
 
   Publish-NuGet:

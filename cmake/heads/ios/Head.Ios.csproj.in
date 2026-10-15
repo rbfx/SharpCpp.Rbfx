@@ -45,7 +45,7 @@
     <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
-  </ItemGroup>
+@RBFX_HEAD_USERCODE_ROOTS@  </ItemGroup>
 
   <!-- Resources of the application. They go into the root folder of the app bundle. -->
   <ItemGroup>

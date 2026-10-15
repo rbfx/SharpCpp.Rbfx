@@ -49,7 +49,7 @@
     <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
-  </ItemGroup>
+@RBFX_HEAD_USERCODE_ROOTS@  </ItemGroup>
 
   <!-- Native libraries and resources of the application. -->
   <ItemGroup>

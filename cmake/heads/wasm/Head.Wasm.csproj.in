@@ -46,7 +46,7 @@
     <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
     <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
-
+@RBFX_HEAD_USERCODE_ROOTS@
     <!-- main.js calls the native entry (heads/wasm/RbfxWebMain.cpp) after Program.Main. -->
     <EmccExportedFunction Include="_@RBFX_HEAD_ENTRY@" />
   </ItemGroup>

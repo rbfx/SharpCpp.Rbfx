@@ -997,7 +997,7 @@ jobs:
 
   Release-Latest:
     name: Release Latest
-    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer]
+    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Sample]
     if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     concurrency:

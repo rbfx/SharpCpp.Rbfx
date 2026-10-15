@@ -1,7 +1,8 @@
 # CMake toolchain file for ios-arm64. Needs macOS and Xcode.
 # The SDK path comes from the environment variable IOS_SDK_PATH or from xcrun.
 set(CMAKE_SYSTEM_NAME iOS)
-set(CMAKE_OSX_ARCHITECTURES arm64)
+# A cache entry: CMake initializes CMAKE_OSX_ARCHITECTURES from the environment and would drop a plain variable.
+set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "" FORCE)
 
 if(DEFINED ENV{IOS_SDK_PATH} AND NOT "$ENV{IOS_SDK_PATH}" STREQUAL "")
   set(_sharpcpp_ios_sdk "$ENV{IOS_SDK_PATH}")

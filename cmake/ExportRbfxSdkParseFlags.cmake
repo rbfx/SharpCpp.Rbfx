@@ -53,6 +53,9 @@ function(sharpcpp_export_rbfx_sdk_parse_flags target_name output_file native_lib
   if(CMAKE_CXX_COMPILER_TARGET)
     string(APPEND flags_content "target_triple=${CMAKE_CXX_COMPILER_TARGET}\n")
   elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    if(NOT CMAKE_OSX_ARCHITECTURES)
+      message(FATAL_ERROR "CMAKE_OSX_ARCHITECTURES is empty. The iOS target triple of the parse needs it.")
+    endif()
     string(APPEND flags_content "target_triple=${CMAKE_OSX_ARCHITECTURES}-apple-ios${CMAKE_OSX_DEPLOYMENT_TARGET}\n")
   endif()
 

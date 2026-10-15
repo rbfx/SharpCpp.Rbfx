@@ -6,9 +6,12 @@
 # into the executable of the app.
 #
 # rbfx_csharp_add_application(<name>
-#   SOURCES <files...>
-#   PLUGIN <csproj>
+#   [SOURCES <files...>]
+#   [CSHARP_DIR <dir>]
+#   [PLUGIN_NAME <plugin>]
+#   [CSPROJ <csproj>]
 #   [USERCODE <targets...>]
+#   [PLUGINS <targets...>]
 #   [LINK_LIBRARIES <libraries...>]
 #   [RESOURCES <files...>]
 #   [APPLICATION_ID <id>]
@@ -20,22 +23,50 @@
 #   LINK_LIBRARIES. On Windows the executable is a GUI program, unless CONSOLE is set. On macOS it is
 #   a plain executable, because the .NET runtime cannot be hosted inside an application bundle.
 # - Defines SHARPCPP_RBFX_PLUGIN_NAME for the executable. The value is the string with the assembly
-#   name of the plugin (the file name of PLUGIN without the extension). The launcher finds
-#   <name>.dll and <name>.runtimeconfig.json of the plugin in the folder of the executable.
-# - Builds the plugin project PLUGIN with dotnet into the folder of the executable
+#   name of the plugin (PLUGIN_NAME, or the file name of CSPROJ without the extension). The launcher finds
+#   <plugin>.dll and <plugin>.runtimeconfig.json of the plugin in the folder of the executable.
+# - Builds the plugin project with dotnet into the folder of the executable
 #   (rbfx_csharp_add_plugin) and copies the native wrapper of the C# bindings to the same folder.
 #   On Windows it also copies the host library and nethost.dll.
 # - The plugin target depends on the executable, so the executable cannot depend on the plugin.
 #   The target <name>.CSharp is part of the default build and builds the plugin and the wrapper.
 #   Build it (or the target "all") to get a complete application.
 #
-# SOURCES       Native source files of the launcher.
-# PLUGIN        The C# project of the application plugin.
-# USERCODE      Targets (from rbfx_csharp_add_usercode) that the plugin build waits for.
+# SOURCES       Native source files of the launcher. Without SOURCES the function uses the default launcher
+#               launcher/RbfxCSharpLauncher.cpp of this module folder and adds PlayerLibrary to LINK_LIBRARIES.
+#               The target PlayerLibrary must exist. The default launcher is a PlayerApplication. It sets the
+#               engine plugins to the linked plugins and the managed plugin, starts the .NET runtime and loads the
+#               managed plugin with StartDotNetPlugin (Urho3D/CSharp/DotNetPlugin.h). It stops the runtime in Stop.
+# CSHARP_DIR    Folder with the C# sources of the plugin (all *.cs files below it, except bin and obj).
+#               The default is ${CMAKE_CURRENT_SOURCE_DIR}/CSharp. The folder must exist.
+# PLUGIN_NAME   Assembly name and root namespace of the plugin. The default is <name>.Managed.
+# CSPROJ        The C# project that the user maintains. The function then writes no project. The project must
+#               have the line <Import Project="$(SharpCppRbfxPluginProps)" />. CSPROJ and CSHARP_DIR or
+#               PLUGIN_NAME together are an error.
+# USERCODE      Targets (from rbfx_csharp_add_usercode) that the plugin build waits for. The plugin references the
+#               managed project of each target (the target property SHARPCPP_RBFX_MANAGED_PROJECT).
+# PLUGINS       Targets of the native engine plugins that the launcher loads. The function calls
+#               target_link_plugins(<name> <PLUGINS>) on every platform. A static plugin goes into the
+#               application. A shared plugin is a separate library. On Android the head packs each shared or
+#               module target of PLUGINS, in the given order, and then each shared library of USERCODE.
+#               The packing is before lib<name>.so and without duplicates.
+#               On desktop the function copies each shared library of USERCODE to the folder of the executable.
 # LINK_LIBRARIES Libraries that the executable links with (PRIVATE).
 # CONSOLE       Windows only. Build a console program instead of a GUI program.
 # PROPERTIES    MSBuild properties for the plugin project, as Name=Value. They come after the properties
 #               that this function sets for the package of SharpCpp.Rbfx.
+#
+# Without CSPROJ the function writes these files to ${CMAKE_CURRENT_BINARY_DIR}/csharp/<plugin>/ (only when the
+# content changes): <plugin>.csproj, Directory.Build.props and Directory.Build.targets (both are an empty project,
+# so that the MSBuild files of a parent folder are not imported). It always writes SharpCppRbfx.Plugin.props there.
+# The file imports sdk/SharpCppRbfxPlugin.props of this module folder (compiler options and the references to
+# SharpCpp.Rbfx) and has a ProjectReference for each USERCODE target. The MSBuild property SharpCppRbfxPluginProps
+# is the path of the file.
+#
+# Target properties set on <name>: SHARPCPP_RBFX_PLUGIN_NAME, SHARPCPP_RBFX_PLUGIN_PROJECT,
+# SHARPCPP_RBFX_USERCODE (the list of the USERCODE targets), SHARPCPP_RBFX_PLUGINS (the list of the PLUGINS targets) and
+# SHARPCPP_RBFX_APPLICATION_OUTPUT (the product of
+# the application: <name>.apk on Android, the web folder on Emscripten, <name>.app on iOS, empty on desktop).
 # RESOURCES, APPLICATION_ID
 #               Accepted and ignored on desktop. Android and iOS use them, Emscripten uses RESOURCES (see below).
 #
@@ -43,7 +74,7 @@
 # - Creates the shared library <name> (lib<name>.so) from SOURCES. URHO3D_DEFINE_APPLICATION_MAIN exports
 #   SDL_main from it. The library links with Urho3D, SharpCpp::RbfxHost and LINK_LIBRARIES.
 # - Generates the .NET Android head project in <build>/heads/<name>/ from the templates in heads/android/
-#   next to this file. The head references PLUGIN, packs the native libraries (the C++ runtime, Urho3D,
+#   next to this file. The head references the plugin project, packs the native libraries (the C++ runtime, Urho3D,
 #   the wrapper, the host library, the shared libraries in LINK_LIBRARIES and lib<name>.so) and the
 #   RESOURCES as assets. A file in RESOURCES becomes an asset with its file name. A folder becomes a folder
 #   of assets with its name. A generated file in RESOURCES must come from a custom command in the
@@ -67,7 +98,7 @@
 #   rbfx_application_start. The library links with Urho3D, SharpCpp::RbfxHost and LINK_LIBRARIES.
 # - Generates the head project in <build>/heads/<name>/ from the templates in heads/wasm/ next to this file.
 #   At the end of the configure step, CMake collects the static libraries, the objects and the link flags of the
-#   link closure of <name> and of SharpCpp::RbfxNative into NativeItems.props of the head. The head references PLUGIN.
+#   link closure of <name> and of SharpCpp::RbfxNative into NativeItems.props of the head. The head references the plugin project.
 # - main.js of the head starts the runtime, writes the RESOURCES into the file system of Emscripten and runs
 #   Program.Main. Program.Main runs the module initializer of the bindings, so DotNetHost::Initialize finds the
 #   runtime. Then main.js calls rbfx_application_start on the browser thread. The engine main loop then runs there.
@@ -86,7 +117,7 @@
 #   It gives SDL_main to SDL_UIKitRunApp. The library links with Urho3D, SharpCpp::RbfxHost and LINK_LIBRARIES.
 # - Generates the head project in <build>/heads/<name>/ from the templates in heads/ios/ next to this file. At the end
 #   of the configure step, CMake collects the static libraries and the link flags of the link closure of <name>, of
-#   SharpCpp::RbfxNative and of USERCODE into NativeItems.props of the head. The head references PLUGIN.
+#   SharpCpp::RbfxNative and of USERCODE into NativeItems.props of the head. The head references the plugin project.
 # - Program.Main of the head runs the module initializer of the bindings, so DotNetHost::Initialize finds the runtime.
 #   Then it calls rbfx_application_start. SDL starts UIKit and calls SDL_main when the application is ready.
 # - The application library, the wrapper, the host library and the USERCODE libraries are force-loaded: the managed
@@ -98,20 +129,119 @@
 # - The target <name>.CSharp builds the head with dotnet and copies the app bundle to <name>.app in the runtime output
 #   folder (CMAKE_RUNTIME_OUTPUT_DIRECTORY). The head does not sign the app, unless the MSBuild properties ask for it
 #   (EnableCodeSigning, CodesignKey and CodesignProvision in PROPERTIES or RBFX_CSHARP_MSBUILD_PROPERTIES).
+# Sets the target properties of the application. It reads the variables plugin_name, plugin_project,
+# arg_USERCODE and arg_PLUGINS of the caller.
+function(_rbfx_csharp_set_plugin_properties name)
+  set_target_properties(
+    ${name}
+    PROPERTIES
+      SHARPCPP_RBFX_PLUGIN_NAME "${plugin_name}"
+      SHARPCPP_RBFX_PLUGIN_PROJECT "${plugin_project}"
+      SHARPCPP_RBFX_USERCODE "${arg_USERCODE}"
+      SHARPCPP_RBFX_PLUGINS "${arg_PLUGINS}")
+endfunction()
+
+# Links the native plugins into the application. It reads the variables arg_PLUGINS and default_launcher of the caller.
+# The default launcher needs the list of the linked plugins, also when the list is empty.
+function(_rbfx_csharp_link_plugins name)
+  if(arg_PLUGINS OR default_launcher)
+    target_link_plugins(${name} "${arg_PLUGINS}")
+  endif()
+endfunction()
+
 function(rbfx_csharp_add_application name)
   cmake_parse_arguments(
-    PARSE_ARGV 1 arg "CONSOLE" "PLUGIN;APPLICATION_ID" "SOURCES;USERCODE;LINK_LIBRARIES;RESOURCES;PROPERTIES")
-  if(NOT arg_SOURCES OR NOT arg_PLUGIN)
-    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): SOURCES and PLUGIN are required.")
-  endif()
+    PARSE_ARGV 1 arg "CONSOLE" "CSHARP_DIR;PLUGIN_NAME;CSPROJ;APPLICATION_ID" "SOURCES;USERCODE;PLUGINS;LINK_LIBRARIES;RESOURCES;PROPERTIES")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "rbfx_csharp_add_application(${name}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  # Without SOURCES the application uses the default launcher. It is a PlayerApplication, so it needs PlayerLibrary.
+  set(default_launcher FALSE)
+  if(NOT arg_SOURCES)
+    if(NOT TARGET PlayerLibrary)
+      message(FATAL_ERROR "rbfx_csharp_add_application(${name}): SOURCES is not set, and the default launcher needs the target PlayerLibrary, which does not exist.")
+    endif()
+    set(default_launcher TRUE)
+    set(arg_SOURCES "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/launcher/RbfxCSharpLauncher.cpp")
+    list(APPEND arg_LINK_LIBRARIES PlayerLibrary)
   endif()
   if(CMAKE_SYSTEM_NAME MATCHES "^(tvOS|visionOS|watchOS)$")
     message(FATAL_ERROR "rbfx_csharp_add_application(${name}): only the desktop platforms, Android, iOS and Emscripten are supported.")
   endif()
 
-  get_filename_component(plugin_name "${arg_PLUGIN}" NAME_WLE)
+  if(arg_CSPROJ AND (arg_CSHARP_DIR OR arg_PLUGIN_NAME))
+    message(FATAL_ERROR "rbfx_csharp_add_application(${name}): CSPROJ cannot be used with CSHARP_DIR or PLUGIN_NAME.")
+  endif()
+  foreach(usercode IN LISTS arg_USERCODE)
+    if(NOT TARGET ${usercode})
+      message(FATAL_ERROR "rbfx_csharp_add_application(${name}): USERCODE target '${usercode}' does not exist. Call rbfx_csharp_add_usercode first.")
+    endif()
+  endforeach()
+
+  foreach(plugin IN LISTS arg_PLUGINS)
+    if(NOT TARGET ${plugin})
+      message(FATAL_ERROR "rbfx_csharp_add_application(${name}): PLUGINS target '${plugin}' does not exist.")
+    endif()
+  endforeach()
+
+  # The plugin project: the project of the user, or the project that this function writes.
+  if(arg_CSPROJ)
+    cmake_path(ABSOLUTE_PATH arg_CSPROJ BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE OUTPUT_VARIABLE plugin_project)
+    get_filename_component(plugin_name "${plugin_project}" NAME_WLE)
+  endif()
+  set(plugin_directory)
+  if(NOT arg_CSPROJ)
+    if(arg_PLUGIN_NAME)
+      set(plugin_name "${arg_PLUGIN_NAME}")
+    else()
+      set(plugin_name "${name}.Managed")
+    endif()
+    if(arg_CSHARP_DIR)
+      cmake_path(ABSOLUTE_PATH arg_CSHARP_DIR BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE OUTPUT_VARIABLE csharp_dir)
+    else()
+      set(csharp_dir "${CMAKE_CURRENT_SOURCE_DIR}/CSharp")
+    endif()
+    if(NOT IS_DIRECTORY "${csharp_dir}")
+      message(FATAL_ERROR "rbfx_csharp_add_application(${name}): the C# folder '${csharp_dir}' does not exist. Make it, or set CSHARP_DIR.")
+    endif()
+    set(plugin_directory "${CMAKE_CURRENT_BINARY_DIR}/csharp/${plugin_name}")
+    set(plugin_project "${plugin_directory}/${plugin_name}.csproj")
+  endif()
+
+  # The props file of the plugin. A project of the user imports it with $(SharpCppRbfxPluginProps).
+  set(plugin_props_directory "${CMAKE_CURRENT_BINARY_DIR}/csharp/${plugin_name}")
+  set(plugin_props "${plugin_props_directory}/SharpCppRbfx.Plugin.props")
+  set(RBFX_PLUGIN_APPLICATION "${name}")
+  set(RBFX_PLUGIN_NAME "${plugin_name}")
+  set(RBFX_PLUGIN_DIR "${csharp_dir}")
+  set(RBFX_PLUGIN_SDK_PROPS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sdk/SharpCppRbfxPlugin.props")
+  set(RBFX_PLUGIN_PROJECT_REFERENCES)
+  foreach(usercode IN LISTS arg_USERCODE)
+    get_target_property(usercode_project ${usercode} SHARPCPP_RBFX_MANAGED_PROJECT)
+    if(NOT usercode_project)
+      message(FATAL_ERROR "rbfx_csharp_add_application(${name}): USERCODE target '${usercode}' has no SHARPCPP_RBFX_MANAGED_PROJECT property.")
+    endif()
+    string(APPEND RBFX_PLUGIN_PROJECT_REFERENCES "    <ProjectReference Include=\"${usercode_project}\" />\n")
+  endforeach()
+  set(templates_directory "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/templates")
+  set(plugin_files "Plugin.props.in|${plugin_props}")
+  if(NOT arg_CSPROJ)
+    list(APPEND plugin_files "Plugin.csproj.in|${plugin_project}")
+  endif()
+  foreach(plugin_file IN LISTS plugin_files)
+    string(REPLACE "|" ";" plugin_file "${plugin_file}")
+    list(GET plugin_file 0 template_name)
+    list(GET plugin_file 1 output_path)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${templates_directory}/${template_name}")
+    file(READ "${templates_directory}/${template_name}" template_content)
+    file(CONFIGURE OUTPUT "${output_path}" CONTENT "${template_content}" @ONLY NEWLINE_STYLE UNIX)
+  endforeach()
+  if(NOT arg_CSPROJ)
+    # An empty project stops MSBuild from importing the files of a parent folder (the repository of the user).
+    foreach(build_file Directory.Build.props Directory.Build.targets)
+      file(CONFIGURE OUTPUT "${plugin_directory}/${build_file}" CONTENT "<Project />\n" @ONLY NEWLINE_STYLE UNIX)
+    endforeach()
+  endif()
 
   # Properties of the C# project. The project reads them as MSBuild properties.
   if(SharpCppRbfx_IS_SDK)
@@ -119,17 +249,24 @@ function(rbfx_csharp_add_application name)
   else()
     set(plugin_properties SharpCppRbfxIsSdk=false "SharpCppRbfxPackageRoot=${SharpCppRbfx_PACKAGE_ROOT}")
   endif()
+  list(APPEND plugin_properties "SharpCppRbfxPluginProps=${plugin_props}")
 
   if(ANDROID)
     _rbfx_csharp_add_android_application(${name})
+    _rbfx_csharp_set_plugin_properties(${name})
+    _rbfx_csharp_link_plugins(${name})
     return()
   endif()
   if(EMSCRIPTEN)
     _rbfx_csharp_add_wasm_application(${name})
+    _rbfx_csharp_set_plugin_properties(${name})
+    _rbfx_csharp_link_plugins(${name})
     return()
   endif()
   if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     _rbfx_csharp_add_ios_application(${name})
+    _rbfx_csharp_set_plugin_properties(${name})
+    _rbfx_csharp_link_plugins(${name})
     return()
   endif()
 
@@ -155,6 +292,12 @@ function(rbfx_csharp_add_application name)
   set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
   target_link_libraries(${name} PRIVATE Urho3D SharpCpp::RbfxHost ${arg_LINK_LIBRARIES})
   target_compile_definitions(${name} PRIVATE "SHARPCPP_RBFX_PLUGIN_NAME=\"${plugin_name}\"")
+  # The installed executable finds the host library and the native wrapper in its own folder.
+  if(APPLE)
+    set_property(TARGET ${name} APPEND PROPERTY INSTALL_RPATH "@loader_path")
+  elseif(UNIX)
+    set_property(TARGET ${name} APPEND PROPERTY INSTALL_RPATH "$ORIGIN")
+  endif()
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Urho3D must be a startup dependency of the executable. The runtime loads the libraries of the
     # bindings later with dlopen, and then the TLS block of Urho3D does not fit into the static TLS.
@@ -164,7 +307,7 @@ function(rbfx_csharp_add_application name)
   # The plugin is built with dotnet next to the executable.
   rbfx_csharp_add_plugin(
     ${name}.Plugin
-    PROJECT "${arg_PLUGIN}"
+    PROJECT "${plugin_project}"
     HOST ${name}
     PROPERTIES ${plugin_properties} ${arg_PROPERTIES})
   if(arg_USERCODE)
@@ -187,17 +330,33 @@ function(rbfx_csharp_add_application name)
           "$<TARGET_FILE_DIR:SharpCpp::RbfxHost>/nethost.dll" "$<TARGET_FILE_DIR:${name}>")
     endif()
   endif()
+  # The shared libraries of the USERCODE targets and the shared or module libraries of the PLUGINS targets also go
+  # to the folder of the executable.
+  set(usercode_libraries)
+  foreach(usercode IN LISTS arg_USERCODE arg_PLUGINS)
+    get_target_property(usercode_type ${usercode} TYPE)
+    if(usercode_type STREQUAL "SHARED_LIBRARY" OR (usercode_type STREQUAL "MODULE_LIBRARY" AND usercode IN_LIST arg_PLUGINS))
+      list(APPEND usercode_libraries ${usercode})
+      list(APPEND copy_commands
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+          "$<TARGET_FILE:${usercode}>" "$<TARGET_FILE_DIR:${name}>")
+    endif()
+  endforeach()
   add_custom_target(
     ${name}.Native
     ${copy_commands}
     COMMENT "Copying the native wrapper of the C# bindings"
     VERBATIM)
-  add_dependencies(${name}.Native ${name})
+  add_dependencies(${name}.Native ${name} ${usercode_libraries})
   if(NOT SharpCppRbfx_IS_SDK)
     add_dependencies(${name}.Native SharpCpp::RbfxNative SharpCpp::RbfxHost)
   endif()
 
+  # The desktop application is the executable in its folder, so there is no separate output.
+  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "")
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Plugin ${name}.Native)
+  _rbfx_csharp_set_plugin_properties(${name})
+  _rbfx_csharp_link_plugins(${name})
 endfunction()
 
 # The Android part of rbfx_csharp_add_application. It reads the variables arg_*, plugin_name and
@@ -320,6 +479,19 @@ function(_rbfx_csharp_add_android_application name)
       endif()
     endif()
   endforeach()
+  # The native plugins and the shared libraries of the USERCODE targets. The Java activity loads them before the
+  # application library.
+  set(plugin_targets)
+  foreach(library IN LISTS arg_PLUGINS arg_USERCODE)
+    if(TARGET ${library} AND NOT library IN_LIST library_targets)
+      get_target_property(library_type ${library} TYPE)
+      if(library_type MATCHES "^(SHARED|MODULE)_LIBRARY$")
+        list(APPEND libraries "$<TARGET_FILE:${library}>")
+        list(APPEND library_targets ${library})
+        list(APPEND plugin_targets ${library})
+      endif()
+    endif()
+  endforeach()
   list(APPEND libraries "$<TARGET_FILE:${name}>")
 
   # The head build copies the libraries into one folder. A copy has the content of a symbolic link, and
@@ -356,7 +528,7 @@ function(_rbfx_csharp_add_android_application name)
   set(RBFX_HEAD_DIR "${head_dir}")
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
   set(RBFX_HEAD_SDL_JAVA_DIR "${RBFX_CSHARP_ANDROID_JAVA_DIR}")
-  get_filename_component(RBFX_HEAD_PLUGIN "${arg_PLUGIN}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
   _rbfx_csharp_usercode_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_USERCODE})
   set(RBFX_HEAD_ITEMS "${items}")
@@ -412,12 +584,16 @@ function(_rbfx_csharp_add_android_application name)
   if(arg_USERCODE)
     add_dependencies(${name}.Head ${arg_USERCODE})
   endif()
+  # The head packs the shared libraries of the plugins, so they must be built first.
+  if(plugin_targets)
+    add_dependencies(${name}.Head ${plugin_targets})
+  endif()
   if(resource_files)
     # A file in RESOURCES can be the output of a custom command (for example create_pak of the engine).
-    # Only a target in the directory of the command runs it. The usual place is the top-level
-    # CMakeLists.txt, so the target <name>.Resources is made there, at the end of the directory.
+    # Only a target in the directory of the command runs it. The commands (create_pak) are in the directory of the
+    # call, so the target <name>.Resources is made there, at the end of the directory.
     # A deferred call reads the variables when it runs, so the values go into the code now.
-    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
+    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
     foreach(resource IN LISTS resource_files)
       string(APPEND defer_code " [==[${resource}]==]")
     endforeach()
@@ -433,6 +609,7 @@ function(_rbfx_csharp_add_android_application name)
     add_dependencies(${name}.Head SharpCpp::RbfxNative SharpCpp::RbfxHost)
   endif()
 
+  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "${output_dir}/${name}.apk")
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
 endfunction()
 
@@ -466,20 +643,10 @@ function(_rbfx_csharp_add_wasm_application name)
   add_library(${name} OBJECT ${arg_SOURCES} "${template_dir}/RbfxWebMain.cpp")
   target_link_libraries(${name} PRIVATE Urho3D SharpCpp::RbfxHost ${arg_LINK_LIBRARIES})
   target_compile_definitions(${name} PRIVATE "SHARPCPP_RBFX_PLUGIN_NAME=\"${plugin_name}\"" main=rbfx_application_main)
-  # The network code of the engine needs the JavaScript libraries of libdatachannel-wasm (as web_executable of the
-  # engine adds them). CMake does not link an object library, so these options only go to the head.
-  if(TARGET datachannel-wasm)
-    foreach(candidate IN ITEMS
-        "${Urho3D_PACKAGE_ROOT}/include/libdatachannel-wasm/wasm/js"
-        "${rbfx_SOURCE_DIR}/Source/ThirdParty/libdatachannel-wasm/wasm/js")
-      if(EXISTS "${candidate}/webrtc.js")
-        target_link_options(${name} PRIVATE
-          "SHELL:--js-library \"${candidate}/webrtc.js\""
-          "SHELL:--js-library \"${candidate}/websocket.js\"")
-        break()
-      endif()
-    endforeach()
-  endif()
+  # The web options of the engine (-pthread, -sUSE_PTHREADS=1, the file system options and the JavaScript libraries of
+  # libdatachannel-wasm). CMake does not link an object library, so these options only go to the head
+  # (_rbfx_csharp_collect_native_link_items reads them).
+  web_executable(${name})
 
   # The RESOURCES. The head build copies them next to index.html (heads/wasm/CopyResources.cmake).
   set(resource_paths)
@@ -498,7 +665,7 @@ function(_rbfx_csharp_add_wasm_application name)
   set(RBFX_HEAD_NAME "${name}")
   set(RBFX_HEAD_ENTRY "${entry}")
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
-  get_filename_component(RBFX_HEAD_PLUGIN "${arg_PLUGIN}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
   _rbfx_csharp_usercode_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_USERCODE})
   set(head_project "${head_dir}/${name}.Head.csproj")
@@ -554,7 +721,7 @@ function(_rbfx_csharp_add_wasm_application name)
   if(resource_files)
     # A file in RESOURCES can be the output of a custom command (for example create_pak of the engine).
     # See the Android part for the deferred target.
-    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
+    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
     foreach(resource IN LISTS resource_files)
       string(APPEND defer_code " [==[${resource}]==]")
     endforeach()
@@ -570,6 +737,7 @@ function(_rbfx_csharp_add_wasm_application name)
     add_dependencies(${name}.Head SharpCpp::RbfxNative SharpCpp::RbfxHost)
   endif()
 
+  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "${web_dir}")
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
 endfunction()
 
@@ -638,7 +806,7 @@ function(_rbfx_csharp_add_ios_application name)
   set(RBFX_HEAD_MIN_OS "${min_os}")
   set(RBFX_HEAD_APPLICATION_ID "${application_id}")
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
-  get_filename_component(RBFX_HEAD_PLUGIN "${arg_PLUGIN}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
   _rbfx_csharp_usercode_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_USERCODE})
   set(RBFX_HEAD_ITEMS "${items}")
@@ -694,7 +862,7 @@ function(_rbfx_csharp_add_ios_application name)
   if(resource_files)
     # A file in RESOURCES can be the output of a custom command (for example create_pak of the engine).
     # See the Android part for the deferred target.
-    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
+    set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}]==] CALL _rbfx_csharp_add_resource_target [==[${name}.Resources]==]")
     foreach(resource IN LISTS resource_files)
       string(APPEND defer_code " [==[${resource}]==]")
     endforeach()
@@ -710,6 +878,7 @@ function(_rbfx_csharp_add_ios_application name)
     add_dependencies(${name}.Head SharpCpp::RbfxNative SharpCpp::RbfxHost)
   endif()
 
+  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "${output_dir}/${name}.app")
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
 endfunction()
 
@@ -742,6 +911,10 @@ function(_rbfx_csharp_collect_native_link_items name kind files_var flags_var)
     list(POP_FRONT queue item)
     list(LENGTH queue count)
     if(item MATCHES "^\\$<LINK_ONLY:(.*)>$")
+      set(item "${CMAKE_MATCH_1}")
+    endif()
+    # A static library in this build has a build-only link item inside the link-only item.
+    if(item MATCHES "^\\$<BUILD_INTERFACE:(.*)>$")
       set(item "${CMAKE_MATCH_1}")
     endif()
     # A target_link_libraries call from another directory adds the markers ::@(<id>) and ::@.

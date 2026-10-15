@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.28)
+project(@NAME@)
+
+# C++17 is required for this project.
+set(CMAKE_CXX_STANDARD 17)
+
+# Set the output folders.
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# The engine SDK and the SharpCpp.Rbfx SDK must be on CMAKE_PREFIX_PATH. Configure with:
+#   -DCMAKE_PREFIX_PATH="/path/to/rbfx/sdk;/path/to/SharpCppRbfx"
+# Desktop needs a shared engine SDK (-DBUILD_SHARED_LIBS=ON). Web and iOS need a static engine SDK.
+find_package(Urho3D REQUIRED)
+find_package(SharpCppRbfx CONFIG REQUIRED)
+
+# The engine reads ResourceRoot.ini from the first folder above the executable that has it. The file in the
+# project folder maps Data and Cache. The build folder gets a copy (build/ResourceRoot.ini, above build/bin).
+# The copy has the paths of the build folder and the CoreData folder of the engine SDK.
+rbfx_csharp_find_core_data(CORE_DATA_DIR)
+if(CORE_DATA_DIR)
+    file(RELATIVE_PATH CORE_DATA_RELATIVE "${CMAKE_BINARY_DIR}" "${CORE_DATA_DIR}")
+    set(RESOURCE_ROOT_TEXT "CoreData=${CORE_DATA_RELATIVE}\n")
+    file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/ResourceRoot.ini" RESOURCE_ROOT_LINES REGEX "^[A-Za-z]+=")
+    foreach(line IN LISTS RESOURCE_ROOT_LINES)
+        if(NOT line MATCHES "^([A-Za-z]+)=(.*)$")
+            continue()
+        endif()
+        if(NOT CMAKE_MATCH_1 STREQUAL "CoreData")
+            file(RELATIVE_PATH entry_path "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/${CMAKE_MATCH_2}")
+            string(APPEND RESOURCE_ROOT_TEXT "${CMAKE_MATCH_1}=${entry_path}\n")
+        endif()
+    endforeach()
+    file(WRITE "${CMAKE_BINARY_DIR}/ResourceRoot.ini" "${RESOURCE_ROOT_TEXT}")
+endif()
+
+# One call makes the launcher, the C# plugin (the folder CSharp), the data and the install rules.
+# The default launcher starts the .NET runtime and loads the plugin @NAME@.Managed.
+rbfx_csharp_add_project(@NAME@ DATA Data INSTALL)

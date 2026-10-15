@@ -1,4 +1,4 @@
-#include <Urho3D/CSharp/DotNetHost.h>
+#include <Urho3D/CSharp/DotNetPlugin.h>
 
 #include <CLI11/CLI11.hpp>
 #include <Urho3D/Core/CoreEvents.h>
@@ -45,20 +45,13 @@ public:
     {
         const std::filesystem::path directory = std::filesystem::path(GetSubsystem<Urho3D::FileSystem>()->GetProgramDir().c_str());
 
-        Urho3D::DotNetHostOptions options;
-        options.runtimeConfigPath = directory / "Rbfx.NativeHost.Managed.runtimeconfig.json";
-        std::string error;
-        if (!host_.Initialize(options, error))
-        {
-            Fail(("Cannot start the .NET runtime: " + error).c_str());
-            return;
-        }
-
         // The engine creates the plugin manager in Engine::Initialize, before Start().
         // The plugin registers the C# Spinner component, so the code below can create it by name.
-        if (!host_.LoadPlugin(GetSubsystem<Urho3D::PluginManager>(), directory / "Rbfx.NativeHost.Managed.dll", error))
+        std::string error;
+        if (!Urho3D::StartDotNetPlugin(
+                host_, GetSubsystem<Urho3D::PluginManager>(), directory, "Rbfx.NativeHost.Managed", error))
         {
-            Fail(("Cannot load the C# plugin: " + error).c_str());
+            Fail(error.c_str());
             return;
         }
 

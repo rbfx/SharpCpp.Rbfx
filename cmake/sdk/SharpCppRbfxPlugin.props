@@ -1,0 +1,44 @@
+<Project>
+  <!-- MSBuild properties of the managed plugin project of rbfx_csharp_add_application(). The generated
+       SharpCppRbfx.Plugin.props of the application imports this file. A project that the user maintains
+       (the keyword CSPROJ) imports SharpCppRbfx.Plugin.props with $(SharpCppRbfxPluginProps).
+       CMake passes these MSBuild properties:
+         SharpCppRbfxIsSdk       - "true" when SharpCpp.Rbfx comes from an installed SDK, else "false".
+         SharpCppRbfxManagedDir  - folder with the managed assemblies of the SDK (SDK mode only).
+         SharpCppRbfxPackageRoot - root of the SharpCpp.Rbfx source tree (source mode only). -->
+  <PropertyGroup>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+  <!-- SDK mode: reference the managed assemblies of the installed SharpCpp.Rbfx SDK. -->
+  <ItemGroup Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+    <Reference Include="SharpCpp.Rbfx.Bindings">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.Bindings.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Support">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Support.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Std">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Std.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Ea">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Ea.dll</HintPath>
+    </Reference>
+    <Analyzer Include="$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.SourceGenerator.dll" />
+  </ItemGroup>
+
+  <!-- Source mode: build the bindings and the source generator from the SharpCpp.Rbfx source tree. -->
+  <ItemGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
+    <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
+    <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

@@ -31,6 +31,13 @@ else()
       ${CMAKE_DL_LIBS})
 endif()
 
+if(EMSCRIPTEN)
+  # The final link of the web application uses shared memory (threads). wasm-ld needs atomics and bulk memory in
+  # every object file, so the host library and its consumers compile with -pthread. The host library does not link
+  # the engine, so it does not get this option from the engine.
+  target_compile_options(sharpcpp-rbfx-host PUBLIC -pthread)
+endif()
+
 if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
   target_compile_definitions(sharpcpp-rbfx-host PUBLIC URHO3D_DOTNETHOST_STATIC)
 else()
@@ -97,7 +104,8 @@ if(RBFX_INSTALL_SDK)
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
   set(_rbfx_host_headers
     include/Urho3D/CSharp/DotNetHost.h
-    include/Urho3D/CSharp/DotNetHostExport.h)
+    include/Urho3D/CSharp/DotNetHostExport.h
+    include/Urho3D/CSharp/DotNetPlugin.h)
   if(RBFX_HOST_MODE STREQUAL "shim")
     list(APPEND _rbfx_host_headers include/Urho3D/CSharp/DotNetHostShim.h)
   endif()

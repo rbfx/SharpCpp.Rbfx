@@ -1,0 +1,22 @@
+using Urho3D.Core;
+using Urho3D.IO;
+using Urho3D.Plugins;
+
+namespace @NAME@;
+
+/// <summary>
+/// The managed plugin of the project. The C++ launcher loads it when the application starts.
+/// </summary>
+public partial class @NAME@Plugin : ManagedPlugin
+{
+    public @NAME@Plugin(Context context)
+        : base(context)
+    {
+    }
+
+    protected override void Load()
+    {
+        base.Load();
+        Log.Info("C# plugin @NAME@.Managed is loaded.");
+    }
+}

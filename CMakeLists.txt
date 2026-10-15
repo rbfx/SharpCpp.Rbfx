@@ -347,6 +347,7 @@ set(SHARPCPP_RBFX_STALENESS_SCRIPT "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStal
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpProject.cmake")
 
 # A consumer tree (add_subdirectory or the find_package shim) needs only CMAKE_PREFIX_PATH. This build
 # runs "dotnet build" for the generators into SHARPCPP_MANAGED_OUTPUT_ROOT. The top-level developer build
@@ -468,6 +469,7 @@ if(RBFX_INSTALL_SDK)
     FILES
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpProject.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
   if(RBFX_HOST_MODE STREQUAL "hostfxr")
     install(
@@ -528,6 +530,17 @@ if(RBFX_INSTALL_SDK)
   # The MSBuild files that the written user-code project imports in SDK mode.
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk"
+    DESTINATION "${_rbfx_sdk_module_dir}")
+  # The source of the default launcher (rbfx_csharp_add_application without SOURCES).
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/launcher"
+    DESTINATION "${_rbfx_sdk_module_dir}")
+  # The new-project script and its templates. The script finds the folder project next to itself.
+  install(
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpNewProject.cmake"
+    DESTINATION "${_rbfx_sdk_module_dir}")
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/project"
     DESTINATION "${_rbfx_sdk_module_dir}")
   # The templates of the application heads (rbfx_csharp_add_application on Android, iOS and Emscripten).
   install(

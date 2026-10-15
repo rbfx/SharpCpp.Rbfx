@@ -94,12 +94,13 @@ Both prefixes set these variables:
   In the SDK package the value is a plain path, `<prefix>/share/SharpCppRbfx/managed`. The SDK package leaves the variable unset
   when the SDK was built with `RBFX_CSHARP_BINDINGS_PACKAGE_VERSION`, because it then has no managed files.
 
-The package gives the targets `SharpCpp::RbfxHost` and `SharpCpp::RbfxNative` and the functions `rbfx_csharp_add_application()`,
+The package gives the targets `SharpCpp::RbfxHost` and `SharpCpp::RbfxNative` and the functions `rbfx_csharp_add_project()`,
+`rbfx_csharp_add_application()`, `rbfx_csharp_install_application()`, `rbfx_csharp_find_core_data()`,
 `rbfx_csharp_add_plugin()`, `rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_usercode()`.
 
 The installed SDK has these parts:
 
-- The host library `SharpCpp.Rbfx.Host` and the headers `Urho3D/CSharp/DotNetHost.h` and `Urho3D/CSharp/DotNetHostExport.h`.
+- The host library `SharpCpp.Rbfx.Host` and the headers `Urho3D/CSharp/DotNetHost.h`, `Urho3D/CSharp/DotNetHostExport.h` and `Urho3D/CSharp/DotNetPlugin.h`.
 - The imported target `SharpCpp::RbfxHost`.
 - The nethost runtime library next to the host library, when the host library is shared.
   On Linux and macOS the host library finds it through its own run-time path. On Windows the
@@ -107,6 +108,8 @@ The installed SDK has these parts:
 - `share/SharpCppRbfx/cmake/FindNetHost.cmake` (hostfxr mode only). The package file uses it for a static host library.
 - `share/SharpCppRbfx/cmake/RbfxCSharpDotNet.cmake` with `rbfx_csharp_add_dotnet_project()` and `rbfx_csharp_add_plugin()`.
 - `share/SharpCppRbfx/cmake/RbfxCSharpApplication.cmake` with `rbfx_csharp_add_application()`.
+- `share/SharpCppRbfx/cmake/RbfxCSharpProject.cmake` with `rbfx_csharp_add_project()`, `rbfx_csharp_install_application()` and `rbfx_csharp_find_core_data()`.
+- `share/SharpCppRbfx/cmake/RbfxCSharpNewProject.cmake` and the folder `share/SharpCppRbfx/cmake/project` (see "New project").
 - The native binding wrapper `SharpCpp.Rbfx.Native` with the imported target `SharpCpp::RbfxNative`. This part is in a source-mode build, for the shared and for the static library type.
   The install step copies the engine shared library and the other runtime files of the wrapper next to it (`lib` on Linux and macOS, `bin` on Windows).
   The wrapper finds them through its own run-time path.
@@ -134,6 +137,65 @@ An SDK that was built with a bindings package version has no managed folder. The
 In a consumer project, the target of `rbfx_csharp_add_plugin()` is not part of the default build. Add it with `add_dependencies()`.
 The install step needs a finished build, because the generator writes the metadata files and the build links the wrapper.
 
+### Project in one call
+
+`rbfx_csharp_add_project()` is the shortest way to make an application. It calls `rbfx_csharp_add_usercode()`,
+`rbfx_csharp_add_application()` and, on request, `rbfx_csharp_install_application()`.
+
+```cmake
+rbfx_csharp_add_project(MyApp
+    [SOURCES Main.cpp] [CSHARP_DIR <dir>] [PLUGIN_NAME <plugin>] [CSPROJ <csproj>]
+    [HEADERS <headers...>] [INCLUDE_DIRECTORIES <dirs...>] [IMPLEMENTATION <target>] [NAMESPACE <namespace>]
+    [PLUGINS <targets...>] [LINK_LIBRARIES <libraries...>] [DATA <dirs...>] [RESOURCES <files...>]
+    [APPLICATION_ID <id>] [CONSOLE] [PROPERTIES <Name=Value>...]
+    [INSTALL] [INSTALL_DESTINATION <dir>])
+```
+
+- A relative path is relative to `CMAKE_CURRENT_SOURCE_DIR`.
+- With `HEADERS` the function calls `rbfx_csharp_add_usercode(MyApp.UserCode ...)` and passes `USERCODE MyApp.UserCode` to the application.
+  `INCLUDE_DIRECTORIES` is the list that you give, or the folders of `HEADERS`. `IMPLEMENTATION` is the target that implements the headers
+  (`LINK_LIBRARIES` of the bindings). `NAMESPACE` is the C# namespace of the bindings.
+- On Emscripten, Android and iOS the function packs each folder of `DATA` into
+  `${CMAKE_CURRENT_BINARY_DIR}/MyApp.Resources/<folder name>.pak` with `create_pak()`. It adds `CoreData.pak` (see `rbfx_csharp_find_core_data()`).
+  It appends the paks to `RESOURCES`. If CoreData is not found, or two paks have the same name, CMake stops with an error. On desktop the install rules copy the folders of `DATA` (see `rbfx_csharp_install_application()`).
+- The other keywords go to `rbfx_csharp_add_application()`.
+- With `INSTALL` the function calls `rbfx_csharp_install_application(MyApp [DESTINATION <INSTALL_DESTINATION>])`.
+
+`rbfx_csharp_install_application(<name> [DESTINATION <dir>])` adds the install rules of an application.
+The default destination is `bin/$<CONFIG>`. If the target is not from `rbfx_csharp_add_application()`, CMake stops with an error.
+
+- Desktop: the executable, the shared engine library, the native wrapper, the shared host library with its nethost library, the shared libraries of `USERCODE` and `PLUGINS`,
+  the plugin assembly with its `.runtimeconfig.json` and `.deps.json` files, the assemblies of `USERCODE` and the `SharpCpp.*.dll` files.
+  The installed executable has the run-time path `$ORIGIN` (`@loader_path` on macOS), so it finds the engine library in its folder.
+  The function also installs each folder of `DATA` and the `CoreData` folder (when `rbfx_csharp_find_core_data()` finds it) in the same destination.
+  It writes a `ResourceRoot.ini` there. The file maps `CoreData` and each folder of `DATA` to the installed folders.
+- Android: the APK. Web: the web folder as `<destination>/<name>`. iOS: the app bundle.
+
+`rbfx_csharp_find_core_data(<out_var>)` sets `<out_var>` to the folder `CoreData` of the rbfx SDK.
+It uses `${Urho3D_PACKAGE_ROOT}/bin/CoreData`. If this folder does not exist, it looks for `bin/CoreData` in the folders of `CMAKE_PREFIX_PATH` (the host SDK).
+Without a result the value is `<out_var>-NOTFOUND`.
+
+### New project
+
+The script `cmake/RbfxCSharpNewProject.cmake` makes a new application project from the templates in `cmake/project/`.
+The script works from the source tree and from the SDK (`share/SharpCppRbfx/cmake`).
+
+```
+cmake -DNAME=<Name> -DDESTINATION=<dir> -P <path>/RbfxCSharpNewProject.cmake
+```
+
+- `NAME` starts with a letter. It has only letters, digits and underscores. The plugin is `<Name>.Managed`.
+- `DESTINATION` must not exist or must be empty. Otherwise the script stops with an error.
+- The script copies each file of `cmake/project/` and removes the suffix `.in`. It replaces `@NAME@` in the file.
+  `CSharp/Plugin.cs` becomes `CSharp/<Name>Plugin.cs`.
+- The project has `CMakeLists.txt` (one call to `rbfx_csharp_add_project(<Name> DATA Data INSTALL)`), the plugin class
+  `<Name>Plugin` in `CSharp/`, `Data/Readme.txt`, `ResourceRoot.ini`, `.gitignore` and `README.md`.
+- The `CMakeLists.txt` of the project writes `build/ResourceRoot.ini`. This file maps `CoreData` to the folder of the
+  engine SDK (`rbfx_csharp_find_core_data()`) and `Data` to the folder `Data` of the project.
+  The engine uses the first `ResourceRoot.ini` above the executable.
+- Configure the project with `-DCMAKE_PREFIX_PATH="<engine SDK>;<SharpCpp.Rbfx SDK>"` and build it with `cmake --build`.
+  The executable is in `build/bin`.
+
 ### Application in one call
 
 `rbfx_csharp_add_application()` makes a native application that hosts .NET and loads a C# plugin.
@@ -143,10 +205,38 @@ This is the only call that an application needs. The desktop platforms (hostfxr 
 find_package(Urho3D REQUIRED)
 find_package(SharpCppRbfx CONFIG REQUIRED)
 rbfx_csharp_add_application(MyApp
-    SOURCES Main.cpp
-    PLUGIN "${CMAKE_SOURCE_DIR}/Managed/MyApp.Managed/MyApp.Managed.csproj"
-    [USERCODE <targets...>] [LINK_LIBRARIES <libraries...>] [CONSOLE] [PROPERTIES <Name=Value>...])
+    [SOURCES Main.cpp]
+    [CSHARP_DIR <dir>] [PLUGIN_NAME <plugin>] [CSPROJ <csproj>]
+    [USERCODE <targets...>] [PLUGINS <targets...>] [LINK_LIBRARIES <libraries...>] [CONSOLE] [PROPERTIES <Name=Value>...])
 ```
+
+- `CSHARP_DIR` is the folder with the C# sources of the plugin. The default is `${CMAKE_CURRENT_SOURCE_DIR}/CSharp`.
+  If the folder does not exist, CMake stops with an error.
+- `PLUGIN_NAME` is the assembly name and the root namespace of the plugin. The default is `<name>.Managed`.
+- Without `CSPROJ`, the function writes the plugin project to `${CMAKE_CURRENT_BINARY_DIR}/csharp/<plugin>/<plugin>.csproj`.
+  The project compiles all `*.cs` files below `CSHARP_DIR`, except the folders `bin` and `obj`.
+  The function also writes empty `Directory.Build.props` and `Directory.Build.targets` files there.
+  They stop MSBuild from importing the files of a parent folder.
+- `CSPROJ` is a C# project that you maintain. The function writes no project then.
+  Do not use `CSPROJ` together with `CSHARP_DIR` or `PLUGIN_NAME`. This is an error.
+  The project must have this line: `<Import Project="$(SharpCppRbfxPluginProps)" />`.
+  The generated `SharpCppRbfx.Plugin.props` sets the compiler options, references SharpCpp.Rbfx and references the managed project of each `USERCODE` target.
+  The project sets its own `AssemblyName` and its own sources.
+- The function sets the target properties `SHARPCPP_RBFX_PLUGIN_NAME`, `SHARPCPP_RBFX_PLUGIN_PROJECT`, `SHARPCPP_RBFX_USERCODE` and `SHARPCPP_RBFX_PLUGINS` on `MyApp`.
+  It also sets `SHARPCPP_RBFX_APPLICATION_OUTPUT`, the product of the application.
+  The value is `<name>.apk` in the library output folder on Android, the web folder on the web and `<name>.app` on iOS.
+  On desktop the value is empty.
+- `SOURCES` is optional. Without `SOURCES` the function uses the default launcher `cmake/launcher/RbfxCSharpLauncher.cpp`
+  and adds `PlayerLibrary` to `LINK_LIBRARIES`. The target `PlayerLibrary` must exist. If it does not, CMake stops with an error.
+  The launcher is a `PlayerApplication`. In `Setup` it sets the resource prefix paths and the orientation of mobile devices.
+  It sets the engine plugins to the linked plugins and the managed plugin.
+  In `Start` it calls `StartDotNetPlugin()` (header `Urho3D/CSharp/DotNetPlugin.h`). If this call fails, the launcher logs the error and calls `ErrorExit`.
+  `Stop` closes the .NET host.
+- `PLUGINS` is the list of the native engine plugin targets that the launcher loads.
+  The function calls `target_link_plugins(MyApp <PLUGINS>)`.
+  On desktop the function copies the shared library of each `USERCODE` target and the shared or module library of each `PLUGINS` target to the folder of the executable.
+  On Android the head packs the shared and module targets of `PLUGINS` (in the given order) and then the shared libraries of `USERCODE`.
+  They are before `libMyApp.so` and without duplicates.
 
 - The call makes the executable `MyApp`. It links `Urho3D`, `SharpCpp::RbfxHost` and `LINK_LIBRARIES`.
   The source file uses `URHO3D_DEFINE_APPLICATION_MAIN(Class)` as in any rbfx application.
@@ -168,7 +258,7 @@ A .NET Android head is the entry of the application. The native application runs
   The NDK toolchain finds packages only in its sysroot. Add `-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH`.
 - `MyApp` is a shared library (`libMyApp.so`). `URHO3D_DEFINE_APPLICATION_MAIN` exports `SDL_main` from it.
 - The function generates the head project in `<build>/heads/MyApp/` from the templates in `cmake/heads/android/`.
-  The head is `net10.0-android`. It references `PLUGIN`. It packs `libc++_shared.so`, `libUrho3D.so`, the wrapper,
+  The head is `net10.0-android`. It references the plugin project. It packs `libc++_shared.so`, `libUrho3D.so`, the wrapper,
   the host library, the shared libraries in `LINK_LIBRARIES` and `libMyApp.so`. It compiles the SDL Java sources of the engine SDK.
 - A file in `RESOURCES` becomes an asset with its file name. A folder becomes a folder of assets.
   A generated file (for example a pak from `create_pak`) must come from the top-level `CMakeLists.txt`.
@@ -196,7 +286,7 @@ The browser has no hostfxr. A .NET WebAssembly head is the entry. The native app
   `cmake/heads/wasm/RbfxWebMain.cpp`, which exports it as the C function `rbfx_application_start`.
   A source file of `MyApp` must not use the name `main` for other things.
 - The function generates the head project in `<build>/heads/MyApp/` from the templates in `cmake/heads/wasm/`.
-  The head is `net10.0` with the SDK `Microsoft.NET.Sdk.WebAssembly`, threads and WebAssembly exceptions. It references `PLUGIN`.
+  The head is `net10.0` with the SDK `Microsoft.NET.Sdk.WebAssembly`, threads and WebAssembly exceptions. It references the plugin project.
 - At the end of the configure step, the function walks the link closure of `MyApp` (also `target_link_libraries` calls
   after the function) and of `SharpCpp::RbfxNative`. It writes `NativeItems.props` of the head: every static library and
   object is a `NativeFileReference`, and the flags and the `INTERFACE_LINK_OPTIONS` go to `EmccExtraLDFlags`.
@@ -237,7 +327,7 @@ is static code in the executable of the app.
   The function adds `cmake/heads/ios/RbfxIosMain.cpp`. It exports the C function `rbfx_application_start`, which calls
   `SDL_UIKitRunApp(argc, argv, SDL_main)`. The source needs no iOS code.
 - The function generates the head project in `<build>/heads/MyApp/` from the templates in `cmake/heads/ios/`.
-  The head is `net10.0-ios` with the RID `ios-arm64`. It references `PLUGIN`. `SupportedOSPlatformVersion` is
+  The head is `net10.0-ios` with the RID `ios-arm64`. It references the plugin project. `SupportedOSPlatformVersion` is
   `CMAKE_OSX_DEPLOYMENT_TARGET` (default 15.0). The manifest is `cmake/heads/ios/Info.plist` (full screen, no launch storyboard).
 - `Program.Main` of the head runs the module initializer of `SharpCpp.Rbfx.NativeHost` (the attach to the host library).
   Then it calls `rbfx_application_start` through `[DllImport("__Internal")]`. SDL runs `UIApplicationMain` with its own
@@ -283,7 +373,7 @@ Generated files of an iOS application `MyApp`:
   `DotNetHost::Initialize` refers to the attach export, so the linker keeps it in a static program. No whole-archive link is needed.
   `DotNetHost::Initialize` returns false and gives an error text while no table is attached.
   `RBFX_INSTALL_SDK` works in both modes. The shim SDK has `SharpCpp::RbfxHost` (the host library and the headers `DotNetHost.h`,
-  `DotNetHostExport.h` and `DotNetHostShim.h`) and `SharpCpp::RbfxNative` (the wrapper). It has no `FindNetHost.cmake`.
+  `DotNetHostExport.h`, `DotNetHostShim.h` and `DotNetPlugin.h`) and `SharpCpp::RbfxNative` (the wrapper). It has no `FindNetHost.cmake`.
   A native application links `SharpCpp::RbfxHost`. A .NET head loads `SharpCpp.Rbfx.Host` next to `SharpCpp.Rbfx.Native`.
   `SharpCppRbfxConfig.cmake` sets `SharpCppRbfx_HOST_MODE` and `SharpCppRbfx_LIBRARY_TYPE`. It stops when the target `Urho3D` has another library type than the SDK.
   `DotNetHost::GetFunctionPointer` accepts only an empty `delegateTypeName` (an `[UnmanagedCallersOnly]` method).

@@ -1,0 +1,38 @@
+# @NAME@
+
+This is a C# application for the rbfx engine. The C++ launcher starts the .NET runtime and loads the C# plugin
+`@NAME@.Managed`.
+
+## Folders
+
+- `CSharp` has the C# source of the plugin.
+- `Data` has the resources of the application.
+- `ResourceRoot.ini` maps the resource aliases to folders.
+
+## Requirements
+
+- CMake 3.28 or later and a C++ compiler.
+- The .NET SDK.
+- A shared rbfx engine SDK for desktop.
+- The SharpCpp.Rbfx SDK.
+
+## Configure and build
+
+Replace `<RBFX_SDK>` with the path of the engine SDK. Replace `<SHARPCPP_RBFX_SDK>` with the path of the
+SharpCpp.Rbfx SDK.
+
+```
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=ON -DCMAKE_PREFIX_PATH="<RBFX_SDK>;<SHARPCPP_RBFX_SDK>"
+cmake --build build
+```
+
+## Run
+
+Start the executable `@NAME@` in the folder `build/bin`.
+The log shows the line `C# plugin @NAME@.Managed is loaded.`
+
+## Install
+
+```
+cmake --install build --prefix <install folder>
+```

@@ -880,6 +880,7 @@ jobs:
           platforms: |
             linux-gcc-x64-dll
             windows-msvc-x64-dll
+            macos-clang-arm64-dll
 
   Sample:
     name: Sample (${{ matrix.ci_job_name }})
@@ -911,6 +912,7 @@ jobs:
           case '${{ matrix.ci_platform_tag }}' in
             linux-*-x64-*) echo "SAMPLE_RID=linux-x64" >> "$GITHUB_ENV" ;;
             windows-*-x64-*) echo "SAMPLE_RID=win-x64" >> "$GITHUB_ENV" ;;
+            macos-*-arm64-*) echo "SAMPLE_RID=osx-arm64" >> "$GITHUB_ENV" ;;
             *) echo "Unsupported platform tag: ${{ matrix.ci_platform_tag }}"; exit 1 ;;
           esac
 

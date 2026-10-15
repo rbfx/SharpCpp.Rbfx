@@ -1040,7 +1040,8 @@ jobs:
           toolchain="$PWD/SharpCpp.Rbfx/cmake/toolchains/${{ matrix.rid }}.cmake"
           cmake -S sample-project -B sample-build -GNinja -DCMAKE_BUILD_TYPE=Release \
             "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DBUILD_SHARED_LIBS=ON -DSAMPLE_PROJECT_CSHARP=ON \
-            "-DCMAKE_PREFIX_PATH=$RBFX_SDK_ROOT;$RBFX_HOST_SDK_ROOT;$SHARPCPP_SDK_ROOT"
+            "-DCMAKE_PREFIX_PATH=$RBFX_SDK_ROOT;$RBFX_HOST_SDK_ROOT;$SHARPCPP_SDK_ROOT" \
+            "-DCMAKE_FIND_ROOT_PATH=$RBFX_SDK_ROOT;$RBFX_HOST_SDK_ROOT;$SHARPCPP_SDK_ROOT"
           cmake --build sample-build
 
   Publish-NuGet:

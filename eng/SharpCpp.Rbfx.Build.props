@@ -62,6 +62,8 @@
     <!-- A source build clears the package values that a package build left in the same tree. -->
     <RbfxNativeConfigureArguments Condition="'$(RbfxBindingsPackageVersion)' == ''">$(RbfxNativeConfigureArguments) -DRBFX_CSHARP_BINDINGS_PACKAGE_VERSION=</RbfxNativeConfigureArguments>
     <RbfxNativeConfigureArguments Condition="'$(RbfxBindingsPackageVersion)' == '' and '$(RbfxIsCrossRid)' != 'true'">$(RbfxNativeConfigureArguments) -DRBFX_BUILD_HOST=ON</RbfxNativeConfigureArguments>
+    <!-- The preset of iOS has no toolchain file, because the toolchain file is part of the engine SDK. The path of the SDK is known here only. -->
+    <RbfxNativeConfigureArguments Condition="'$(RbfxNativePreset)' == 'ios-clang-arm64-lib' and '$(RbfxSdkRoot)' != ''">$(RbfxNativeConfigureArguments) -DCMAKE_TOOLCHAIN_FILE=$(RbfxSdkRoot)/share/Urho3D/CMake/Toolchains/IOS.cmake</RbfxNativeConfigureArguments>
     <RbfxGeneratedRoot>$(RbfxNativeBuildDir)/generated</RbfxGeneratedRoot>
     <RbfxGeneratedDir>$(RbfxGeneratedRoot)/rbfx</RbfxGeneratedDir>
     <RbfxGeneratedStamp>$(RbfxGeneratedDir)/generate.stamp</RbfxGeneratedStamp>

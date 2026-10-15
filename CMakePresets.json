@@ -90,7 +90,10 @@
     {
       "name": "ios-clang-arm64-lib",
       "inherits": "base-cross",
-      "toolchainFile": "${sourceDir}/cmake/toolchains/ios-arm64.cmake"
+      "cacheVariables": {
+        "PLATFORM": "OS64",
+        "DEPLOYMENT_TARGET": "15.0"
+      }
     },
     {
       "name": "web-emscripten-wasm-lib",

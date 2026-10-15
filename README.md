@@ -229,7 +229,8 @@ The same call, the same launcher source and the same plugin project make an iOS 
 An iOS app has one executable, and the .NET iOS SDK links it. So a .NET iOS head is the entry, and the native application
 is static code in the executable of the app.
 
-- Configure on macOS with `CMAKE_SYSTEM_NAME` `iOS` (for example `cmake/toolchains/ios-arm64.cmake`), a single-configuration
+- Configure on macOS with the toolchain file of the engine SDK (`-DCMAKE_TOOLCHAIN_FILE=<engine SDK>/share/Urho3D/CMake/Toolchains/IOS.cmake
+  -DPLATFORM=OS64 -DDEPLOYMENT_TARGET=15.0`, which sets `CMAKE_SYSTEM_NAME` to `iOS`), a single-configuration
   generator (Ninja), the static iOS SDK of the engine (`ios-clang-arm64-lib`) and the iOS SDK of SharpCpp.Rbfx on `CMAKE_PREFIX_PATH`.
   The head build needs Xcode and the `ios` workload of .NET. The simulator is not supported.
 - `MyApp` is a static library (`libMyApp.a`). On iOS `URHO3D_DEFINE_APPLICATION_MAIN` defines `SDL_main`, not `main`.

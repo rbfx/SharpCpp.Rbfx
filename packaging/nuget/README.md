@@ -172,9 +172,9 @@ dotnet run --file packaging/nuget/CrossPackage.cs -- build-wasm-sdk --emsdk-root
 The update workflow removes older assets with the `rbfx-web-wasm-sdk-` prefix
 before uploading, so the rolling release retains one Wasm SDK archive. Wasm
 consumers require the `wasm-tools` workload and must select .NET's multithreaded
-runtime and WebAssembly exception handling. iOS parsing can use the platform compiler's
-builtin Clang headers with `-DRBFX_SDK_PARSE_USE_PLATFORM_COMPILER_INCLUDES=ON`;
-the cross-platform package workflow enables this for iOS.
+runtime and WebAssembly exception handling. iOS parsing uses the platform compiler's
+builtin Clang headers by default. Other platforms can turn this on with
+`-DRBFX_SDK_PARSE_USE_PLATFORM_COMPILER_INCLUDES=ON`.
 Set these properties in the app project (or `Directory.Build.props`) so they
 are present during restore and runtime-pack selection:
 

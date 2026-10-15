@@ -1103,14 +1103,24 @@ jobs:
 
       # The CMake prefix path lists the engine SDK and the source tree of SharpCpp.Rbfx.
       # The Emscripten toolchain searches packages in CMAKE_FIND_ROOT_PATH only, so the job sets both.
+      # The iOS build uses the toolchain file of the engine SDK. The web build uses the toolchain file of this repository.
       - name: Build Sample
         timeout-minutes: 90
         shell: bash
         run: |
-          toolchain="$PWD/SharpCpp.Rbfx/cmake/toolchains/${{ matrix.rid }}.cmake"
+          case '${{ matrix.rid }}' in
+            ios-arm64)
+              toolchain="$RBFX_SDK_ROOT/share/Urho3D/CMake/Toolchains/IOS.cmake"
+              toolchain_args=(-DPLATFORM=OS64 -DDEPLOYMENT_TARGET=15.0)
+              ;;
+            *)
+              toolchain="$PWD/SharpCpp.Rbfx/cmake/toolchains/${{ matrix.rid }}.cmake"
+              toolchain_args=()
+              ;;
+          esac
           source_prefix="$PWD/SharpCpp.Rbfx/cmake/SharpCppRbfx"
           cmake -S sample-project -B sample-build -GNinja -DCMAKE_BUILD_TYPE='${{ matrix.build_type }}' \
-            "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DBUILD_SHARED_LIBS=OFF -DSAMPLE_PROJECT_CSHARP=ON \
+            "-DCMAKE_TOOLCHAIN_FILE=$toolchain" ${toolchain_args[@]+"${toolchain_args[@]}"} -DBUILD_SHARED_LIBS=OFF -DSAMPLE_PROJECT_CSHARP=ON \
             "-DCMAKE_PREFIX_PATH=$RBFX_SDK_ROOT;$source_prefix" \
             "-DCMAKE_FIND_ROOT_PATH=$RBFX_SDK_ROOT;$source_prefix"
           cmake --build sample-build

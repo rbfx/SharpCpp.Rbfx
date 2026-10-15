@@ -113,10 +113,15 @@ set(
   ""
   CACHE STRING
   "Additional compiler options required to parse the installed rbfx SDK.")
+# The parse of an iOS SDK uses the builtin Clang headers of the platform compiler by default.
+set(_sharpcpp_parse_platform_includes_default OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  set(_sharpcpp_parse_platform_includes_default ON)
+endif()
 option(
   RBFX_SDK_PARSE_USE_PLATFORM_COMPILER_INCLUDES
   "Use the target platform compiler's builtin Clang headers when parsing the rbfx SDK."
-  OFF)
+  ${_sharpcpp_parse_platform_includes_default})
 
 # The engine comes from CMAKE_PREFIX_PATH (CMAKE_FIND_ROOT_PATH for web builds, or Urho3D_DIR) through find_package(Urho3D). RBFX_ENGINE_ROOT is
 # the root of the installed SDK. The generator reads the engine headers from it. The variable is internal.
@@ -387,6 +392,13 @@ add_subdirectory(SharpCpp.Rbfx.Bindings)
 # The managed native host project builds the bindings project (and the projects that it references: SharpCpp.Ea,
 # SharpCpp.Std and SharpCpp.Support). The bindings project reads the generated engine sources. A project of the consumer references it.
 if(TARGET sharpcpp-rbfx-build-usercode-generator AND TARGET sharpcpp-generate-rbfx AND NOT RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
+  # A static target compiles the bindings for its runtime identifier, like the heads do.
+  set(_managed_target_properties)
+  if(EMSCRIPTEN)
+    set(_managed_target_properties RbfxTargetRid=browser-wasm)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(_managed_target_properties RbfxTargetRid=ios-arm64)
+  endif()
   rbfx_csharp_add_dotnet_project(
     sharpcpp-rbfx-build-managed
     PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj"
@@ -395,7 +407,8 @@ if(TARGET sharpcpp-rbfx-build-usercode-generator AND TARGET sharpcpp-generate-rb
       "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Std.dll"
       "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Ea.dll"
       "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Rbfx.NativeHost.dll"
-    DEPENDS sharpcpp-rbfx-build-usercode-generator sharpcpp-generate-rbfx)
+    DEPENDS sharpcpp-rbfx-build-usercode-generator sharpcpp-generate-rbfx
+    PROPERTIES ${_managed_target_properties})
   # The project checks that the native wrapper exists.
   if(TARGET sharpcpp-rbfx-runtime)
     add_dependencies(sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)

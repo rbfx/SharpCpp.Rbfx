@@ -526,7 +526,7 @@ EOF
       native_configure_arguments+=" $encoded_argument"
     done
     # The toolchain file of iOS is part of the engine SDK. A global property cannot take it from the props file.
-    if [ "$configure_preset" = "ios-clang-arm64-lib" ]; then
+    if [ "$rid" = "ios-arm64" ]; then
       printf -v encoded_argument '%q' "-DCMAKE_TOOLCHAIN_FILE=$sdk_root/share/Urho3D/CMake/Toolchains/IOS.cmake"
       native_configure_arguments+=" $encoded_argument"
     fi

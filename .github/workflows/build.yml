@@ -983,15 +983,13 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+      - name: Prepare rbfx environment
+        uses: rbfx/ci/.github/actions/ci-prepare-platform@v1
+        env:
+          DOTNET_VERSION: 10.0.x
         with:
-          dotnet-version: 10.0.x
-
-      - name: Install Native Toolchain
-        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
-        with:
-          rid: ${{ matrix.rid }}
+          profile: downstream
+          ci_platform_tag: android-clang-arm64-dll
 
       - name: Ensure 7z
         uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z

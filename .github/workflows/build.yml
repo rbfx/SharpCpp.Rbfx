@@ -983,6 +983,32 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Ensure 7z
+        uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
+
+      - name: Download SDK Archive
+        uses: actions/download-artifact@v8
+        with:
+          name: sdk-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/sdk-archive
+
+      - name: Extract SDKs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          rbfx_root="$(cd SharpCpp.Rbfx && ./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}' --print-root)"
+          host_root="$(cd SharpCpp.Rbfx && ./eng/fetch-rbfx-sdk.sh --rid linux-x64 --print-root)"
+          archives=(SharpCpp.Rbfx/build/sdk-archive/*.7z)
+          test "${#archives[@]}" -eq 1
+          mkdir -p sdk-extract
+          (cd sdk-extract && 7z x -y "../${archives[0]}" >/dev/null)
+          roots=(sdk-extract/*/)
+          test "${#roots[@]}" -eq 1
+          echo "RBFX_SDK_ROOT=$rbfx_root" >> "$GITHUB_ENV"
+          echo "RBFX_HOST_SDK_ROOT=$host_root" >> "$GITHUB_ENV"
+          echo "SHARPCPP_SDK_ROOT=$(cd "${roots[0]}" && pwd)" >> "$GITHUB_ENV"
+
       - name: Prepare rbfx environment
         uses: rbfx/ci/.github/actions/ci-prepare-platform@v1
         env:
@@ -990,6 +1016,10 @@ jobs:
         with:
           profile: downstream
           ci_platform_tag: android-clang-arm64-dll
+          cmake_prefix_path: |
+            ${{ env.RBFX_SDK_ROOT }}
+            ${{ env.RBFX_HOST_SDK_ROOT }}
+            ${{ env.SHARPCPP_SDK_ROOT }}
 
       - name: Install Android NDK
         shell: bash
@@ -1001,36 +1031,16 @@ jobs:
           echo "ANDROID_NDK_HOME=$sdk_root/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$sdk_root/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
-      - name: Ensure 7z
-        uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
-
-      - name: Download SDK Archive
-        uses: actions/download-artifact@v8
-        with:
-          name: sdk-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/sdk-archive
-
       - name: Build Sample
         timeout-minutes: 60
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          cd SharpCpp.Rbfx
-          rbfx_root="$(./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}' --print-root)"
-          host_root="$(./eng/fetch-rbfx-sdk.sh --rid linux-x64 --print-root)"
-          cd ..
-          archives=(SharpCpp.Rbfx/build/sdk-archive/*.7z)
-          test "${#archives[@]}" -eq 1
-          mkdir -p sdk-extract
-          (cd sdk-extract && 7z x -y "../${archives[0]}" >/dev/null)
-          roots=(sdk-extract/*/)
-          test "${#roots[@]}" -eq 1
-          sdk_root="$(cd "${roots[0]}" && pwd)"
           toolchain="$PWD/SharpCpp.Rbfx/cmake/toolchains/${{ matrix.rid }}.cmake"
           cmake -S sample-project -B sample-build -GNinja -DCMAKE_BUILD_TYPE=Release \
-            "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DBUILD_SHARED_LIBS=ON \
-            -DSAMPLE_PROJECT_CSHARP=ON "-DCMAKE_PREFIX_PATH=$rbfx_root;$host_root;$sdk_root"
+            "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DBUILD_SHARED_LIBS=ON -DSAMPLE_PROJECT_CSHARP=ON \
+            "-DCMAKE_PREFIX_PATH=$RBFX_SDK_ROOT;$RBFX_HOST_SDK_ROOT;$SHARPCPP_SDK_ROOT"
           cmake --build sample-build
 
   Publish-NuGet:

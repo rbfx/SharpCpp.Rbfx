@@ -1056,6 +1056,99 @@ jobs:
             "-DCMAKE_FIND_ROOT_PATH=$RBFX_SDK_ROOT;$RBFX_HOST_SDK_ROOT;$SHARPCPP_SDK_ROOT"
           cmake --build sample-build
 
+  # Builds the sample with C# hosting for Web and iOS. Neither platform has a SharpCpp.Rbfx SDK archive.
+  # The build uses the source tree of SharpCpp.Rbfx (shim prefix) and the static engine SDK of the RID.
+  # The shim builds the generators with dotnet itself, so the job needs no host SDK.
+  Sample-Mobile:
+    name: Sample (${{ matrix.rid }})
+    needs: [Union]
+    # First run: a failure of this job does not block Release-Latest. Remove this line when the job is stable.
+    continue-on-error: true
+    runs-on: ${{ matrix.runs_on }}
+    env:
+      DOTNET_VERSION: 10.0.401
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: browser-wasm
+            runs_on: ubuntu-24.04
+            workload: wasm-tools
+            build_type: Release
+          - rid: ios-arm64
+            runs_on: macos-latest
+            workload: ios
+            build_type: RelWithDebInfo
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+
+      # The shim prefix needs SharpCpp next to SharpCpp.Rbfx (SHARPCPP_ROOT defaults to ../SharpCpp).
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          path: SharpCpp
+          persist-credentials: false
+
+      - name: Checkout Sample
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/sample-project
+          path: sample-project
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Installs Ninja, and Emscripten 3.1.56 for browser-wasm (the version of the wasm-tools workload).
+      - name: Install Native Toolchain
+        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
+        with:
+          rid: ${{ matrix.rid }}
+
+      - name: Install Platform Workload
+        run: dotnet workload install ${{ matrix.workload }} --version ${{ env.DOTNET_VERSION }}
+
+      - name: Ensure 7z
+        uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
+
+      # The pak step of the sample runs PackageTool.py of the engine SDK. The script needs lz4.
+      - name: Install PackageTool Dependencies
+        env:
+          PIP_BREAK_SYSTEM_PACKAGES: '1'
+        shell: bash
+        run: python3 -m pip install --user lz4
+
+      - name: Fetch rbfx SDK
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          rbfx_root="$(cd SharpCpp.Rbfx && ./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}' --print-root)"
+          test -f "$rbfx_root/share/Urho3D/CMake/Urho3DConfig.cmake"
+          echo "RBFX_SDK_ROOT=$rbfx_root" >> "$GITHUB_ENV"
+
+      # The CMake prefix path lists the engine SDK and the source tree of SharpCpp.Rbfx.
+      # The Emscripten toolchain searches packages in CMAKE_FIND_ROOT_PATH only, so the job sets both.
+      - name: Build Sample
+        timeout-minutes: 90
+        shell: bash
+        run: |
+          toolchain="$PWD/SharpCpp.Rbfx/cmake/toolchains/${{ matrix.rid }}.cmake"
+          source_prefix="$PWD/SharpCpp.Rbfx/cmake/SharpCppRbfx"
+          cmake -S sample-project -B sample-build -GNinja -DCMAKE_BUILD_TYPE='${{ matrix.build_type }}' \
+            "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DBUILD_SHARED_LIBS=OFF -DSAMPLE_PROJECT_CSHARP=ON \
+            "-DCMAKE_PREFIX_PATH=$RBFX_SDK_ROOT;$source_prefix" \
+            "-DCMAKE_FIND_ROOT_PATH=$RBFX_SDK_ROOT;$source_prefix"
+          cmake --build sample-build
+
   Publish-NuGet:
     name: Publish NuGet Packages
     needs: [Union, Smoke, Cross-Consumer, E2E]
@@ -1093,7 +1186,7 @@ jobs:
 
   Release-Latest:
     name: Release Latest
-    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Sample, Sample-Android]
+    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Sample, Sample-Android, Sample-Mobile]
     if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-24.04
     concurrency:

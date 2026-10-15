@@ -1,6 +1,7 @@
-# One call per project: the C# application with its user-code bindings, its data and its install rules.
-# The module uses rbfx_csharp_add_application (RbfxCSharpApplication.cmake) and rbfx_csharp_add_usercode
-# (RbfxCSharpAddUserCode.cmake).
+# One call per project: the C# application with its bindings, its data and its install rules.
+# The module calls rbfx_csharp_add_wrapper (RbfxCSharpAddWrapper.cmake), rbfx_csharp_add_plugin (RbfxCSharpPlugin.cmake),
+# rbfx_csharp_add_launcher (RbfxCSharpLauncher.cmake), rbfx_csharp_add_data (RbfxCSharpData.cmake) and
+# rbfx_csharp_package_application (RbfxCSharpApplication.cmake).
 #
 # rbfx_csharp_find_core_data(<out_var>)
 #   Sets <out_var> to the folder CoreData of the rbfx SDK. The first choice is ${Urho3D_PACKAGE_ROOT}/bin/CoreData.
@@ -8,20 +9,22 @@
 #   (the host SDK). Without a result, <out_var> is <out_var>-NOTFOUND.
 #
 # rbfx_csharp_install_application(<name> [DESTINATION <dir>])
-#   Adds the install rules of an application from rbfx_csharp_add_application. The default DESTINATION is
-#   bin/$<CONFIG>.
+#   Adds the install rules of a launcher that rbfx_csharp_package_application packaged. The default DESTINATION is
+#   bin/$<CONFIG>. The function reads the properties SHARPCPP_RBFX_PACKAGED_PLUGIN and SHARPCPP_RBFX_PACKAGED_DATA of the
+#   launcher, the properties of the plugin target (rbfx_csharp_add_plugin) and the properties of the data target
+#   (rbfx_csharp_add_data).
 #   Desktop: the executable, the shared engine library, the native wrapper of the bindings, the shared host library
-#   with the shared nethost library, the folders of DATA and CoreData with a ResourceRoot.ini that maps them, the
-#   shared libraries of USERCODE and PLUGINS, the plugin assembly with its runtimeconfig and deps files, the
-#   assemblies of USERCODE and the SharpCpp assemblies, all in DESTINATION. The function skips CoreData when the
-#   SDK has no CoreData folder.
+#   with the shared nethost library, the folders of the data (SHARPCPP_RBFX_DATA_DIRECTORIES, with CoreData) and its
+#   files (SHARPCPP_RBFX_DATA_FILES: the ResourceRoot.ini that maps the folders), the shared libraries of the wrapper
+#   targets (SHARPCPP_RBFX_PLUGIN_REFERENCES of the plugin) and of the native plugins (SHARPCPP_RBFX_PLUGINS of the
+#   launcher), the plugin assembly with its runtimeconfig and deps files, the assemblies of the wrapper targets and the
+#   SharpCpp assemblies, all in DESTINATION.
 #   Android: the APK. Emscripten: the web folder, as DESTINATION/<name>. iOS: the app bundle.
-#   The function stops with an error when <name> is not from rbfx_csharp_add_application.
+#   The function stops with an error when <name> is not from rbfx_csharp_package_application.
 #
 # rbfx_csharp_add_project(<name>
 #   [SOURCES <files...>]
 #   [CSHARP_DIR <dir>]
-#   [PLUGIN_NAME <plugin>]
 #   [CSPROJ <csproj>]
 #   [HEADERS <headers...>]
 #   [INCLUDE_DIRECTORIES <dirs...>]
@@ -38,17 +41,23 @@
 #   [INSTALL_DESTINATION <dir>])
 #
 #   A relative path is relative to CMAKE_CURRENT_SOURCE_DIR.
-#   HEADERS         The C++ headers to bind to C#. The function calls rbfx_csharp_add_usercode(<name>.UserCode)
-#                   and passes the target to the application as USERCODE.
+#   The function calls these functions in this order:
+#   1. rbfx_csharp_add_wrapper(<name>.Wrapper), only with HEADERS.
+#   2. rbfx_csharp_add_plugin(<plugin>): CSHARP_DIR, CSPROJ, PROPERTIES and the wrapper as REFERENCES. The plugin target
+#      is <name>.Managed, or the file name of CSPROJ without the extension.
+#   3. rbfx_csharp_add_launcher(<name>): SOURCES, PLUGINS, LINK_LIBRARIES and CONSOLE.
+#   4. rbfx_csharp_add_data(<name>.Data): DATA as DIRECTORIES. The data target is always made, so CoreData is also
+#      packed without DATA.
+#   5. rbfx_csharp_package_application(<name>): the plugin, the data, RESOURCES and APPLICATION_ID.
+#   HEADERS         The C++ headers to bind to C#. The wrapper target is <name>.Wrapper.
 #   INCLUDE_DIRECTORIES  Include directories of HEADERS. The default is the folders of HEADERS.
-#   IMPLEMENTATION  The target that implements HEADERS. It is the LINK_LIBRARIES of the bindings.
+#   IMPLEMENTATION  The target that implements HEADERS. It is linked to the bindings.
 #   NAMESPACE       The C# namespace of the bindings.
-#   DATA            Resource folders. On Emscripten, Android and iOS the function packs each folder into
-#                   ${CMAKE_CURRENT_BINARY_DIR}/<name>.Resources/<folder name>.pak with create_pak, adds CoreData.pak
-#                   (rbfx_csharp_find_core_data) and appends the paks to RESOURCES. Two paks with the same name are
-#                   an error. On desktop the install rules copy the folders (rbfx_csharp_install_application).
+#   DATA            Resource folders. They go to rbfx_csharp_add_data(<name>.Data) as DIRECTORIES. It packs the folders
+#                   and CoreData into paks on Emscripten, Android and iOS. On desktop the install rules copy the folders
+#                   (rbfx_csharp_install_application). See RbfxCSharpData.cmake.
 #   INSTALL         Calls rbfx_csharp_install_application(<name>), with INSTALL_DESTINATION as DESTINATION.
-#   The other keywords go to rbfx_csharp_add_application (see RbfxCSharpApplication.cmake).
+#   The other keywords have the meaning that is in the module of the function that gets them.
 
 function(rbfx_csharp_find_core_data out_var)
   set(core_data "${Urho3D_PACKAGE_ROOT}/bin/CoreData")
@@ -73,13 +82,15 @@ function(rbfx_csharp_install_application name)
     set(arg_DESTINATION "bin/$<CONFIG>")
   endif()
   if(NOT TARGET ${name})
-    message(FATAL_ERROR "rbfx_csharp_install_application(${name}): the target does not exist. Call rbfx_csharp_add_application first.")
+    message(FATAL_ERROR "rbfx_csharp_install_application(${name}): the target does not exist. Call rbfx_csharp_package_application first.")
   endif()
-  get_target_property(plugin_name ${name} SHARPCPP_RBFX_PLUGIN_NAME)
+  get_target_property(plugin ${name} SHARPCPP_RBFX_PACKAGED_PLUGIN)
   get_target_property(output ${name} SHARPCPP_RBFX_APPLICATION_OUTPUT)
-  if(NOT plugin_name OR output STREQUAL "output-NOTFOUND")
-    message(FATAL_ERROR "rbfx_csharp_install_application(${name}): the target was not made by rbfx_csharp_add_application.")
+  if(NOT plugin OR output STREQUAL "output-NOTFOUND")
+    message(FATAL_ERROR "rbfx_csharp_install_application(${name}): the target was not packaged by rbfx_csharp_package_application.")
   endif()
+  get_target_property(plugin_name ${plugin} SHARPCPP_RBFX_PLUGIN_NAME)
+  get_target_property(data ${name} SHARPCPP_RBFX_PACKAGED_DATA)
 
   if(ANDROID)
     install(FILES "${output}" DESTINATION "${arg_DESTINATION}")
@@ -94,9 +105,9 @@ function(rbfx_csharp_install_application name)
     return()
   endif()
 
-  get_target_property(usercode ${name} SHARPCPP_RBFX_USERCODE)
+  get_target_property(wrapper ${plugin} SHARPCPP_RBFX_PLUGIN_REFERENCES)
   get_target_property(plugins ${name} SHARPCPP_RBFX_PLUGINS)
-  foreach(list_name IN ITEMS usercode plugins)
+  foreach(list_name IN ITEMS wrapper plugins)
     if(NOT ${list_name})
       set(${list_name})
     endif()
@@ -121,35 +132,22 @@ function(rbfx_csharp_install_application name)
     install(FILES "$<TARGET_FILE:Urho3D>" DESTINATION "${arg_DESTINATION}")
   endif()
 
-  # The data folders and CoreData go next to the executable. ResourceRoot.ini in the same folder maps them to the
-  # aliases of the engine. The engine reads the file from the folder of the executable first.
-  get_target_property(data_directories ${name} SHARPCPP_RBFX_DATA)
-  if(NOT data_directories)
-    set(data_directories)
-  endif()
-  set(resource_root_text "")
-  rbfx_csharp_find_core_data(core_data)
-  if(core_data)
-    install(DIRECTORY "${core_data}" DESTINATION "${arg_DESTINATION}")
-    string(APPEND resource_root_text "CoreData=CoreData\n")
-  endif()
-  foreach(data IN LISTS data_directories)
-    cmake_path(GET data FILENAME data_name)
-    if(data_name STREQUAL "CoreData")
-      continue()
-    endif()
-    install(DIRECTORY "${data}" DESTINATION "${arg_DESTINATION}")
-    string(APPEND resource_root_text "${data_name}=${data_name}\n")
-  endforeach()
-  if(resource_root_text)
-    set(resource_root_file "${CMAKE_CURRENT_BINARY_DIR}/${name}.Install/ResourceRoot.ini")
-    file(GENERATE OUTPUT "${resource_root_file}" CONTENT "${resource_root_text}")
-    install(FILES "${resource_root_file}" DESTINATION "${arg_DESTINATION}")
+  # The data folders (CoreData is one of them) go next to the executable. ResourceRoot.ini in the same folder maps them
+  # to the aliases of the engine. The engine reads the file from the folder of the executable first.
+  if(data)
+    get_target_property(data_directories ${data} SHARPCPP_RBFX_DATA_DIRECTORIES)
+    get_target_property(data_files ${data} SHARPCPP_RBFX_DATA_FILES)
+    foreach(data_directory IN LISTS data_directories)
+      install(DIRECTORY "${data_directory}" DESTINATION "${arg_DESTINATION}")
+    endforeach()
+    foreach(data_file IN LISTS data_files)
+      install(FILES "${data_file}" DESTINATION "${arg_DESTINATION}")
+    endforeach()
   endif()
 
-  # The shared libraries of USERCODE and PLUGINS. A static library is in the executable.
+  # The shared libraries of the wrapper targets and of the native plugins. A static library is in the executable.
   set(patterns PATTERN "${plugin_name}.*" PATTERN "SharpCpp.*.dll")
-  set(libraries ${usercode} ${plugins})
+  set(libraries ${wrapper} ${plugins})
   list(REMOVE_DUPLICATES libraries)
   foreach(library IN LISTS libraries)
     get_target_property(library_type ${library} TYPE)
@@ -170,8 +168,8 @@ function(rbfx_csharp_install_application name)
       endif()
     endif()
   endforeach()
-  foreach(library IN LISTS usercode)
-    get_target_property(assembly ${library} SHARPCPP_RBFX_USERCODE_ASSEMBLY)
+  foreach(library IN LISTS wrapper)
+    get_target_property(assembly ${library} SHARPCPP_RBFX_WRAPPER_ASSEMBLY)
     if(assembly)
       list(APPEND patterns PATTERN "${assembly}.*")
     endif()
@@ -187,7 +185,7 @@ endfunction()
 function(rbfx_csharp_add_project name)
   cmake_parse_arguments(
     PARSE_ARGV 1 arg "CONSOLE;INSTALL"
-    "CSHARP_DIR;PLUGIN_NAME;CSPROJ;IMPLEMENTATION;NAMESPACE;APPLICATION_ID;INSTALL_DESTINATION"
+    "CSHARP_DIR;CSPROJ;IMPLEMENTATION;NAMESPACE;APPLICATION_ID;INSTALL_DESTINATION"
     "SOURCES;HEADERS;INCLUDE_DIRECTORIES;PLUGINS;LINK_LIBRARIES;DATA;RESOURCES;PROPERTIES")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "rbfx_csharp_add_project(${name}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
@@ -209,10 +207,9 @@ function(rbfx_csharp_add_project name)
   endforeach()
 
   # The bindings of the C++ headers.
-  set(usercode_arguments)
   if(arg_HEADERS)
-    if(NOT COMMAND rbfx_csharp_add_usercode)
-      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): HEADERS needs rbfx_csharp_add_usercode, which does not exist.")
+    if(NOT COMMAND rbfx_csharp_add_wrapper)
+      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): HEADERS needs rbfx_csharp_add_wrapper, which does not exist.")
     endif()
     set(include_directories ${arg_INCLUDE_DIRECTORIES})
     if(NOT include_directories)
@@ -222,68 +219,68 @@ function(rbfx_csharp_add_project name)
       endforeach()
       list(REMOVE_DUPLICATES include_directories)
     endif()
-    set(usercode_options HEADERS ${arg_HEADERS} INCLUDE_DIRECTORIES ${include_directories})
+    set(wrapper_options HEADERS ${arg_HEADERS} INCLUDE_DIRECTORIES ${include_directories})
     if(arg_IMPLEMENTATION)
-      list(APPEND usercode_options LINK_LIBRARIES ${arg_IMPLEMENTATION})
+      list(APPEND wrapper_options IMPLEMENTATION ${arg_IMPLEMENTATION})
     endif()
     if(arg_NAMESPACE)
-      list(APPEND usercode_options NAMESPACE ${arg_NAMESPACE})
+      list(APPEND wrapper_options NAMESPACE ${arg_NAMESPACE})
     endif()
-    rbfx_csharp_add_usercode(${name}.UserCode ${usercode_options})
-    set(usercode_arguments USERCODE ${name}.UserCode)
+    rbfx_csharp_add_wrapper(${name}.Wrapper ${wrapper_options})
   endif()
 
-  # Mobile and Web applications read the data from paks that the head packs as resources.
-  set(resources ${arg_RESOURCES})
-  if(EMSCRIPTEN OR ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    set(pak_directory "${CMAKE_CURRENT_BINARY_DIR}/${name}.Resources")
-    set(pak_names)
-    foreach(data IN LISTS arg_DATA)
-      cmake_path(GET data FILENAME data_name)
-      list(APPEND pak_names "${data_name}")
-      list(APPEND data_paks "${data}")
+  # The plugin: <name>.Managed, or the project of the user.
+  set(plugin_options)
+  if(arg_CSPROJ)
+    get_filename_component(plugin "${arg_CSPROJ}" NAME_WLE)
+    foreach(suffix IN ITEMS "" .Plugin .Native .Data .Wrapper .Head .CSharp .Resources)
+      if(plugin STREQUAL "${name}${suffix}")
+        message(FATAL_ERROR "rbfx_csharp_add_project(${name}): the name of the project file '${arg_CSPROJ}' is '${plugin}'. The plugin target has this name. It clashes with the target '${name}${suffix}' that the function makes. Rename the project file (or the project).")
+      endif()
     endforeach()
-    rbfx_csharp_find_core_data(core_data)
-    if(NOT core_data)
-      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): CoreData is not found in '${Urho3D_PACKAGE_ROOT}/bin' or in CMAKE_PREFIX_PATH.")
+    list(APPEND plugin_options CSPROJ "${arg_CSPROJ}")
+  else()
+    set(plugin ${name}.Managed)
+    if(arg_CSHARP_DIR)
+      list(APPEND plugin_options CSHARP_DIR "${arg_CSHARP_DIR}")
     endif()
-    list(APPEND pak_names CoreData)
-    list(APPEND data_paks "${core_data}")
-    set(duplicates "${pak_names}")
-    list(REMOVE_DUPLICATES duplicates)
-    list(LENGTH pak_names pak_count)
-    list(LENGTH duplicates unique_count)
-    if(NOT pak_count EQUAL unique_count)
-      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): two paks have the same name (${pak_names}). The folder CoreData is also a pak.")
-    endif()
-    foreach(data IN LISTS data_paks)
-      cmake_path(GET data FILENAME data_name)
-      create_pak("${data}" "${pak_directory}/${data_name}.pak")
-      list(APPEND resources "${pak_directory}/${data_name}.pak")
-    endforeach()
   endif()
+  if(arg_HEADERS)
+    list(APPEND plugin_options REFERENCES ${name}.Wrapper)
+  endif()
+  if(arg_PROPERTIES)
+    list(APPEND plugin_options PROPERTIES ${arg_PROPERTIES})
+  endif()
+  rbfx_csharp_add_plugin(${plugin} ${plugin_options})
 
-  # The remaining keywords go to the application as they are.
-  set(application_options)
-  foreach(keyword IN ITEMS SOURCES PLUGINS LINK_LIBRARIES PROPERTIES)
+  # The launcher.
+  set(launcher_options)
+  foreach(keyword IN ITEMS SOURCES PLUGINS LINK_LIBRARIES)
     if(arg_${keyword})
-      list(APPEND application_options ${keyword} ${arg_${keyword}})
-    endif()
-  endforeach()
-  if(resources)
-    list(APPEND application_options RESOURCES ${resources})
-  endif()
-  foreach(keyword IN ITEMS CSHARP_DIR PLUGIN_NAME CSPROJ APPLICATION_ID)
-    if(arg_${keyword})
-      list(APPEND application_options ${keyword} "${arg_${keyword}}")
+      list(APPEND launcher_options ${keyword} ${arg_${keyword}})
     endif()
   endforeach()
   if(arg_CONSOLE)
-    list(APPEND application_options CONSOLE)
+    list(APPEND launcher_options CONSOLE)
   endif()
-  rbfx_csharp_add_application(${name} ${usercode_arguments} ${application_options})
-  # The install rules read the data folders.
-  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_DATA "${arg_DATA}")
+  rbfx_csharp_add_launcher(${name} ${launcher_options})
+
+  # The data. The target is always made, because CoreData is also data.
+  set(data_options)
+  if(arg_DATA)
+    list(APPEND data_options DIRECTORIES ${arg_DATA})
+  endif()
+  rbfx_csharp_add_data(${name}.Data ${data_options})
+
+  # The packaging.
+  set(package_options PLUGIN ${plugin} DATA ${name}.Data)
+  if(arg_RESOURCES)
+    list(APPEND package_options RESOURCES ${arg_RESOURCES})
+  endif()
+  if(arg_APPLICATION_ID)
+    list(APPEND package_options APPLICATION_ID "${arg_APPLICATION_ID}")
+  endif()
+  rbfx_csharp_package_application(${name} ${package_options})
 
   if(arg_INSTALL)
     if(arg_INSTALL_DESTINATION)

@@ -1,4 +1,4 @@
-// The native entry of an rbfx_csharp_add_application on iOS. The function compiles this file into the
+// The native entry of an rbfx_csharp_package_application on iOS. The function compiles this file into the
 // application library together with SOURCES.
 //
 // The .NET iOS app has its own main, which starts the .NET runtime and runs Program.Main of the head.

@@ -1,4 +1,4 @@
-// The default launcher of rbfx_csharp_add_application. It starts the .NET runtime and loads the C# plugin.
+// The default launcher of rbfx_csharp_package_application. It starts the .NET runtime and loads the C# plugin.
 // The compile definition SHARPCPP_RBFX_PLUGIN_NAME is the assembly name of the plugin.
 
 #include <Urho3D/CSharp/DotNetPlugin.h>

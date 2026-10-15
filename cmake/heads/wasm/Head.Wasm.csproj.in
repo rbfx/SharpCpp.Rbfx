@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk.WebAssembly">
-  <!-- The .NET WebAssembly head of the application @RBFX_HEAD_NAME@. rbfx_csharp_add_application (RbfxCSharpApplication.cmake)
+  <!-- The .NET WebAssembly head of the application @RBFX_HEAD_NAME@. rbfx_csharp_package_application (RbfxCSharpApplication.cmake)
        generates this file into the build tree. Do not edit it: CMake writes it again on each configure. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

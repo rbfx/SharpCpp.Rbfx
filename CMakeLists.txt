@@ -322,7 +322,7 @@ set(
   RBFX_CSHARP_BINDINGS_PROJECTS
   "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Ea/SharpCpp.Ea.csproj;${SHARPCPP_ROOT}/src/SharpCpp.Std/SharpCpp.Std.csproj;${SHARPCPP_ROOT}/src/SharpCpp.Support/SharpCpp.Support.csproj;${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj"
   CACHE STRING
-  "Managed projects that the bindings project written by rbfx_csharp_add_usercode() references.")
+  "Managed projects that the bindings project written by rbfx_csharp_add_wrapper() references.")
 set(
   RBFX_CSHARP_BINDINGS_PACKAGE_VERSION
   ""
@@ -339,13 +339,16 @@ set(
   CACHE FILEPATH
   "MSBuild targets file that the written Directory.Build.targets imports.")
 
-# Inputs of RbfxCSharpAddUserCode.cmake. SharpCppRbfxConfig.cmake sets them to the installed files.
+# Inputs of RbfxCSharpAddWrapper.cmake. SharpCppRbfxConfig.cmake sets them to the installed files.
 set(SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY "${SHARPCPP_ROOT}/include")
 set(SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(SHARPCPP_RBFX_STALENESS_SCRIPT "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake")
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddWrapper.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpPlugin.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpLauncher.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpData.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpProject.cmake")
 
@@ -440,7 +443,7 @@ if(RBFX_INSTALL_SDK)
     set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST ON)
   endif()
 
-  # rbfx_csharp_add_usercode() needs the metadata and the generator. The SDK has them in a source-mode
+  # rbfx_csharp_add_wrapper() needs the metadata and the generator. The SDK has them in a source-mode
   # build (see SharpCpp.Rbfx.Bindings/CMakeLists.txt), for each library type.
   set(SHARPCPP_RBFX_HOST_MODE "${RBFX_HOST_MODE}")
   set(SHARPCPP_RBFX_NATIVE_LIBRARY_TYPE "${RBFX_NATIVE_LIBRARY_TYPE}")
@@ -468,6 +471,9 @@ if(RBFX_INSTALL_SDK)
   install(
     FILES
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpPlugin.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpLauncher.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpData.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpProject.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
@@ -522,7 +528,7 @@ if(RBFX_INSTALL_SDK)
       "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
       "${SHARPCPP_ROOT}/cmake/SharpCppOutput.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ExportRbfxSdkParseFlags.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddUserCode.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddWrapper.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates"
@@ -531,7 +537,7 @@ if(RBFX_INSTALL_SDK)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk"
     DESTINATION "${_rbfx_sdk_module_dir}")
-  # The source of the default launcher (rbfx_csharp_add_application without SOURCES).
+  # The source of the default launcher (rbfx_csharp_add_launcher without SOURCES).
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/launcher"
     DESTINATION "${_rbfx_sdk_module_dir}")
@@ -542,7 +548,7 @@ if(RBFX_INSTALL_SDK)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/project"
     DESTINATION "${_rbfx_sdk_module_dir}")
-  # The templates of the application heads (rbfx_csharp_add_application on Android, iOS and Emscripten).
+  # The templates of the application heads (rbfx_csharp_package_application on Android, iOS and Emscripten).
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/heads"
     DESTINATION "${_rbfx_sdk_module_dir}")
@@ -562,8 +568,8 @@ if(TARGET sharpcpp-generate-rbfx)
   add_dependencies(sharpcpp-rbfx-generate sharpcpp-generate-rbfx)
 endif()
 add_custom_target(sharpcpp-rbfx-native DEPENDS sharpcpp-rbfx-runtime)
-get_property(_rbfx_csharp_add_usercode_targets GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS)
-foreach(_wrap_target IN LISTS _rbfx_csharp_add_usercode_targets)
+get_property(_rbfx_csharp_add_wrapper_targets GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS)
+foreach(_wrap_target IN LISTS _rbfx_csharp_add_wrapper_targets)
   add_dependencies(sharpcpp-rbfx-generate sharpcpp-generate-${_wrap_target})
   add_dependencies(sharpcpp-rbfx-native ${_wrap_target})
 endforeach()

@@ -1,4 +1,4 @@
-// The start script of the WebAssembly head of @RBFX_HEAD_NAME@. rbfx_csharp_add_application generates it.
+// The start script of the WebAssembly head of @RBFX_HEAD_NAME@. rbfx_csharp_package_application generates it.
 //
 // 1. Start the .NET runtime. The engine uses the canvas with the id "canvas".
 // 2. Write the RESOURCES files (resources.json) into the file system of Emscripten.

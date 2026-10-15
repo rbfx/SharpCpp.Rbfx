@@ -1034,8 +1034,6 @@ jobs:
   Sample-Mobile:
     name: Sample (${{ matrix.rid }})
     needs: [Union]
-    # First run: a failure of this job does not block Release-Latest. Remove this line when the job is stable.
-    continue-on-error: true
     runs-on: ${{ matrix.runs_on }}
     env:
       DOTNET_VERSION: 10.0.401

@@ -17,10 +17,10 @@ set_target_properties(
     POSITION_INDEPENDENT_CODE ON)
 
 # Bindings target. It holds the generated wrappers and links the implementation.
-rbfx_csharp_add_usercode(Example.UserCode
+rbfx_csharp_add_wrapper(Example.UserCode
   HEADERS RotatingComponent.hpp TextTools.hpp
   INCLUDE_DIRECTORIES .
-  LINK_LIBRARIES Example.UserCode.Impl
+  IMPLEMENTATION Example.UserCode.Impl
   NAMESPACE RbfxExamples
   ASSEMBLY_NAME Example.UserCode.Bindings
   LIBRARY_NAME Example.UserCode.Native

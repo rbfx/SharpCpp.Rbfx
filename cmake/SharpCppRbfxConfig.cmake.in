@@ -8,7 +8,7 @@ set(_sharpcpp_rbfx_include_dir "@PACKAGE__rbfx_sdk_include_dir@")
 
 include(CMakeFindDependencyMacro)
 
-# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpApplication.cmake, RbfxCSharpProject.cmake, RbfxCSharpAddUserCode.cmake and their helpers).
+# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpPlugin.cmake, RbfxCSharpLauncher.cmake, RbfxCSharpData.cmake, RbfxCSharpApplication.cmake, RbfxCSharpProject.cmake, RbfxCSharpAddWrapper.cmake and their helpers).
 set(_sharpcpp_rbfx_module_dir "@PACKAGE__rbfx_sdk_module_dir@")
 list(PREPEND CMAKE_MODULE_PATH "${_sharpcpp_rbfx_module_dir}")
 
@@ -38,12 +38,18 @@ include("${CMAKE_CURRENT_LIST_DIR}/SharpCppRbfxTargets.cmake")
 # The functions of RbfxCSharpDotNet.cmake run "dotnet".
 find_program(DOTNET_EXECUTABLE dotnet)
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpDotNet.cmake")
-# rbfx_csharp_add_application() links SharpCpp::RbfxHost, so it needs an SDK that has the host library.
+# rbfx_csharp_add_plugin() makes the C# plugin project.
+include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpPlugin.cmake")
+# rbfx_csharp_add_launcher() links SharpCpp::RbfxHost, so it needs an SDK that has the host library.
+include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpLauncher.cmake")
+# rbfx_csharp_add_data() makes the data target of an application (the paks on mobile and Web).
+include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpData.cmake")
+# rbfx_csharp_package_application() packages a launcher with a plugin and the data.
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpApplication.cmake")
 # rbfx_csharp_add_project(), rbfx_csharp_install_application() and rbfx_csharp_find_core_data().
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpProject.cmake")
 
-# rbfx_csharp_add_usercode(). The inputs come from this SDK and from the rbfx SDK of the consumer.
+# rbfx_csharp_add_wrapper(). The inputs come from this SDK and from the rbfx SDK of the consumer.
 if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
   set(RBFX_METADATA_FILE "${_sharpcpp_rbfx_data_dir}/metadata/SharpCpp.Rbfx.Bindings.json")
   set(RBFX_ENGINE_UMBRELLA_DIRECTORY "${_sharpcpp_rbfx_data_dir}/metadata")
@@ -122,13 +128,13 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
   endif()
 
   include("${_sharpcpp_rbfx_module_dir}/SharpCppOutput.cmake")
-  include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpAddUserCode.cmake")
+  include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpAddWrapper.cmake")
 
   unset(_sharpcpp_rbfx_flags_written)
 else()
   # A package-version SDK has no managed assemblies and no generator inputs.
-  function(rbfx_csharp_add_usercode target)
-    message(FATAL_ERROR "rbfx_csharp_add_usercode(${target}): this SharpCppRbfx SDK was built with a bindings package version. It has no managed assemblies and no user-code generator. Use an SDK from a build without RBFX_CSHARP_BINDINGS_PACKAGE_VERSION.")
+  function(rbfx_csharp_add_wrapper target)
+    message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): this SharpCppRbfx SDK was built with a bindings package version. It has no managed assemblies and no user-code generator. Use an SDK from a build without RBFX_CSHARP_BINDINGS_PACKAGE_VERSION.")
   endfunction()
 endif()
 

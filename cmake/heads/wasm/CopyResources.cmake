@@ -1,4 +1,4 @@
-# Copies the RESOURCES of an rbfx_csharp_add_application on Emscripten next to index.html and writes resources.json.
+# Copies the RESOURCES of an rbfx_csharp_package_application on Emscripten next to index.html and writes resources.json.
 # main.js reads the list and writes the files into the file system of Emscripten. The paths are the same as the
 # asset paths on Android: a file has its file name, a folder is a folder with its name.
 #

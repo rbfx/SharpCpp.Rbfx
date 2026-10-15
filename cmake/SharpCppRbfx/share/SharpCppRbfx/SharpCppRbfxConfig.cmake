@@ -46,10 +46,10 @@ if(NOT TARGET sharpcpp-rbfx-native-all)
 
   add_subdirectory("${SharpCppRbfx_SOURCE_ROOT}" "${CMAKE_BINARY_DIR}/SharpCppRbfx")
 endif()
-# The functions rbfx_csharp_add_project(), rbfx_csharp_add_application(), rbfx_csharp_add_plugin(), rbfx_csharp_add_dotnet_project() and rbfx_csharp_add_usercode()
+# The functions rbfx_csharp_add_project(), rbfx_csharp_package_application(), rbfx_csharp_add_plugin(), rbfx_csharp_add_launcher(), rbfx_csharp_add_data(), rbfx_csharp_add_plugin_build(), rbfx_csharp_add_dotnet_project() and rbfx_csharp_add_wrapper()
 # are global. The root CMakeLists.txt of this repository includes their modules.
 
-# rbfx_csharp_add_usercode() reads variables that the root CMakeLists.txt of the source tree sets in the
+# rbfx_csharp_add_wrapper() reads variables that the root CMakeLists.txt of the source tree sets in the
 # scope of its own directory. Copy them to the scope of this call. The list is the one that the function
 # checks. A later call, also from a sibling directory, copies them again.
 get_property(_sharpcpp_rbfx_input_variables GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_INPUT_VARIABLES)

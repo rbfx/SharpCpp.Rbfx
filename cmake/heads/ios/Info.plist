@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- The application manifest of the iOS head (rbfx_csharp_add_application). The build adds the bundle
+<!-- The application manifest of the iOS head (rbfx_csharp_package_application). The build adds the bundle
      identifier, the name and the minimum OS version from the properties of the head project. -->
 <plist version="1.0">
 <dict>

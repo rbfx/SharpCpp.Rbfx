@@ -70,30 +70,30 @@ function(rbfx_csharp_add_dotnet_project target)
   endif()
 endfunction()
 
-# rbfx_csharp_add_plugin(<target> PROJECT <csproj> HOST <executable target>
+# rbfx_csharp_add_plugin_build(<target> PROJECT <csproj> HOST <executable target>
 #   [PROPERTIES <Name=Value>...])
 #
 # PROPERTIES goes to rbfx_csharp_add_dotnet_project() as MSBuild properties (-p:Name=Value).
 # Builds a managed plugin next to the host executable. In the build tree of this repository, the target
 # builds with the target sharpcpp-rbfx-native, so a normal CMake build produces the plugin. In a consumer
 # project, the caller adds the target to the build (for example with add_dependencies).
-function(rbfx_csharp_add_plugin target)
+function(rbfx_csharp_add_plugin_build target)
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "PROJECT;HOST" "PROPERTIES")
   if(NOT arg_PROJECT OR NOT arg_HOST)
-    message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): PROJECT and HOST are required.")
+    message(FATAL_ERROR "rbfx_csharp_add_plugin_build(${target}): PROJECT and HOST are required.")
   endif()
   if(arg_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
+    message(FATAL_ERROR "rbfx_csharp_add_plugin_build(${target}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
 
   get_filename_component(plugin_name "${arg_PROJECT}" NAME_WLE)
   if(NOT TARGET ${arg_HOST})
-    message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): HOST '${arg_HOST}' is not a target.")
+    message(FATAL_ERROR "rbfx_csharp_add_plugin_build(${target}): HOST '${arg_HOST}' is not a target.")
   endif()
   # A generator expression with a target name does not work in BYPRODUCTS, so read the property.
   get_target_property(host_directory ${arg_HOST} RUNTIME_OUTPUT_DIRECTORY)
   if(NOT host_directory)
-    message(FATAL_ERROR "rbfx_csharp_add_plugin(${target}): HOST '${arg_HOST}' has no RUNTIME_OUTPUT_DIRECTORY.")
+    message(FATAL_ERROR "rbfx_csharp_add_plugin_build(${target}): HOST '${arg_HOST}' has no RUNTIME_OUTPUT_DIRECTORY.")
   endif()
   # The engine bindings project reads the generated sources and the plugin loads the native wrapper.
   # The target sharpcpp-rbfx-runtime exists only in the build tree of this repository. A consumer of the

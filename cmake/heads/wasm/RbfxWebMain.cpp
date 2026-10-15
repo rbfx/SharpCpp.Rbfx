@@ -1,4 +1,4 @@
-// The native entry of an rbfx_csharp_add_application on Emscripten. The function compiles this file into the
+// The native entry of an rbfx_csharp_package_application on Emscripten. The function compiles this file into the
 // application library together with SOURCES.
 //
 // The .NET runtime has its own main in dotnet.native.wasm. So the function compiles SOURCES with the definition

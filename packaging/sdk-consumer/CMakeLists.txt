@@ -24,10 +24,10 @@ target_include_directories(Greeter.Impl PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(Greeter.Impl PUBLIC Urho3D SharpCpp::RbfxHost)
 set_target_properties(Greeter.Impl PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-rbfx_csharp_add_usercode(Greeter
+rbfx_csharp_add_wrapper(Greeter
   HEADERS Greeter.hpp
   INCLUDE_DIRECTORIES .
-  LINK_LIBRARIES Greeter.Impl
+  IMPLEMENTATION Greeter.Impl
   NAMESPACE Consumer)
 
 # A cross build checks the libraries only. The application needs a target platform entry point.

@@ -9,7 +9,7 @@ import java.util.Arrays;
  * The SDL activity of the engine calls UrhoActivity.getLibraryNames to get the native libraries.
  * The .NET runtime puts its own libraries into the same folder, so this list is fixed and does not
  * scan the folder. The activity loads the libraries in this order. The last library has SDL_main.
- * rbfx_csharp_add_application generates this file.
+ * rbfx_csharp_package_application generates this file.
  */
 public class UrhoActivity extends SDLActivity {
     private static final String[] LIBRARIES = { @RBFX_HEAD_JAVA_LIBRARIES@ };

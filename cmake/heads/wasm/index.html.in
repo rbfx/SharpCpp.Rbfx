@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- The page of the WebAssembly head of @RBFX_HEAD_NAME@. rbfx_csharp_add_application generates it. -->
+<!-- The page of the WebAssembly head of @RBFX_HEAD_NAME@. rbfx_csharp_package_application generates it. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">

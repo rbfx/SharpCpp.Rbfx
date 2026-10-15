@@ -1,5 +1,5 @@
 <Project>
-  <!-- MSBuild properties of the managed plugin project of rbfx_csharp_add_application(). The generated
+  <!-- MSBuild properties of the managed plugin project of rbfx_csharp_package_application(). The generated
        SharpCppRbfx.Plugin.props of the application imports this file. A project that the user maintains
        (the keyword CSPROJ) imports SharpCppRbfx.Plugin.props with $(SharpCppRbfxPluginProps).
        CMake passes these MSBuild properties:

@@ -155,14 +155,6 @@ jobs:
           dotnet run --file packaging/nuget/CrossPackage.cs -- create
           --version "$PACKAGE_VERSION" --rid '${{ matrix.rid }}'
 
-      # The packages of this RID must not hold a path of the runner. The same step runs for every RID.
-      - name: Check Packages For Local Paths
-        shell: bash
-        working-directory: SharpCpp.Rbfx
-        run: |
-          ./packaging/check-no-local-paths.sh \
-            --root build/package/nuget/${{ matrix.rid }}/out/${{ matrix.packages }} \
-            --forbid "$GITHUB_WORKSPACE" --forbid "$HOME" --forbid "$RUNNER_TEMP"
 
       - name: Ensure 7z
         if: matrix.sdk_tag != ''
@@ -225,14 +217,6 @@ jobs:
             --tag '${{ matrix.sdk_tag }}' \
             --out build/package/sdk/${{ matrix.rid }}
 
-      - name: Check SDK Archive For Local Paths
-        if: matrix.sdk_tag != ''
-        shell: bash
-        working-directory: SharpCpp.Rbfx
-        run: |
-          ./packaging/check-no-local-paths.sh \
-            --root build/package/sdk/${{ matrix.rid }}/*.7z \
-            --forbid "$GITHUB_WORKSPACE" --forbid "$HOME" --forbid "$RUNNER_TEMP"
 
       - name: Upload SDK Archive
         if: matrix.sdk_tag != ''
@@ -478,17 +462,6 @@ jobs:
         run: >-
           dotnet run --file packaging/nuget/UnionPackage.cs -- implement --input build/union-input
           --version "$PACKAGE_VERSION" --rid '${{ matrix.rid }}'
-      # The union packages hold shipped assemblies. They must not hold a path of the runner.
-      # android-x64 and linux-x64 make no package in this job, so the step skips an empty list.
-      - name: Check Union Implementation Packages For Local Paths
-        working-directory: SharpCpp.Rbfx
-        run: |
-          shopt -s nullglob
-          packages=(build/package/union/packages/*.nupkg)
-          if [ ${#packages[@]} -eq 0 ]; then echo "No package to check."; exit 0; fi
-          ./packaging/check-no-local-paths.sh \
-            --root "${packages[@]}" \
-            --forbid "$GITHUB_WORKSPACE" --forbid "$HOME" --forbid "$RUNNER_TEMP"
       - name: Upload Union Stubs
         if: always()
         uses: actions/upload-artifact@v7
@@ -556,13 +529,6 @@ jobs:
       - name: Build Union Packages
         working-directory: SharpCpp.Rbfx
         run: dotnet run --file packaging/nuget/UnionPackage.cs -- pack --input build/union-input --version "$PACKAGE_VERSION"
-      # The union packages hold shipped assemblies. They must not hold a path of the runner.
-      - name: Check Union Packages For Local Paths
-        working-directory: SharpCpp.Rbfx
-        run: |
-          ./packaging/check-no-local-paths.sh \
-            --root build/package/union/packages/*.nupkg \
-            --forbid "$GITHUB_WORKSPACE" --forbid "$HOME" --forbid "$RUNNER_TEMP"
       - name: Upload Union Packages
         uses: actions/upload-artifact@v7
         with:

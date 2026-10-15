@@ -13,19 +13,21 @@ CONFIG_RELATIVE="share/Urho3D/CMake/Urho3DConfig.cmake"
 WEB_ASSET_REGEX='^rbfx-web-wasm-sdk-emscripten-.*-rbfx-.*\.7z$'
 STAMP_NAME=".rbfx-sdk.json"
 
-# RID to "<platform>-<compiler>-<arch>" part of the asset name.
-declare -A SDK_PLATFORMS=(
-  [linux-x64]="linux-gcc-x64"
-  [osx-arm64]="macos-clang-arm64"
-  [osx-x64]="macos-clang-x64"
-  [win-x64]="windows-msvc-x64"
-  [win-x86]="windows-msvc-x86"
-  [uap-x64]="uwp-msvc-x64"
-  [android-arm]="android-clang-arm"
-  [android-arm64]="android-clang-arm64"
-  [android-x64]="android-clang-x64"
-  [ios-arm64]="ios-clang-arm64"
-)
+# RID to "<platform>-<compiler>-<arch>" part of the asset name. Plain case: macOS bash 3.2 has no associative arrays.
+sdk_platform() {
+  case "$1" in
+    linux-x64) echo "linux-gcc-x64" ;;
+    osx-arm64) echo "macos-clang-arm64" ;;
+    osx-x64) echo "macos-clang-x64" ;;
+    win-x64) echo "windows-msvc-x64" ;;
+    win-x86) echo "windows-msvc-x86" ;;
+    uap-x64) echo "uwp-msvc-x64" ;;
+    android-arm) echo "android-clang-arm" ;;
+    android-arm64) echo "android-clang-arm64" ;;
+    android-x64) echo "android-clang-x64" ;;
+    ios-arm64) echo "ios-clang-arm64" ;;
+  esac
+}
 ALL_RIDS=(linux-x64 osx-arm64 osx-x64 win-x64 win-x86 uap-x64 android-arm android-arm64 android-x64 ios-arm64 browser-wasm)
 
 RIDS=()
@@ -39,7 +41,6 @@ PRINT_ROOT=0
 PRINT_CACHE_KEY=0
 
 TMP_DIR=""
-declare -A RELEASES=()
 
 # Result of resolve_rid.
 R_ASSET=""
@@ -155,11 +156,17 @@ curl_gh() {
   fi
 }
 
-# Fetch the release JSON of <repo> <tag> into RELEASES. Return 1 on a network or API failure.
+# Name of the variable that caches the release JSON of <repo> <tag>.
+release_var() {
+  echo "RELEASE_JSON_$(printf %s "$1_$2" | tr -c 'A-Za-z0-9\n' _)"
+}
+
+# Fetch the release JSON of <repo> <tag> into a cache variable. Return 1 on a network or API failure.
 fetch_release() {
   local repo="$1" tag="$2"
-  local key="$repo@$tag"
-  if [ -n "${RELEASES[$key]:-}" ]; then
+  local var
+  var="$(release_var "$repo" "$tag")"
+  if [ -n "${!var:-}" ]; then
     return 0
   fi
 
@@ -173,7 +180,7 @@ fetch_release() {
     fi
     return 1
   fi
-  RELEASES[$key]="$json"
+  printf -v "$var" %s "$json"
 }
 
 available_rids() {
@@ -182,7 +189,7 @@ available_rids() {
     if [ "$rid" = "browser-wasm" ]; then
       continue
     fi
-    platform="${SDK_PLATFORMS[$rid]}"
+    platform="$(sdk_platform "$rid")"
     for variant in dll lib; do
       asset="rebelfork-sdk-$platform-$variant-$RBFX_TAG.7z"
       if jq -e --arg n "$asset" 'any(.assets[]; .name == $n)' <<<"$json" >/dev/null; then
@@ -200,7 +207,7 @@ resolve_rid() {
 
   if [ "$rid" = "browser-wasm" ]; then
     fetch_release "$WEB_REPOSITORY" "$WEB_TAG" || return 1
-    json="${RELEASES[$WEB_REPOSITORY@$WEB_TAG]}"
+    json="$(release_var "$WEB_REPOSITORY" "$WEB_TAG")"; json="${!json}"
     entry="$(jq -c --arg re "$WEB_ASSET_REGEX" \
       '[.assets[] | select(.name | test($re))] | sort_by(.created_at) | last // empty' <<<"$json")"
     if [ -z "$entry" ]; then
@@ -209,9 +216,9 @@ resolve_rid() {
     R_REPO="$WEB_REPOSITORY"
     R_TAG="$WEB_TAG"
   else
-    local platform="${SDK_PLATFORMS[$rid]}" variant asset
+    local platform="$(sdk_platform "$rid")" variant asset
     fetch_release "$RBFX_REPOSITORY" "$RBFX_TAG" || return 1
-    json="${RELEASES[$RBFX_REPOSITORY@$RBFX_TAG]}"
+    json="$(release_var "$RBFX_REPOSITORY" "$RBFX_TAG")"; json="${!json}"
 
     case "$LINK" in
       auto)

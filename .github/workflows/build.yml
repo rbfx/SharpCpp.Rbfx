@@ -960,6 +960,71 @@ jobs:
           cmake_cache_vars: |
             SAMPLE_PROJECT_CSHARP:BOOL=ON
 
+  Sample-Android:
+    name: Sample (${{ matrix.rid }})
+    needs: [Package]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [android-arm64]
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+
+      - name: Checkout Sample
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/sample-project
+          path: sample-project
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Native Toolchain
+        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
+        with:
+          rid: ${{ matrix.rid }}
+
+      - name: Ensure 7z
+        uses: ./SharpCpp.Rbfx/.github/actions/ensure-7z
+
+      - name: Download SDK Archive
+        uses: actions/download-artifact@v8
+        with:
+          name: sdk-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/sdk-archive
+
+      - name: Build Sample
+        timeout-minutes: 60
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cd SharpCpp.Rbfx
+          rbfx_root="$(./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}' --print-root)"
+          host_root="$(./eng/fetch-rbfx-sdk.sh --rid linux-x64 --print-root)"
+          cd ..
+          archives=(SharpCpp.Rbfx/build/sdk-archive/*.7z)
+          test "${#archives[@]}" -eq 1
+          mkdir -p sdk-extract
+          (cd sdk-extract && 7z x -y "../${archives[0]}" >/dev/null)
+          roots=(sdk-extract/*/)
+          test "${#roots[@]}" -eq 1
+          sdk_root="$(cd "${roots[0]}" && pwd)"
+          toolchain="$PWD/SharpCpp.Rbfx/cmake/toolchains/${{ matrix.rid }}.cmake"
+          cmake -S sample-project -B sample-build -GNinja -DCMAKE_BUILD_TYPE=Release \
+            "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DBUILD_SHARED_LIBS=ON \
+            -DSAMPLE_PROJECT_CSHARP=ON "-DCMAKE_PREFIX_PATH=$rbfx_root;$host_root;$sdk_root"
+          cmake --build sample-build
+
   Publish-NuGet:
     name: Publish NuGet Packages
     needs: [Union, Smoke, Cross-Consumer, E2E]

@@ -935,8 +935,13 @@ jobs:
           (cd sdk-extract && 7z x -y "../${archives[0]}" >/dev/null)
           roots=(sdk-extract/*/)
           test "${#roots[@]}" -eq 1
+          sharpcpp_root="$(cd "${roots[0]}" && pwd)"
+          if command -v cygpath >/dev/null 2>&1; then
+            rbfx_root="$(cygpath -m "$rbfx_root")"
+            sharpcpp_root="$(cygpath -m "$sharpcpp_root")"
+          fi
           echo "RBFX_SDK_ROOT=$rbfx_root" >> "$GITHUB_ENV"
-          echo "SHARPCPP_SDK_ROOT=$(cd "${roots[0]}" && pwd)" >> "$GITHUB_ENV"
+          echo "SHARPCPP_SDK_ROOT=$sharpcpp_root" >> "$GITHUB_ENV"
 
       - name: Prepare rbfx environment
         uses: rbfx/ci/.github/actions/ci-prepare-platform@v1

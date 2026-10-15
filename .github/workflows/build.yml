@@ -22,7 +22,7 @@ env:
 jobs:
   Version:
     name: Version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -68,7 +68,7 @@ jobs:
         # The generators run on the host. The SDK of an Android entry is built and checked, and never runs.
         include:
           - rid: linux-x64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             sdk_tag: linux-gcc-x64-dll
             packages: '*.nupkg'
           - rid: osx-arm64
@@ -83,17 +83,17 @@ jobs:
             runs_on: windows-2022
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: android-arm
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             cross: true
             sdk_tag: android-clang-arm-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: android-arm64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             cross: true
             sdk_tag: android-clang-arm64-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: android-x64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             cross: true
             sdk_tag: android-clang-x64-dll
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
@@ -102,7 +102,7 @@ jobs:
             cross: true
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
           - rid: browser-wasm
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             cross: true
             packages: 'SharpCpp.Rbfx.Bindings.runtime.*.nupkg'
     steps:
@@ -287,7 +287,7 @@ jobs:
         # This job does not block the union job. The release jobs wait for it.
         include:
           - rid: linux-x64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
           - rid: osx-arm64
             runs_on: macos-latest
           - rid: win-x64
@@ -352,7 +352,7 @@ jobs:
   # build/package/union, so the packages are the same as from one UnionPackage.cs create run.
   Union-Test:
     name: Union Generator Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout SharpCpp
         uses: actions/checkout@v5
@@ -370,7 +370,7 @@ jobs:
   Union-Reference:
     name: Union Reference
     needs: [Package]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       platforms: ${{ steps.reference.outputs.platforms }}
       sharpcpp: ${{ steps.reference.outputs.sharpcpp }}
@@ -434,7 +434,7 @@ jobs:
   Union-Implementation:
     name: Union Implementation (${{ matrix.rid }})
     needs: [Union-Reference, Version]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
     strategy:
@@ -510,7 +510,7 @@ jobs:
   Union:
     name: Union API and Packages
     needs: [Union-Reference, Union-Implementation, Union-Test, Version]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       PACKAGE_VERSION: ${{ needs.Version.outputs.version }}
     steps:
@@ -581,7 +581,7 @@ jobs:
       matrix:
         include:
           - rid: linux-x64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
           - rid: osx-arm64
             runs_on: macos-latest
           - rid: win-x64
@@ -624,7 +624,7 @@ jobs:
       matrix:
         include:
           - rid: linux-x64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             project: Rbfx.Examples/Example.Desktop/Example.Desktop.csproj
           - rid: osx-arm64
             runs_on: macos-latest
@@ -634,17 +634,17 @@ jobs:
             project: Rbfx.Examples/Example.Desktop/Example.Desktop.csproj
           - rid: android-arm
             workload: android
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             project: Rbfx.Examples/Example.Android/Example.Android.csproj
             verify: true
           - rid: android-arm64
             workload: android
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             project: Rbfx.Examples/Example.Android/Example.Android.csproj
             verify: true
           - rid: android-x64
             workload: android
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             project: Rbfx.Examples/Example.Android/Example.Android.csproj
             verify: true
           - rid: ios-arm64
@@ -654,7 +654,7 @@ jobs:
             verify: true
           - rid: browser-wasm
             workload: wasm-tools
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             project: Rbfx.Examples/Example.Wasm/Example.Wasm.csproj
             verify: true
           - rid: uap-x64
@@ -802,19 +802,19 @@ jobs:
         # An entry with toolchain is a cross build. The consumer is built and not run.
         include:
           - rid: linux-x64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
           - rid: osx-arm64
             runs_on: macos-latest
           - rid: win-x64
             runs_on: windows-latest
           - rid: android-arm
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             toolchain: cmake/toolchains/android-arm.cmake
           - rid: android-arm64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             toolchain: cmake/toolchains/android-arm64.cmake
           - rid: android-x64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             toolchain: cmake/toolchains/android-x64.cmake
     steps:
       - name: Checkout SharpCpp.Rbfx
@@ -869,7 +869,7 @@ jobs:
 
   Sample-Matrix:
     name: Sample Matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.prepare.outputs.matrix }}
     steps:
@@ -885,7 +885,8 @@ jobs:
   Sample:
     name: Sample (${{ matrix.ci_job_name }})
     needs: [Package, Sample-Matrix]
-    runs-on: ${{ matrix.runs_on }}
+    # The shared matrix names ubuntu-latest. Pin the Linux runner to an older glibc.
+    runs-on: ${{ matrix.runs_on == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.runs_on }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.Sample-Matrix.outputs.matrix) }}
@@ -966,7 +967,7 @@ jobs:
   Sample-Android:
     name: Sample (${{ matrix.rid }})
     needs: [Package]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -1059,7 +1060,7 @@ jobs:
     name: Publish NuGet Packages
     needs: [Union, Smoke, Cross-Consumer, E2E]
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write
     steps:
@@ -1094,7 +1095,7 @@ jobs:
     name: Release Latest
     needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Sample, Sample-Android]
     if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: rbfx-sharpcpp-latest-release
       cancel-in-progress: false
@@ -1154,7 +1155,7 @@ jobs:
     name: Release Tag
     needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Version]
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:

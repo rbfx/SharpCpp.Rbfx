@@ -17,7 +17,7 @@ env:
 jobs:
   Update:
     name: Build and upload rbfx Wasm SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout SharpCpp.Rbfx
         uses: actions/checkout@v5

@@ -1,6 +1,3 @@
-# The folder of this file. The templates of the application heads are in heads/ next to it.
-set(_rbfx_csharp_application_dir "${CMAKE_CURRENT_LIST_DIR}")
-
 # One call per application: native executable that hosts the .NET runtime and loads a C# plugin.
 # On Android the call makes an APK: a .NET Android head starts the runtime and loads the native application.
 # On Emscripten the call makes a web folder: a .NET WebAssembly head starts the runtime, and the native application
@@ -351,7 +348,7 @@ function(_rbfx_csharp_add_android_application name)
   endforeach()
 
   # The head project. configure_file sets the values, file(GENERATE) evaluates the generator expressions.
-  set(template_dir "${_rbfx_csharp_application_dir}/heads/android")
+  set(template_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/heads/android")
   set(RBFX_HEAD_NAME "${name}")
   set(RBFX_HEAD_RID "${rid}")
   set(RBFX_HEAD_MIN_API "${min_api}")
@@ -458,7 +455,7 @@ function(_rbfx_csharp_add_wasm_application name)
     message(FATAL_ERROR "rbfx_csharp_add_application(${name}): Emscripten needs the static engine SDK.")
   endif()
 
-  set(template_dir "${_rbfx_csharp_application_dir}/heads/wasm")
+  set(template_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/heads/wasm")
   set(head_dir "${CMAKE_BINARY_DIR}/heads/${name}")
   # The C name of the native entry. heads/wasm/RbfxWebMain.cpp defines it.
   set(entry rbfx_application_start)
@@ -612,7 +609,7 @@ function(_rbfx_csharp_add_ios_application name)
     set(application_id "org.rbfx.${application_id}")
   endif()
 
-  set(template_dir "${_rbfx_csharp_application_dir}/heads/ios")
+  set(template_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/heads/ios")
   set(head_dir "${CMAKE_BINARY_DIR}/heads/${name}")
 
   # The application code. The head force-loads the archive, so a source file with only static registrations stays

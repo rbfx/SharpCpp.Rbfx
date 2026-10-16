@@ -668,7 +668,7 @@ jobs:
           test -n "$key"
           echo "key=$key" >> "$GITHUB_OUTPUT"
       - name: Cache rbfx SDK
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: SharpCpp.Rbfx/build/sdk/${{ matrix.rid }}
           key: rbfx-sdk-${{ runner.os }}-${{ steps.sdk-key.outputs.key }}
@@ -998,6 +998,12 @@ jobs:
             ${{ env.RBFX_HOST_SDK_ROOT }}
             ${{ env.SHARPCPP_SDK_ROOT }}
 
+      # The prepare step sets up no CMake on Android. The image CMake 3.31 does not know CMAKE_POLICY_VERSION_MINIMUM.
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: 4.4.3
+
       - name: Install Android NDK
         shell: bash
         run: |
@@ -1025,7 +1031,7 @@ jobs:
           toolchain="$PWD/SharpCpp.Rbfx/cmake/toolchains/${{ matrix.rid }}.cmake"
           cmake -S sample-project -B sample-build -GNinja -DCMAKE_BUILD_TYPE=Release \
             "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DBUILD_SHARED_LIBS=ON -DSAMPLE_PROJECT_CSHARP=ON \
-            -DCMAKE_POLICY_DEFAULT_CMP0127=NEW \
+            -DCMAKE_POLICY_DEFAULT_CMP0127=NEW -DCMAKE_POLICY_VERSION_MINIMUM=3.10 \
             "-DCMAKE_PREFIX_PATH=$RBFX_SDK_ROOT;$RBFX_HOST_SDK_ROOT;$SHARPCPP_SDK_ROOT" \
             "-DCMAKE_FIND_ROOT_PATH=$RBFX_SDK_ROOT;$RBFX_HOST_SDK_ROOT;$SHARPCPP_SDK_ROOT"
           cmake --build sample-build

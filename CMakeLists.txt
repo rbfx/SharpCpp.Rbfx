@@ -23,6 +23,10 @@ else()
   set(_rbfx_build_host_default ON)
 endif()
 option(RBFX_BUILD_HOST "Build the SharpCpp.Rbfx.Host library that hosts the .NET runtime." ${_rbfx_build_host_default})
+# Build-tree fallback of the dotnet root. Turn it OFF for a build that you install and ship,
+# because the host library would carry a path of the build machine. The shim mode has no such fallback.
+# The root file defines the option, so a build without the host library does not report the argument as unused.
+option(RBFX_HOST_DEFAULT_DOTNET_ROOT "Compile the dotnet root of this machine into the host library as a fallback." ON)
 if(RBFX_BUILD_HOST AND PROJECT_IS_TOP_LEVEL)
   set(_rbfx_install_sdk_default ON)
 else()

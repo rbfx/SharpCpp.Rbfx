@@ -1,3 +1,8 @@
+# CMP0207 NEW normalizes paths before the filter regexes in file(GET_RUNTIME_DEPENDENCIES). Paths use "/" as separator.
+if(POLICY CMP0207)
+  cmake_policy(SET CMP0207 NEW)
+endif()
+
 set(sdk_root "@RBFX_ENGINE_ROOT@")
 
 # The files go next to the target by default. The install rules set destination_dir to copy them to the install prefix.

@@ -32,10 +32,6 @@ runs:
       shell: bash
       run: brew install bash ninja
 
-    - name: Setup MSVC
-      if: runner.os == 'Windows'
-      uses: ilammy/msvc-dev-cmd@v1
-
     - name: Install Android NDK
       if: startsWith(inputs.rid, 'android-')
       shell: bash

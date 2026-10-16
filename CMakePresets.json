@@ -7,20 +7,26 @@
   },
   "configurePresets": [
     {
-      "name": "base",
+      "name": "base-ninja",
       "hidden": true,
       "generator": "Ninja Multi-Config"
     },
     {
+      "name": "base-visual-studio-x64",
+      "hidden": true,
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      }
+    },
+    {
       "name": "base-native",
       "hidden": true,
-      "inherits": "base",
       "binaryDir": "${sourceDir}/build/native/${presetName}"
     },
     {
       "name": "base-cross",
       "hidden": true,
-      "inherits": "base",
       "binaryDir": "${sourceDir}/build/cross/${presetName}"
     },
     {
@@ -43,6 +49,7 @@
       "name": "linux-gcc-x64-dll",
       "inherits": [
         "base-native",
+        "base-ninja",
         "base-gcc"
       ],
       "condition": {
@@ -55,6 +62,7 @@
       "name": "macos-clang-arm64-dll",
       "inherits": [
         "base-native",
+        "base-ninja",
         "base-clang"
       ],
       "condition": {
@@ -65,7 +73,10 @@
     },
     {
       "name": "windows-msvc-x64-dll",
-      "inherits": "base-native",
+      "inherits": [
+        "base-native",
+        "base-visual-studio-x64"
+      ],
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -74,22 +85,34 @@
     },
     {
       "name": "android-clang-arm-dll",
-      "inherits": "base-cross",
+      "inherits": [
+        "base-cross",
+        "base-ninja"
+      ],
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm.cmake"
     },
     {
       "name": "android-clang-arm64-dll",
-      "inherits": "base-cross",
+      "inherits": [
+        "base-cross",
+        "base-ninja"
+      ],
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm64.cmake"
     },
     {
       "name": "android-clang-x64-dll",
-      "inherits": "base-cross",
+      "inherits": [
+        "base-cross",
+        "base-ninja"
+      ],
       "toolchainFile": "${sourceDir}/cmake/toolchains/android-x64.cmake"
     },
     {
       "name": "ios-clang-arm64-lib",
-      "inherits": "base-cross",
+      "inherits": [
+        "base-cross",
+        "base-ninja"
+      ],
       "cacheVariables": {
         "PLATFORM": "OS64",
         "DEPLOYMENT_TARGET": "15.0"
@@ -97,12 +120,18 @@
     },
     {
       "name": "web-emscripten-wasm-lib",
-      "inherits": "base-cross",
+      "inherits": [
+        "base-cross",
+        "base-ninja"
+      ],
       "toolchainFile": "${sourceDir}/cmake/toolchains/browser-wasm.cmake"
     },
     {
       "name": "uwp-msvc-x64-dll",
-      "inherits": "base-cross",
+      "inherits": [
+        "base-cross",
+        "base-visual-studio-x64"
+      ],
       "toolchainFile": "${sourceDir}/cmake/toolchains/uap-x64.cmake"
     }
   ],

@@ -78,20 +78,18 @@ public static class PluginRuntime
     // the head makes the plugin assembly a trimmer root. Thus Assembly.GetTypes sees all types with their public constructors.
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The plugin assembly is a trimmer root, so GetTypes returns all of its types.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The plugin assembly is a trimmer root, so its types keep their public constructors.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2073", Justification = "The plugin assembly is a trimmer root, so its types keep their public constructors.")]
     public static Type FindPluginType(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
         if (assembly.GetCustomAttribute<PluginModuleAttribute>() is { } module)
         {
-            if (!IsPluginType(module.PluginType))
+            if (!IsPluginType(KeepPublicConstructors(module.PluginType)))
             {
                 throw new InvalidOperationException(
                     $"The PluginModule type '{module.PluginType}' of '{assembly.GetName().Name}' is not a concrete Plugin with a public constructor that takes a Context.");
             }
 
-            return module.PluginType;
+            return KeepPublicConstructors(module.PluginType);
         }
 
         Type?[] types;
@@ -106,9 +104,9 @@ public static class PluginRuntime
 
         foreach (var type in types)
         {
-            if (type is not null && IsPluginType(type))
+            if (type is not null && IsPluginType(KeepPublicConstructors(type)))
             {
-                return type;
+                return KeepPublicConstructors(type);
             }
         }
 
@@ -128,6 +126,13 @@ public static class PluginRuntime
         var type = FindPluginType(assembly);
         return (Plugin)Activator.CreateInstance(type, context)!;
     }
+
+    // Both the trimmer and the analyzer report a parameter value that flows to an annotated return value as IL2068.
+    // The trimmer reports other value sources (an array element, a property) with different codes than the analyzer.
+    // This method gives all call sites the same value source.
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+    [UnconditionalSuppressMessage("Trimming", "IL2068", Justification = "The plugin assembly is a trimmer root, so its types keep their public constructors.")]
+    private static Type KeepPublicConstructors(Type type) => type;
 
     private static bool IsPluginType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type) =>
         type.IsClass && !type.IsAbstract && !type.ContainsGenericParameters && type.IsSubclassOf(typeof(Plugin)) &&

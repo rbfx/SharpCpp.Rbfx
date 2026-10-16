@@ -58,6 +58,10 @@ else()
   endif()
 endif()
 
+# Idle MSBuild nodes of the Visual Studio generator keep the output pipe open for about 15 minutes after the build.
+# The calling Exec task waits for that pipe.
+set(ENV{MSBUILDDISABLENODEREUSE} 1)
+
 if(_configure_native)
   set(_configure_command
     "${CMAKE_COMMAND}"

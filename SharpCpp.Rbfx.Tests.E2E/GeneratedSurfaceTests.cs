@@ -8,8 +8,8 @@ public sealed class GeneratedSurfaceTests
     [Fact]
     public void EventHandler_keeps_supported_surface_and_instantiates_subscribe_templates()
     {
-        var managedContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Object.g.cs"));
-        var nativeContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Object.g.cpp"));
+        var managedContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Core.Object.g.cs"));
+        var nativeContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Core.Object.g.cpp"));
 
         Assert.Contains("template <class T> EventHandler(Object *receiver, T handler) // excluded", managedContent, StringComparison.Ordinal);
         Assert.Contains("public global::Urho3D.Math.StringHash EventType", managedContent, StringComparison.Ordinal);
@@ -76,7 +76,7 @@ public sealed class GeneratedSurfaceTests
     [Fact]
     public void Spline_keeps_current_supported_surface()
     {
-        var content = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Spline.g.cs"));
+        var content = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Core.Spline.g.cs"));
 
         Assert.Contains("public global::Urho3D.Core.Variant GetPoint(float f)", content, StringComparison.Ordinal);
         Assert.Contains("public global::Urho3D.Core.InterpolationMode InterpolationMode", content, StringComparison.Ordinal);
@@ -90,7 +90,7 @@ public sealed class GeneratedSurfaceTests
     [Fact]
     public void Tetrahedron_binds_fixed_size_array_reference_parameter()
     {
-        var content = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Math", "SharpCpp.Rbfx.TetrahedralMesh.g.cs"));
+        var content = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Math", "SharpCpp.Rbfx.Math.TetrahedralMesh.g.cs"));
 
         Assert.Contains("public void GetTriangleFaceIndices(uint faceIndex, global::SharpCpp.NativeArray<uint> indices)", content, StringComparison.Ordinal);
 
@@ -107,8 +107,8 @@ public sealed class GeneratedSurfaceTests
     [Fact]
     public void Context_generates_default_constructor_surface()
     {
-        var managedContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Context.g.cs"));
-        var nativeContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Context.g.cpp"));
+        var managedContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Core.Context.g.cs"));
+        var nativeContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Core", "SharpCpp.Rbfx.Core.Context.g.cpp"));
 
         Assert.Contains("public Context()", managedContent, StringComparison.Ordinal);
         Assert.Contains("__PInvoke.Context()", managedContent, StringComparison.Ordinal);
@@ -118,8 +118,8 @@ public sealed class GeneratedSurfaceTests
     [Fact]
     public void Macro_headers_generate_engine_constants_and_events()
     {
-        var defsContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Engine", "SharpCpp.Rbfx.EngineDefs.g.cs"));
-        var eventsContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Engine", "SharpCpp.Rbfx.EngineEvents.g.cs"));
+        var defsContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Engine", "SharpCpp.Rbfx.Engine.EngineDefs.g.cs"));
+        var eventsContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "Engine", "SharpCpp.Rbfx.Engine.EngineEvents.g.cs"));
 
         Assert.Contains("public static partial class EngineDefs", defsContent, StringComparison.Ordinal);
         Assert.Contains("public const string FullScreen = \"FullScreen\";", defsContent, StringComparison.Ordinal);
@@ -142,10 +142,10 @@ public sealed class GeneratedSurfaceTests
             return;
         }
 
-        var documentContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.Core.ElementDocument.g.cs"));
-        var contextContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.Core.Context.g.cs"));
+        var documentContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.ThirdParty.RmlUi.Core.ElementDocument.g.cs"));
+        var contextContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.ThirdParty.RmlUi.Core.Context.g.cs"));
         var aliasContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "SharpCpp.Rbfx.Bindings.Aliases.g.cs"));
-        var variantContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.Core.Variant.g.cs"));
+        var variantContent = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "RmlUi", "SharpCpp.Rbfx.ThirdParty.RmlUi.Core.Variant.g.cs"));
 
         Assert.Contains("namespace Rml", documentContent, StringComparison.Ordinal);
         Assert.Contains("public partial class ElementDocument", documentContent, StringComparison.Ordinal);
@@ -170,7 +170,7 @@ public sealed class GeneratedSurfaceTests
             return;
         }
 
-        var content = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "ImGui", "SharpCpp.Rbfx.imgui.g.cs"));
+        var content = File.ReadAllText(Path.Combine(GetGeneratedDir(), "ThirdParty", "ImGui", "SharpCpp.Rbfx.ThirdParty.ImGui.imgui.g.cs"));
 
         Assert.Contains("namespace ImGuiNet", content, StringComparison.Ordinal);
         Assert.Contains("public static partial class ImGui", content, StringComparison.Ordinal);

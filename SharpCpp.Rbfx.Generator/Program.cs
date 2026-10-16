@@ -604,7 +604,7 @@ internal static class Program
 
         if (pathParts.Length >= 3 && string.Equals(pathParts[0], "ThirdParty", StringComparison.Ordinal))
         {
-            return $"ThirdParty/{pathParts[1]}/{GeneratedFileStem}.{string.Join('.', pathParts.Skip(2))}";
+            return $"ThirdParty/{pathParts[1]}/{GeneratedFileStem}.ThirdParty.{pathParts[1]}.{string.Join('.', pathParts.Skip(2))}";
         }
 
         if (pathParts.Length == 1)
@@ -612,6 +612,7 @@ internal static class Program
             return $"{GeneratedFileStem}.{pathParts[0]}";
         }
 
-        return $"{pathParts[0]}/{GeneratedFileStem}.{string.Join('.', pathParts.Skip(1))}";
+        // The directory is part of the file name. Object files of the sources share one directory in some generators.
+        return $"{pathParts[0]}/{GeneratedFileStem}.{pathParts[0]}.{string.Join('.', pathParts.Skip(1))}";
     }
 }

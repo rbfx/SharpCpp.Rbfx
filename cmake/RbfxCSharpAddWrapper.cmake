@@ -483,6 +483,10 @@ function(rbfx_csharp_add_wrapper target)
       # A unity source of the generated wrappers exceeds the section limit of the default object format.
       target_compile_options(${target} PRIVATE /bigobj)
     endif()
+    if(CMAKE_GENERATOR MATCHES "Visual Studio")
+      # The Visual Studio generator compiles sources one by one without /MP.
+      target_compile_options(${target} PRIVATE "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/MP>")
+    endif()
     set_target_properties(
       ${target}
       PROPERTIES

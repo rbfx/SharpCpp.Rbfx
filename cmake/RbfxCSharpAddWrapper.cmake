@@ -426,7 +426,7 @@ function(rbfx_csharp_add_wrapper target)
   set(generated_cpp_options
       "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-attributes>"
       # A unity source of the generated wrappers exceeds the section limit of the default object format.
-      "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/bigobj>")
+      "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/bigobj;/wd5030>")
   set(wrapper_properties
       SHARPCPP_RBFX_GENERATED_DIR "${generated_root}"
       SHARPCPP_RBFX_WRAPPER_ASSEMBLY "${WRAP_ASSEMBLY_NAME}"
@@ -481,7 +481,7 @@ function(rbfx_csharp_add_wrapper target)
     target_compile_features(${target} PRIVATE cxx_std_20)
     if(MSVC)
       # A unity source of the generated wrappers exceeds the section limit of the default object format.
-      target_compile_options(${target} PRIVATE /bigobj)
+      target_compile_options(${target} PRIVATE /bigobj /wd5030)
     endif()
     if(CMAKE_GENERATOR MATCHES "Visual Studio")
       # The Visual Studio generator compiles sources one by one without /MP.

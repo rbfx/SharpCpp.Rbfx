@@ -467,6 +467,7 @@ function(_rbfx_csharp_add_android_application name)
     --nologo
     -p:RbfxNativeBuildDriver=cmake
     "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
+    "-p:RbfxNativeConfiguration=$<CONFIG>"
     -p:UseSharedCompilation=false
     -nodeReuse:false)
   if(RBFX_CSHARP_ANDROID_SDK_DIR)
@@ -579,6 +580,7 @@ function(_rbfx_csharp_add_wasm_application name)
     --nologo
     -p:RbfxNativeBuildDriver=cmake
     "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
+    "-p:RbfxNativeConfiguration=$<CONFIG>"
     -p:RbfxTargetRid=browser-wasm
     -p:UseSharedCompilation=false
     -nodeReuse:false)
@@ -704,6 +706,7 @@ function(_rbfx_csharp_add_ios_application name)
     --nologo
     -p:RbfxNativeBuildDriver=cmake
     "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
+    "-p:RbfxNativeConfiguration=$<CONFIG>"
     "-p:RbfxTargetRid=${rid}"
     -p:UseSharedCompilation=false
     -nodeReuse:false)

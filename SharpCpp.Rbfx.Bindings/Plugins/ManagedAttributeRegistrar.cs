@@ -1,9 +1,11 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using SharpCpp.Rbfx.Bindings.Interop;
 using SharpCpp.Support;
 
 using Urho3D.Core;
+using Urho3D.Math;
 using Urho3D.Scene;
 
 using TypeInfo = Urho3D.Core.TypeInfo;
@@ -160,7 +162,7 @@ internal static class ManagedAttributeRegistrar
             return;
         }
 
-        var binding = (ManagedAttributeBinding)CreateBindingMethod.MakeGenericMethod(type, valueType).Invoke(null, [member, converter])!;
+        var binding = CreateBindingFor(type, valueType, member, converter);
         var name = attribute.Name ?? member.Name;
         using var defaultValue = (defaults is not null ? binding.ReadValue(defaults) : null) ?? new Variant(variantType);
         using var accessor = ManagedAttributeAccessor.Create(binding);
@@ -168,6 +170,35 @@ internal static class ManagedAttributeRegistrar
         {
             ManagedAttributeAccessor.LogWarning($"The reflection of {type.FullName} did not accept the attribute '{name}'.");
         }
+    }
+
+    // Enum values are boxed by the enum converter, so every enum maps to the object binding.
+    // The known value types use direct generic calls, which AOT compilers can see.
+    private static ManagedAttributeBinding CreateBindingFor(Type type, Type valueType, MemberInfo member, object converter)
+    {
+        var bindingType = valueType.IsEnum ? typeof(object) : valueType;
+        if (bindingType == typeof(bool)) return CreateBinding<Serializable, bool>(member, converter);
+        if (bindingType == typeof(int)) return CreateBinding<Serializable, int>(member, converter);
+        if (bindingType == typeof(long)) return CreateBinding<Serializable, long>(member, converter);
+        if (bindingType == typeof(float)) return CreateBinding<Serializable, float>(member, converter);
+        if (bindingType == typeof(double)) return CreateBinding<Serializable, double>(member, converter);
+        if (bindingType == typeof(string)) return CreateBinding<Serializable, string>(member, converter);
+        if (bindingType == typeof(Vector2)) return CreateBinding<Serializable, Vector2>(member, converter);
+        if (bindingType == typeof(Vector3)) return CreateBinding<Serializable, Vector3>(member, converter);
+        if (bindingType == typeof(Vector4)) return CreateBinding<Serializable, Vector4>(member, converter);
+        if (bindingType == typeof(Quaternion)) return CreateBinding<Serializable, Quaternion>(member, converter);
+        if (bindingType == typeof(Color)) return CreateBinding<Serializable, Color>(member, converter);
+        if (bindingType == typeof(IntVector2)) return CreateBinding<Serializable, IntVector2>(member, converter);
+        if (bindingType == typeof(IntVector3)) return CreateBinding<Serializable, IntVector3>(member, converter);
+        if (bindingType == typeof(object)) return CreateBinding<Serializable, object>(member, converter);
+
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            throw new NotSupportedException(
+                $"The attribute value type {valueType.FullName} of {type.FullName}.{member.Name} needs dynamic code, which this runtime does not support.");
+        }
+
+        return (ManagedAttributeBinding)CreateBindingMethod.MakeGenericMethod(type, bindingType).Invoke(null, [member, converter])!;
     }
 
     private static ManagedAttributeBinding CreateBinding<TOwner, TValue>(MemberInfo member, object converter)

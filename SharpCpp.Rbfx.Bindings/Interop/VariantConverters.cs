@@ -62,10 +62,7 @@ internal static class VariantConverters
             var underlying = Enum.GetUnderlyingType(type);
             if (underlying == typeof(int) || underlying == typeof(uint))
             {
-                converter = typeof(VariantConverters)
-                    .GetMethod(nameof(CreateEnumConverter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                    .MakeGenericMethod(type)
-                    .Invoke(null, null)!;
+                converter = CreateEnumConverter(type, underlying == typeof(uint));
                 variantType = VariantType.VarInt;
                 enumNames = GetSequentialEnumNames(type);
                 return true;
@@ -101,17 +98,15 @@ internal static class VariantConverters
         return text.ToString();
     }
 
-    private static VariantConverter<TEnum> CreateEnumConverter<TEnum>()
-        where TEnum : struct, Enum
+    // The enum converter works on boxed values, so it needs no generic instantiation over the enum type.
+    private static VariantConverter<object> CreateEnumConverter(Type enumType, bool isUnsigned)
     {
-        return new VariantConverter<TEnum>(
+        return new VariantConverter<object>(
             VariantType.VarInt,
-            static value => new Variant(Unsafe.As<TEnum, int>(ref value)),
-            static variant =>
-            {
-                var raw = variant.Int;
-                return Unsafe.As<int, TEnum>(ref raw);
-            });
+            static value => new Variant(unchecked((int)Convert.ToInt64(value))),
+            isUnsigned
+                ? variant => Enum.ToObject(enumType, unchecked((uint)variant.Int))
+                : variant => Enum.ToObject(enumType, variant.Int));
     }
 
     private static string[]? GetSequentialEnumNames(Type type)
@@ -140,21 +135,54 @@ internal static class VariantConverters
 internal sealed class ManagedAttributeBinding<TOwner, TValue> : ManagedAttributeBinding
     where TOwner : global::Urho3D.Scene.Serializable
 {
-    /// <summary>Compiles a typed getter and setter for the field or property.</summary>
+    /// <summary>
+    /// Creates a typed getter and setter for the field or property. It compiles them when the runtime supports dynamic code,
+    /// else it uses reflection.
+    /// </summary>
     public static ManagedAttributeBinding<TOwner, TValue> Create(System.Reflection.MemberInfo member, VariantConverter<TValue> converter)
     {
-        var owner = System.Linq.Expressions.Expression.Parameter(typeof(TOwner), "owner");
-        var value = System.Linq.Expressions.Expression.Parameter(typeof(TValue), "value");
-        System.Linq.Expressions.MemberExpression access = member switch
+        if (member is not (System.Reflection.FieldInfo or System.Reflection.PropertyInfo))
         {
-            System.Reflection.FieldInfo field => System.Linq.Expressions.Expression.Field(owner, field),
-            System.Reflection.PropertyInfo property => System.Linq.Expressions.Expression.Property(owner, property),
-            _ => throw new ArgumentException($"The member '{member.Name}' is not a field or a property.", nameof(member)),
-        };
+            throw new ArgumentException($"The member '{member.Name}' is not a field or a property.", nameof(member));
+        }
 
-        var getter = System.Linq.Expressions.Expression.Lambda<Func<TOwner, TValue>>(access, owner).Compile();
-        var setter = System.Linq.Expressions.Expression.Lambda<Action<TOwner, TValue>>(
-            System.Linq.Expressions.Expression.Assign(access, value), owner, value).Compile();
+        Func<TOwner, TValue> getter;
+        Action<TOwner, TValue> setter;
+        if (System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+        {
+            var owner = System.Linq.Expressions.Expression.Parameter(typeof(TOwner), "owner");
+            var value = System.Linq.Expressions.Expression.Parameter(typeof(TValue), "value");
+            System.Linq.Expressions.Expression instance = member.DeclaringType == typeof(TOwner)
+                ? owner
+                : System.Linq.Expressions.Expression.Convert(owner, member.DeclaringType!);
+            System.Linq.Expressions.MemberExpression access = member switch
+            {
+                System.Reflection.FieldInfo field => System.Linq.Expressions.Expression.Field(instance, field),
+                _ => System.Linq.Expressions.Expression.Property(instance, (System.Reflection.PropertyInfo)member),
+            };
+
+            System.Linq.Expressions.Expression read = access.Type == typeof(TValue)
+                ? access
+                : System.Linq.Expressions.Expression.Convert(access, typeof(TValue));
+            System.Linq.Expressions.Expression write = access.Type == typeof(TValue)
+                ? value
+                : System.Linq.Expressions.Expression.Convert(value, access.Type);
+            getter = System.Linq.Expressions.Expression.Lambda<Func<TOwner, TValue>>(read, owner).Compile();
+            setter = System.Linq.Expressions.Expression.Lambda<Action<TOwner, TValue>>(
+                System.Linq.Expressions.Expression.Assign(access, write), owner, value).Compile();
+        }
+        else if (member is System.Reflection.FieldInfo field)
+        {
+            getter = owner => (TValue)field.GetValue(owner)!;
+            setter = (owner, value) => field.SetValue(owner, value);
+        }
+        else
+        {
+            var property = (System.Reflection.PropertyInfo)member;
+            getter = owner => (TValue)property.GetValue(owner)!;
+            setter = (owner, value) => property.SetValue(owner, value);
+        }
+
         return new ManagedAttributeBinding<TOwner, TValue>(getter, setter, converter);
     }
 

@@ -40,6 +40,24 @@ function(rbfx_csharp_add_editor name)
     message(STATUS "rbfx_csharp_add_editor(${name}): the target EditorLibrary does not exist, so the editor is not built.")
     return()
   endif()
+  # The SDK ships EditorLibrary in the configurations Debug and RelWithDebInfo only. Without a mapping, a Release build links
+  # the Debug library, and on Windows that fails (_ITERATOR_DEBUG_LEVEL and RuntimeLibrary differ). The root CMakeLists.txt
+  # maps the imported configurations of Urho3D and the libraries it links. EditorLibrary is not one of them, so map it here
+  # in the same way: RelWithDebInfo, else Release, else the first configuration.
+  get_target_property(editor_is_imported EditorLibrary IMPORTED)
+  get_target_property(editor_configurations EditorLibrary IMPORTED_CONFIGURATIONS)
+  if(editor_is_imported AND editor_configurations)
+    if("RELWITHDEBINFO" IN_LIST editor_configurations)
+      set(editor_package_configuration RelWithDebInfo)
+    elseif("RELEASE" IN_LIST editor_configurations)
+      set(editor_package_configuration Release)
+    else()
+      list(GET editor_configurations 0 editor_package_configuration)
+    endif()
+    set_target_properties(EditorLibrary PROPERTIES
+      MAP_IMPORTED_CONFIG_RELEASE "${editor_package_configuration}"
+      MAP_IMPORTED_CONFIG_MINSIZEREL "${editor_package_configuration}")
+  endif()
   # target_link_plugins reads the template folder of the engine. A find_package(Urho3D) in a function scope does not
   # leave the variable in the scope of the caller. The folder is the include folder of the rbfx SDK.
   if(NOT URHO3D_TEMPLATE_DIR)

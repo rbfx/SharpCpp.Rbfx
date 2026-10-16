@@ -316,7 +316,8 @@ A .NET Android head is the entry of the application. The native application runs
 - Only native code calls the `[UnmanagedCallersOnly]` methods and the plugin class. The IL trimmer cannot see these calls.
   So the head makes the plugin assembly and the SharpCpp assemblies trimmer roots (`TrimmerRootAssembly`).
 - The target `MyApp.CSharp` builds the head with dotnet and copies the debug-signed APK to `MyApp.apk` next to `libMyApp.so`.
-  Debug builds make a Debug head. All other configurations make a Release head.
+  The head gets the configuration of CMake (`-c <config>`) and the list of configurations (`-p:Configurations=<list>`: CMAKE_CONFIGURATION_TYPES, else CMAKE_BUILD_TYPE).
+  The workload tests only Debug and Release, so the head project gives each other configuration (for example RelWithDebInfo) the Release defaults of the workload: managed symbols, trimming and Mono AOT (the default runtime is MonoVM). ReadyToRun applies only with `UseMonoRuntime=false`.
 - The head build needs the `android` workload and a JDK 17 or 21. The cache variables `RBFX_CSHARP_ANDROID_SDK_DIR`
   and `RBFX_CSHARP_JAVA_SDK_DIR` (defaults: the environment variables `ANDROID_HOME` and `JAVA_HOME`) go to dotnet.
   `RBFX_CSHARP_ANDROID_JAVA_DIR` sets the folder with the SDL Java sources, if the engine SDK does not have them.
@@ -392,7 +393,9 @@ is static code in the executable of the app.
 - A file in `RESOURCES` becomes a file in the root folder of the app bundle (`BundleResource`). A folder becomes a folder with its name.
 - `APPLICATION_ID` is the bundle identifier. The default is `org.rbfx.<name in lower case>`.
 - The target `MyApp.CSharp` builds the head with dotnet and copies the app bundle to `MyApp.app` in `CMAKE_RUNTIME_OUTPUT_DIRECTORY`
-  (else the binary folder). Debug builds make a Debug head. All other configurations make a Release head.
+  (else the binary folder). The head gets the configuration of CMake (`-c <config>`) and the list of configurations
+  (`-p:Configurations=<list>`). The head project is not verified for configurations other than Debug and Release: the iOS workload is not
+  installed in the test environment, so check the properties of the workload that test `$(Configuration)`.
 - The head does not sign the app by default. A device runs a signed app only. Give `EnableCodeSigning=true`, `CodesignKey`
   and `CodesignProvision` in `PROPERTIES` or in `RBFX_CSHARP_MSBUILD_PROPERTIES`.
 

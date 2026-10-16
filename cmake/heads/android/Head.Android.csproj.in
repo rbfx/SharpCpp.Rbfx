@@ -23,6 +23,18 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <!-- The workload of .NET for Android tests the configurations Debug and Release only (Microsoft.Android.Sdk.DefaultProperties.targets,
+       Microsoft.Android.Sdk.CoreCLR.targets). Each other configuration of CMake, for example RelWithDebInfo, gets the Release
+       defaults here. The default runtime of the workload is MonoVM, so the Release default is Mono AOT (RunAOTCompilation).
+       Only a CoreCLR head (UseMonoRuntime=false) gets ReadyToRun instead. -->
+  <PropertyGroup Condition="'$(Configuration)' != 'Debug' and '$(Configuration)' != 'Release'">
+    <AndroidManagedSymbols Condition="'$(AndroidManagedSymbols)' == ''">true</AndroidManagedSymbols>
+    <AndroidPackageFormats Condition="'$(AndroidPackageFormats)' == ''">aab;apk</AndroidPackageFormats>
+    <PublishTrimmed Condition="'$(PublishTrimmed)' == '' and '$(AndroidLinkMode)' != 'None'">true</PublishTrimmed>
+    <RunAOTCompilation Condition="'$(RunAOTCompilation)' == '' and '$(AotAssemblies)' == '' and '$(UseMonoRuntime)' != 'false'">true</RunAOTCompilation>
+    <PublishReadyToRun Condition="'$(PublishReadyToRun)' == '' and '$(UseMonoRuntime)' == 'false'">true</PublishReadyToRun>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/RbfxApplication.cs" />
 

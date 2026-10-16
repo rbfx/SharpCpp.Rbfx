@@ -30,6 +30,9 @@
     <RbfxRestoreRoot>$(RbfxHostBuildRoot)/obj/restore</RbfxRestoreRoot>
     <RbfxRestoreRoot Condition="'$(RbfxRestoreRid)' != ''">$(RbfxHostBuildRoot)/obj/restore/$(RbfxRestoreRid)</RbfxRestoreRoot>
     <SharpCppBuildRoot Condition="'$(RbfxIsCrossRid)' == 'true' and '$(RbfxBuildRootIsExplicit)' != 'true'">$(SharpCppRbfxRoot)/build/cross/$(RbfxTargetRid)</SharpCppBuildRoot>
+    <!-- The build system that drives this one defines the configuration set (CMake passes -p:Configurations=...). The native
+         libraries use the CMake configuration name, so $(Configuration) names their folder. -->
+    <Configurations Condition="'$(Configurations)' == ''">Debug;Release</Configurations>
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <SharpCppManagedOutputRoot Condition="'$(SharpCppManagedOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppManagedOutputRoot>
     <SharpCppOutputDir Condition="'$(SharpCppOutputDir)' == ''">$(SharpCppManagedOutputRoot)/$(Configuration)</SharpCppOutputDir>
@@ -77,8 +80,7 @@
     <RbfxSharedLibrarySuffix Condition="'$(RbfxTargetRid)' == 'ios-arm64' or '$(RbfxTargetRid)' == 'browser-wasm'">.a</RbfxSharedLibrarySuffix>
     <DefineConstants Condition="'$(RbfxTargetRid)' == 'ios-arm64'">$(DefineConstants);SHARPCPP_STATIC_RUNTIME</DefineConstants>
     <DefineConstants Condition="'$(RbfxTargetRid)' == 'browser-wasm'">$(DefineConstants);SHARPCPP_STATIC_RUNTIME;SHARPCPP_BROWSER_WASM</DefineConstants>
-    <RbfxNativeConfiguration Condition="'$(RbfxNativeConfiguration)' == ''">$(Configuration)</RbfxNativeConfiguration>
-    <RbfxNativeLibraryPath>$(SharpCppNativeOutputRoot)/$(RbfxNativeConfiguration)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.Native$(RbfxSharedLibrarySuffix)</RbfxNativeLibraryPath>
+    <RbfxNativeLibraryPath>$(SharpCppNativeOutputRoot)/$(Configuration)/$(RbfxSharedLibraryPrefix)SharpCpp.Rbfx.Native$(RbfxSharedLibrarySuffix)</RbfxNativeLibraryPath>
     <RbfxRunSettingsPath>$(SharpCppOutputDir)/SharpCpp.Rbfx.Tests.runsettings</RbfxRunSettingsPath>
 
     <SharpCppSdkVersion>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('$(MSBuildSDKsPath)'))))</SharpCppSdkVersion>
@@ -102,6 +104,13 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(SharpCppBuildRoot)/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!-- The SDK sets Optimize for Debug and Release only. Each other configuration (for example RelWithDebInfo)
+       builds like Release: optimized code, the symbol RELEASE and portable debug symbols. -->
+  <PropertyGroup Condition="'$(Configuration)' != 'Debug' and '$(Configuration)' != 'Release'">
+    <Optimize Condition="'$(Optimize)' == ''">true</Optimize>
+    <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
   </PropertyGroup>
 
   <!-- Packaging and CI builds map the directories of the build machine to fixed names, so a pdb and a dll hold no local path.

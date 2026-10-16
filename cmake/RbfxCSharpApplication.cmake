@@ -91,7 +91,7 @@
 #   runtime. Then main.js calls rbfx_application_start on the browser thread. The engine main loop then runs there.
 # - A file in RESOURCES becomes a file in the root folder with its file name. A folder becomes a folder with its
 #   name.
-# - The target <name>.CSharp publishes the head with dotnet (Release) and copies the web folder (index.html, main.js,
+# - The target <name>.CSharp publishes the head with dotnet (configuration of CMake) and copies the web folder (index.html, main.js,
 #   _framework and the RESOURCES) to <name>/ in the runtime output folder (CMAKE_RUNTIME_OUTPUT_DIRECTORY).
 #   The runtime uses threads, so the web server must send the headers of cross-origin isolation.
 #
@@ -458,16 +458,16 @@ function(_rbfx_csharp_add_android_application name)
     set(output_dir "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
 
-  # The head build. .NET for Android knows the configurations Debug and Release only.
-  set(configuration "$<IF:$<CONFIG:Debug>,Debug,Release>")
-  set(apk "${head_dir}/bin/${configuration}/${application_id}-Signed.apk")
+  # The head build. CMake defines the configuration set (rbfx_csharp_msbuild_configuration_arguments). The workload of .NET
+  # for Android tests Debug and Release only, so the head project maps each other configuration to Release (Head.Android.csproj.in).
+  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
+  set(apk "${head_dir}/bin/$<CONFIG>/${application_id}-Signed.apk")
   set(dotnet_arguments
     build "${head_project}"
-    -c "${configuration}"
+    ${configuration_arguments}
     --nologo
     -p:RbfxNativeBuildDriver=cmake
     "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
-    "-p:RbfxNativeConfiguration=$<CONFIG>"
     -p:UseSharedCompilation=false
     -nodeReuse:false)
   if(RBFX_CSHARP_ANDROID_SDK_DIR)
@@ -574,13 +574,13 @@ function(_rbfx_csharp_add_wasm_application name)
 
   # The head build. The bindings of a source build must compile for browser-wasm (RbfxTargetRid, see
   # eng/SharpCpp.Rbfx.Build.props): then their import names are the file names of the static libraries.
+  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
   set(dotnet_arguments
     publish "${head_project}"
-    -c Release
+    ${configuration_arguments}
     --nologo
     -p:RbfxNativeBuildDriver=cmake
     "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
-    "-p:RbfxNativeConfiguration=$<CONFIG>"
     -p:RbfxTargetRid=browser-wasm
     -p:UseSharedCompilation=false
     -nodeReuse:false)
@@ -698,15 +698,14 @@ function(_rbfx_csharp_add_ios_application name)
 
   # The head build. The bindings of a source build must compile for ios-arm64 (RbfxTargetRid, see
   # eng/SharpCpp.Rbfx.Build.props): then their import name is __Internal. The app bundle has the assembly name.
-  set(configuration "$<IF:$<CONFIG:Debug>,Debug,Release>")
-  set(app_bundle "${head_dir}/bin/${configuration}/${name}.Head.app")
+  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
+  set(app_bundle "${head_dir}/bin/$<CONFIG>/${name}.Head.app")
   set(dotnet_arguments
     build "${head_project}"
-    -c "${configuration}"
+    ${configuration_arguments}
     --nologo
     -p:RbfxNativeBuildDriver=cmake
     "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
-    "-p:RbfxNativeConfiguration=$<CONFIG>"
     "-p:RbfxTargetRid=${rid}"
     -p:UseSharedCompilation=false
     -nodeReuse:false)

@@ -15,6 +15,26 @@ option(
   "Build the managed projects of the examples from CMake. MSBuild sets OFF when it drives the native build."
   ON)
 
+# rbfx_csharp_msbuild_configuration_arguments(<variable>)
+#
+# Sets <variable> to the dotnet arguments that give the configuration set of CMake to the nested MSBuild run: "-c $<CONFIG>"
+# and "-p:Configurations=<list>". The list is CMAKE_CONFIGURATION_TYPES for a multi-config generator, else CMAKE_BUILD_TYPE
+# (Release when it is empty). The driving build system defines the configuration set, so the managed projects have the
+# configurations of the CMake tree, and the native library paths of both sides use the same name. MSBuild reads a
+# semicolon in a -p value as a separator, so the list uses %3B.
+function(rbfx_csharp_msbuild_configuration_arguments variable)
+  get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+  if(is_multi_config AND CMAKE_CONFIGURATION_TYPES)
+    set(configurations ${CMAKE_CONFIGURATION_TYPES})
+  elseif(CMAKE_BUILD_TYPE)
+    set(configurations "${CMAKE_BUILD_TYPE}")
+  else()
+    set(configurations Release)
+  endif()
+  list(JOIN configurations "%3B" configurations)
+  set(${variable} -c "$<CONFIG>" "-p:Configurations=${configurations}" PARENT_SCOPE)
+endfunction()
+
 # rbfx_csharp_add_dotnet_project(<target>
 #   PROJECT <csproj>
 #   [OUTPUT_DIRECTORY <dir>]
@@ -37,9 +57,10 @@ function(rbfx_csharp_add_dotnet_project target)
     return()
   endif()
 
+  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
   set(dotnet_arguments
     build "${arg_PROJECT}"
-    -c "$<CONFIG>"
+    ${configuration_arguments}
     --nologo
     -p:RbfxNativeBuildDriver=cmake
     "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"

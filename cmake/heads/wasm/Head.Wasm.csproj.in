@@ -24,6 +24,13 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <!-- The WebAssembly build tests the configurations Debug and Release only (BrowserWasmApp.targets). Each other configuration of
+       CMake, for example RelWithDebInfo, gets the Release optimization flags. -->
+  <PropertyGroup Condition="'$(Configuration)' != 'Debug' and '$(Configuration)' != 'Release'">
+    <WasmBitcodeCompileOptimizationFlag Condition="'$(WasmBitcodeCompileOptimizationFlag)' == ''">-O2</WasmBitcodeCompileOptimizationFlag>
+    <EmccLinkOptimizationFlag Condition="'$(EmccLinkOptimizationFlag)' == ''">-O2</EmccLinkOptimizationFlag>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/Program.cs" />
     <Content Include="wwwroot/index.html;wwwroot/main.js" />

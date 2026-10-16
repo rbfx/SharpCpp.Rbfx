@@ -493,7 +493,7 @@ function(_rbfx_csharp_add_android_application name)
       ${name}.Head
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${library_dir}"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${libraries} "${library_dir}/"
-      COMMAND "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${apk}" "${output_dir}/${name}.apk"
       BYPRODUCTS "${output_dir}/${name}.apk"
       WORKING_DIRECTORY "${head_dir}"
@@ -599,7 +599,7 @@ function(_rbfx_csharp_add_wasm_application name)
   if(RBFX_CSHARP_BUILD_MANAGED)
     add_custom_target(
       ${name}.Head
-      COMMAND "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
       COMMAND "${CMAKE_COMMAND}" -E copy_directory "${head_dir}/bin/publish/wwwroot" "${web_dir}"
       COMMAND "${CMAKE_COMMAND}" "-DRESOURCE_LIST=${head_dir}/resources.txt" "-DOUTPUT_DIR=${web_dir}"
         -P "${template_dir}/CopyResources.cmake"
@@ -724,7 +724,7 @@ function(_rbfx_csharp_add_ios_application name)
   if(RBFX_CSHARP_BUILD_MANAGED)
     add_custom_target(
       ${name}.Head
-      COMMAND "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
       COMMAND "${CMAKE_COMMAND}" -E rm -rf "${output_dir}/${name}.app"
       COMMAND "${CMAKE_COMMAND}" -E copy_directory "${app_bundle}" "${output_dir}/${name}.app"
       BYPRODUCTS "${output_dir}/${name}.app/Info.plist"

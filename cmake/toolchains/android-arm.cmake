@@ -21,4 +21,10 @@ endif()
 list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES RBFX_ANDROID_STL BUILD_SHARED_LIBS)
 set(ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES ON)
 
+# The NDK files ask for CMake 3.6. CMake reports that this compatibility will be removed. The NDK files run
+# at several steps (toolchain file, project() and every try_compile), so the minimum policy version stays set.
+# The CMake files of this repository ask for CMake 3.28 or newer, so no message of them is hidden.
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
+endif()
 include("${_sharpcpp_ndk}/build/cmake/android.toolchain.cmake")

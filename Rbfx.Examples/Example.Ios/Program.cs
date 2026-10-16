@@ -24,7 +24,11 @@ internal sealed class AppDelegate : UIApplicationDelegate
         _context = new Context();
         _sample = new SceneSample(_context);
 
+        // The example has no scene manifest and no scene delegate, so the application owns the window.
+        // The UIWindowScene overload needs the scene lifecycle, which this minimal example does not use.
+#pragma warning disable CA1422
         var window = new UIWindow(UIScreen.MainScreen.Bounds);
+#pragma warning restore CA1422
         var controller = new UIViewController
         {
             View = new UIView { BackgroundColor = UIColor.SystemBackground }

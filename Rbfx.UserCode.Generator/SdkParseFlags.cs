@@ -77,7 +77,10 @@ internal sealed class SdkParseFlags
                     defines.Add(value);
                     break;
                 case "clang_argument":
-                    if (!string.Equals(value, "/Zc:twoPhase-", StringComparison.OrdinalIgnoreCase) &&
+                    // Warning flags do not affect parsing and may be unknown to the pinned libclang.
+                    if (!value.StartsWith("-W", StringComparison.Ordinal) &&
+                        !value.StartsWith("/W", StringComparison.Ordinal) &&
+                        !string.Equals(value, "/Zc:twoPhase-", StringComparison.OrdinalIgnoreCase) &&
                         !(value.Length > 2 && value.StartsWith("-s", StringComparison.Ordinal) && char.IsUpper(value[2])) &&
                         !IsEmscriptenDebugArgument(value))
                     {

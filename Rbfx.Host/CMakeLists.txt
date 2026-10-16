@@ -44,10 +44,12 @@ else()
   target_compile_definitions(sharpcpp-rbfx-host PRIVATE URHO3D_DOTNETHOST_EXPORTS)
 endif()
 
+# Build-tree fallback of the dotnet root. Turn it OFF for a build that you install and ship,
+# because the host library would carry a path of the build machine. The shim mode has no such fallback,
+# but the option stays defined so that CMake does not report the shipped configure arguments as unused.
+option(RBFX_HOST_DEFAULT_DOTNET_ROOT "Compile the dotnet root of this machine into the host library as a fallback." ON)
+
 if(NOT RBFX_HOST_MODE STREQUAL "shim")
-  # Build-tree fallback of the dotnet root. Turn it OFF for a build that you install and ship,
-  # because the host library would carry a path of the build machine.
-  option(RBFX_HOST_DEFAULT_DOTNET_ROOT "Compile the dotnet root of this machine into the host library as a fallback." ON)
   if(NETHOST_DOTNET_ROOT AND RBFX_HOST_DEFAULT_DOTNET_ROOT)
     target_compile_definitions(
       sharpcpp-rbfx-host

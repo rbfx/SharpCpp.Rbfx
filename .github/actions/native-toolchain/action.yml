@@ -9,6 +9,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Setup CMake
+      uses: lukka/get-cmake@v4.4.2
+      with:
+        cmakeVersion: 4.4.3
+
     - name: Install Dependencies
       if: runner.os == 'Linux'
       shell: bash

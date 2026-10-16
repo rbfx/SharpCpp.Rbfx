@@ -14,6 +14,12 @@ if(NOT DEFINED BUILD_SHARED_LIBS)
   endif()
 endif()
 
+# The check script passes CMAKE_BUILD_TYPE for every generator. A multi-config generator ignores it
+# and the build step selects the configuration. The read keeps CMake from reporting it as unused.
+if(CMAKE_BUILD_TYPE AND CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "SdkConsumer: the multi-config generator ignores CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}.")
+endif()
+
 # The Android toolchain limits find_package to the target sysroot. The two SDKs are in CMAKE_PREFIX_PATH.
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
 find_package(SharpCppRbfx CONFIG REQUIRED)

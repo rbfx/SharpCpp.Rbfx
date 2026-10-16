@@ -48,6 +48,13 @@ function(copy_runtime_dependency runtime_dependency_source)
   file(COPY_FILE "${runtime_dependency_source}" "${destination_dir}/${runtime_dependency_name}" ONLY_IF_DIFFERENT)
 endfunction()
 
+# Copy the engine library before the search. The wrapper has the runtime path $ORIGIN, so the search finds
+# the copy next to the wrapper. A library found only in a search directory makes CMake print a warning.
+resolve_sdk_runtime_source("${urho_library_file}" urho_library_source)
+if(NOT urho_library_source STREQUAL "")
+  copy_runtime_dependency("${urho_library_source}")
+endif()
+
 file(GET_RUNTIME_DEPENDENCIES
   LIBRARIES "${target_file}"
   RESOLVED_DEPENDENCIES_VAR resolved_dependencies
@@ -60,11 +67,6 @@ file(GET_RUNTIME_DEPENDENCIES
 foreach(conflicting_dependency_name IN LISTS conflicting_dependencies_FILENAMES)
   list(APPEND resolved_dependencies ${conflicting_dependencies_${conflicting_dependency_name}})
 endforeach()
-
-resolve_sdk_runtime_source("${urho_library_file}" urho_library_source)
-if(NOT urho_library_source STREQUAL "")
-  copy_runtime_dependency("${urho_library_source}")
-endif()
 
 foreach(runtime_dependency IN LISTS resolved_dependencies)
   resolve_sdk_runtime_source("${runtime_dependency}" runtime_dependency_source)

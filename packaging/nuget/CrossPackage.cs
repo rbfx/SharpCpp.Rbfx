@@ -354,7 +354,7 @@ static class CrossPackage
         if (rid == "ios-arm64") File.WriteAllText(Path.Combine(output, "Info.plist"), """
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>org.rbfx.packagetest</string><key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array></dict></plist>
+            <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>org.rbfx.packagetest</string><key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array><key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array><key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array></dict></plist>
             """);
         var arguments = new List<string> { "build", Path.Combine(output, "Consumer.csproj"), "-c", "Release", "--nologo" };
         foreach (var name in new[] { "AndroidSdkDirectory", "JavaSdkDirectory" })

@@ -932,7 +932,7 @@ Marshaller<Urho3D::Transform>
     {
         cpp_type result;
         result.position_ = v.position_;
-        std::memcpy(&result.rotation_, v.rotation_, sizeof(v.rotation_));
+        std::memcpy(static_cast<void*>(&result.rotation_), v.rotation_, sizeof(v.rotation_));
         result.scale_ = v.scale_;
         return result;
     }

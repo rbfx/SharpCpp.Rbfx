@@ -479,6 +479,18 @@ parse_args() {
   done
 }
 
+# Desktop SDKs only. The editor target SharpCppRbfxEditor needs the editor headers of the SDK.
+check_editor_headers() {
+  local rid="$1"
+  case "$rid" in
+    linux-*|win-*|osx-*) ;;
+    *) return 0 ;;
+  esac
+  if [ ! -f "$OUTPUT/$rid/include/Tools/Editor/EditorApplication.h" ]; then
+    warn "the SDK $rid has no include/Tools/Editor/EditorApplication.h. The editor target will be skipped."
+  fi
+}
+
 main() {
   parse_args "$@"
 
@@ -516,6 +528,7 @@ main() {
 
   for rid in "${RIDS[@]}"; do
     ensure_rid "$rid"
+    check_editor_headers "$rid"
   done
 
   if [ "$PRINT_ROOT" -eq 1 ]; then

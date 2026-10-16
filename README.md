@@ -252,6 +252,22 @@ rbfx_csharp_add_launcher(MyApp
 - It does not define `SHARPCPP_RBFX_PLUGIN_NAME`. `rbfx_csharp_package_application()` defines it.
 - Target properties: `SHARPCPP_RBFX_LAUNCHER` (`ON`), `SHARPCPP_RBFX_PLUGINS` and `SHARPCPP_RBFX_LAUNCHER_LINK_LIBRARIES`.
 
+### Editor in one call
+
+`rbfx_csharp_add_editor()` makes the rbfx editor with a .NET host. It is a launcher for the target `EditorLibrary`. Desktop only.
+
+```cmake
+rbfx_csharp_add_editor(MyEditor
+    [SOURCES <files...>] [PLUGINS <native plugin targets...>] [LINK_LIBRARIES <libraries...>] [CONSOLE])
+```
+
+- Without `SOURCES` the function uses the default editor `cmake/launcher/RbfxCSharpEditor.cpp`. It is an `EditorApplication` that starts the .NET runtime.
+- The function builds the bootstrap plugin `SharpCpp.Rbfx.EditorHost` next to the executable. It registers each managed plugin
+  `ManagedPlugins/*.dll` (in the folder of the executable) for each new `PluginManager`, that is, each time a project opens.
+- `PLUGINS` and `LINK_LIBRARIES` are as in `rbfx_csharp_add_launcher()`. `EditorLibrary` is always linked. `CONSOLE` builds a console program on Windows.
+- If the SDK has no `EditorLibrary` target, the function prints a status message and does nothing. `eng/fetch-rbfx-sdk.sh` warns when the editor headers are missing.
+  On Android, iOS and Emscripten CMake stops with an error.
+
 ### Data in one call
 
 `rbfx_csharp_add_data()` makes the data target of an application: the resource folders.

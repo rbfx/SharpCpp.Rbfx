@@ -19,6 +19,7 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 - `SharpCpp.Rbfx.Tests.E2E/` - round-trip tests against the generated rbfx wrappers.
 - `include/SharpCpp/detail/Rbfx*.hpp` - rbfx marshaller configuration headers.
 - `native/SharpCpp.Rbfx.Native/` - MSBuild project that drives the CMake native build.
+- `cmake/RbfxCSharpEditor.cmake`, `cmake/launcher/RbfxCSharpEditor.cpp` and `SharpCpp.Rbfx.EditorHost/` - the editor target `rbfx_csharp_add_editor()` (desktop only, skipped without `EditorLibrary`). The bootstrap plugin registers `ManagedPlugins/*.dll` of the editor folder.
 - `packaging/nuget/` - NuGet packaging for the generated bindings.
 
 ## Inputs

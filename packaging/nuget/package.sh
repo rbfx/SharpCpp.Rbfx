@@ -373,6 +373,130 @@ stage_packages() {
   done
 }
 
+# The editor is a desktop program. The SDK needs the editor headers (the same check as eng/fetch-rbfx-sdk.sh).
+editor_supported() {
+  local rid="$1"
+  local sdk_root="$2"
+  case "$rid" in
+    linux-*|win-*|osx-*) [ -f "$sdk_root/include/Tools/Editor/EditorApplication.h" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+# Finds the native build tree of the package build (the tree that stage_engine_metadata reads).
+native_build_dir() {
+  local build_root="$1"
+  local cache_files=("$build_root"/native/*/CMakeCache.txt)
+  if [ "${#cache_files[@]}" -ne 1 ] || [ ! -f "${cache_files[0]}" ]; then
+    echo "Error: expected one native build tree below $build_root/native." >&2
+    return 1
+  fi
+  dirname "${cache_files[0]}"
+}
+
+# True when a build made the editor executable. CMake makes the folder SharpCppRbfxEditor.bin, with a folder for each
+# configuration, at configure time, so the check tests the executable file.
+editor_built() {
+  local configuration="$1"
+  local build_root="$2"
+  local native_dir editor_dir
+  native_dir="$(native_build_dir "$build_root" 2>/dev/null)" || return 1
+  for editor_dir in "$native_dir/SharpCppRbfxEditor.bin/$configuration" "$native_dir/SharpCppRbfxEditor.bin"; do
+    if [ -f "$editor_dir/SharpCppRbfxEditor" ] || [ -f "$editor_dir/SharpCppRbfxEditor.exe" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# The native tree of the package build is a tree that MSBuild drives, so the editor target SharpCppRbfxEditor is in it and
+# its managed plugin target does nothing. This function builds the editor, and then builds the plugin project into the
+# folder of the editor. The folder is <native tree>/SharpCppRbfxEditor.bin[/Configuration].
+# The arguments after the second are the MSBuild arguments of the binding build.
+build_editor() {
+  local configuration="$1"
+  local build_root="$2"
+  shift 2
+  local native_dir editor_dir
+  native_dir="$(native_build_dir "$build_root")"
+  cmake --build "$native_dir" --config "$configuration" --target SharpCppRbfxEditor
+  editor_dir="$native_dir/SharpCppRbfxEditor.bin"
+  # A multi-config generator adds the folder of the configuration.
+  if [ -d "$editor_dir/$configuration" ]; then
+    editor_dir="$editor_dir/$configuration"
+  fi
+  "$DOTNET" build "$REPO_ROOT/SharpCpp.Rbfx.EditorHost/SharpCpp.Rbfx.EditorHost.csproj" \
+    --configuration "$configuration" \
+    --nologo \
+    "$@" \
+    -p:RbfxNativeBuildDriver=cmake \
+    -p:RbfxNativeBuildDir="$native_dir" \
+    -p:OutDir="$editor_dir/"
+}
+
+# Copies the editor folder and the native runtime files that its executable loads into the stage folder of the editor package.
+# The executable finds its libraries in its own folder. The build tree executable has paths of the build machine in its
+# run path, so the run path of the staged executable is set again.
+stage_editor() {
+  local rid="$1"
+  local configuration="$2"
+  local build_root="$3"
+  local native_dir editor_dir editor_stage="$STAGE_DIR/editor/$rid"
+  native_dir="$(native_build_dir "$build_root")"
+  editor_dir="$native_dir/SharpCppRbfxEditor.bin"
+  if [ -d "$editor_dir/$configuration" ]; then
+    editor_dir="$editor_dir/$configuration"
+  fi
+  case "$rid" in
+    win-*) require_file "$editor_dir/SharpCppRbfxEditor.exe" ;;
+    *) require_file "$editor_dir/SharpCppRbfxEditor" ;;
+  esac
+  require_file "$editor_dir/SharpCpp.Rbfx.EditorHost.dll"
+  require_file "$editor_dir/SharpCpp.Rbfx.EditorHost.runtimeconfig.json"
+
+  rm -rf "$editor_stage"
+  mkdir -p "$editor_stage"
+  cp -a "$STAGE_DIR/runtime/$rid/native/." "$editor_stage/"
+  # The native engine files are the files of the runtime package. The editor folder of the build also has the files of the
+  # generators, so the list names the files that the editor loads: the executable and the closure of the plugin
+  # SharpCpp.Rbfx.EditorHost (its deps.json file names the assemblies).
+  local editor_file
+  for editor_file in SharpCppRbfxEditor SharpCppRbfxEditor.exe \
+      SharpCpp.Rbfx.EditorHost.dll SharpCpp.Rbfx.EditorHost.deps.json SharpCpp.Rbfx.EditorHost.runtimeconfig.json \
+      SharpCpp.Rbfx.Bindings.dll SharpCpp.Ea.dll SharpCpp.Std.dll SharpCpp.Support.dll; do
+    if [ -f "$editor_dir/$editor_file" ]; then
+      cp -a "$editor_dir/$editor_file" "$editor_stage/$editor_file"
+    fi
+  done
+  require_file "$editor_stage/SharpCpp.Rbfx.Bindings.dll"
+
+  # The editor sets the resource paths CoreData and EditorData and looks for them in the folder of the executable.
+  # The folders are the same as in the packages CoreData and EditorData. The folder Data is for the applications only.
+  local data_name
+  for data_name in CoreData EditorData; do
+    if [ ! -d "$STAGE_DIR/data/$data_name" ]; then
+      echo "Error: the SDK has no $data_name folder, so the editor cannot find its resources." >&2
+      return 1
+    fi
+    cp -a "$STAGE_DIR/data/$data_name" "$editor_stage/$data_name"
+  done
+
+  case "$rid" in
+    linux-*)
+      cmake -DEDITOR_FILE="$editor_stage/SharpCppRbfxEditor" -DEDITOR_RPATH='$ORIGIN' -P "$SCRIPT_DIR/SetEditorRpath.cmake"
+      ;;
+    osx-*)
+      local rpath
+      while IFS= read -r rpath; do
+        install_name_tool -delete_rpath "$rpath" "$editor_stage/SharpCppRbfxEditor"
+      done < <(otool -l "$editor_stage/SharpCppRbfxEditor" | awk '$1 == "cmd" && $2 == "LC_RPATH" { found = 1 } found && $1 == "path" { print $2; found = 0 }')
+      install_name_tool -add_rpath "@loader_path" "$editor_stage/SharpCppRbfxEditor"
+      # Changing the load commands invalidates the signature that the linker made.
+      codesign --force --sign - "$editor_stage/SharpCppRbfxEditor"
+      ;;
+  esac
+}
+
 pack_project() {
   local project="$1"
   local version="$2"
@@ -539,17 +663,23 @@ EOF
     if command -v cygpath >/dev/null 2>&1; then
       deterministic_props="$(cygpath -m "$deterministic_props")"
     fi
+    local binding_build_arguments=(
+      ${preset_arguments[@]+"${preset_arguments[@]}"}
+      -p:RbfxPackaging=true
+      -p:CustomAfterMicrosoftCommonProps="$deterministic_props"
+      -p:RbfxTargetRid="$rid"
+      -p:RbfxRestoreRid="$rid"
+      -p:SharpCppBuildRoot="$build_root"
+      -p:RbfxNativeConfigureArguments="$native_configure_arguments"
+      -p:RbfxSdkRoot="$sdk_root")
     "$DOTNET" build "$REPO_ROOT/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" \
-      ${preset_arguments[@]+"${preset_arguments[@]}"} \
       --configuration "$configuration" \
       --nologo \
-      -p:RbfxPackaging=true \
-      -p:CustomAfterMicrosoftCommonProps="$deterministic_props" \
-      -p:RbfxTargetRid="$rid" \
-      -p:RbfxRestoreRid="$rid" \
-      -p:SharpCppBuildRoot="$build_root" \
-      -p:RbfxNativeConfigureArguments="$native_configure_arguments" \
-      -p:RbfxSdkRoot="$sdk_root"
+      "${binding_build_arguments[@]}"
+    # The editor builds in the native tree of the binding build, after that build.
+    if editor_supported "$rid" "$sdk_root"; then
+      build_editor "$configuration" "$build_root" "${binding_build_arguments[@]}"
+    fi
   fi
 
   if [ -z "$target_framework" ]; then
@@ -559,6 +689,17 @@ EOF
   echo "Staging packages for $version ($rid, $configuration, $target_framework)"
   stage_packages "$rid" "$configuration" "$sdk_root" "$target_framework" "$build_root"
   "$DOTNET" run --file "$SCRIPT_DIR/CrossPackage.cs" -- targets --rid "$rid" --stage "$STAGE_DIR"
+
+  # --skip-build packs the editor only when an earlier build made it.
+  local pack_editor=0
+  if editor_supported "$rid" "$sdk_root"; then
+    if [ "$skip_build" -eq 0 ] || editor_built "$configuration" "$build_root"; then
+      stage_editor "$rid" "$configuration" "$build_root"
+      pack_editor=1
+    else
+      echo "Note: no editor executable below $build_root/native for $configuration. The editor packages are skipped." >&2
+    fi
+  fi
 
   rm -rf "$OUT_DIR"
   mkdir -p "$OUT_DIR"
@@ -574,6 +715,11 @@ EOF
   fi
   if [ -d "$STAGE_DIR/data/EditorData" ]; then
     pack_project "$SCRIPT_DIR/packages/SharpCpp.Rbfx.EditorData/SharpCpp.Rbfx.EditorData.Package.csproj" "$version" "$rid" "$target_framework"
+  fi
+
+  if [ "$pack_editor" -eq 1 ]; then
+    pack_project "$SCRIPT_DIR/packages/SharpCpp.Rbfx.Editor.Runtime/SharpCpp.Rbfx.Editor.Runtime.Package.csproj" "$version" "$rid" "$target_framework"
+    pack_project "$SCRIPT_DIR/packages/SharpCpp.Rbfx.Editor/SharpCpp.Rbfx.Editor.Package.csproj" "$version" "$rid" "$target_framework"
   fi
 
   echo "Packages created in $OUT_DIR"

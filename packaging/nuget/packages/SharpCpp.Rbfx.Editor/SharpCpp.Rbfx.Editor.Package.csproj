@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The package of the rbfx editor with a .NET host. It has no files. It depends on the runtime packages
+       SharpCpp.Rbfx.Editor.runtime.<rid> of the desktop RIDs, which hold the editor folders.
+       A union build imports the dependencies of all desktop RIDs. A single RID build depends on its own runtime package. -->
+  <PropertyGroup>
+    <TargetFramework Condition="'$(SharpCppPackageTargetFramework)' != ''">$(SharpCppPackageTargetFramework)</TargetFramework>
+    <PackageId>SharpCpp.Rbfx.Editor</PackageId>
+    <Title>SharpCpp.Rbfx.Editor</Title>
+    <Version>$(PackageVersion)</Version>
+    <Authors>rbfx contributors</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/rbfx/rbfx</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rbfx/SharpCpp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Description>The rbfx editor with a .NET host, for desktop RIDs. The property SharpCppRbfxEditorDirectory is the editor folder.</Description>
+    <PackageTags>rbfx SharpCpp Urho3D editor</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);NU5128;NU5131</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpCpp.Rbfx.Editor.runtime.$(SharpCppRuntimeIdentifier)" Version="$(PackageVersion)" Condition="'$(SharpCppUnionPackage)' != 'true'" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <Import Project="$(SharpCppUnionDependencies)" Condition="'$(SharpCppUnionPackage)' == 'true' and '$(SharpCppUnionDependencies)' != ''" />
+</Project>

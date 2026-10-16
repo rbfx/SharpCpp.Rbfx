@@ -303,8 +303,17 @@ static class UnionPackage
             new XAttribute("Include", packageId), new XAttribute("Version", version)))))).Save(dependencyProps);
         Pack("SharpCpp.Rbfx.Bindings", platforms[0], version, framework, stage, packages, dependencyProps);
         foreach (var path in Directory.GetDirectories(layout.Inputs, "nuget-*").SelectMany(path => Directory.GetFiles(path, "*.nupkg")))
-            if (new[] { "SharpCpp.Rbfx.CoreData.", "SharpCpp.Rbfx.Data.", "SharpCpp.Rbfx.EditorData." }.Any(prefix => Path.GetFileName(path).StartsWith(prefix, StringComparison.Ordinal)))
+            if (new[] { "SharpCpp.Rbfx.CoreData.", "SharpCpp.Rbfx.Data.", "SharpCpp.Rbfx.EditorData.", "SharpCpp.Rbfx.Editor.runtime." }.Any(prefix => Path.GetFileName(path).StartsWith(prefix, StringComparison.Ordinal)))
                 File.Copy(path, Path.Combine(packages, Path.GetFileName(path)), overwrite: true);
+        // The editor runtime packages come from the desktop builds. The editor package depends on each one that exists.
+        var editorRuntimePackages = platforms.Where(rid => File.Exists(Path.Combine(packages, $"SharpCpp.Rbfx.Editor.runtime.{rid}.{version}.nupkg"))).ToArray();
+        if (editorRuntimePackages.Length > 0)
+        {
+            var editorDependencyProps = Path.Combine(stage, "EditorDependencies.props");
+            new XDocument(new XElement("Project", new XElement("ItemGroup", editorRuntimePackages.Select(rid => new XElement("PackageReference",
+                new XAttribute("Include", $"SharpCpp.Rbfx.Editor.runtime.{rid}"), new XAttribute("Version", version)))))).Save(editorDependencyProps);
+            Pack("SharpCpp.Rbfx.Editor", editorRuntimePackages[0], version, framework, stage, packages, editorDependencyProps);
+        }
         // UWP uses the same Windows toolchain and a custom RID graph, so its consumer is
         // verified by the Windows UWP example job rather than this portable RID smoke build.
         Smoke(packages, version, framework, platforms.Where(rid => rid != "uap-x64").ToArray());

@@ -27,6 +27,16 @@ does not use new `.nuspec` files.
   `SharpCpp.Rbfx.EditorData` contain resource folders copied from the downloaded
   rbfx SDK archive when present.
 
+- `SharpCpp.Rbfx.Editor.runtime.<rid>` contains the rbfx editor with the .NET host for one desktop RID
+  (`linux-x64`, `osx-arm64`, `win-x64`) in `runtimes/<rid>/editor/`: the executable `SharpCppRbfxEditor`,
+  `SharpCpp.Rbfx.EditorHost.dll` with its runtimeconfig, `SharpCpp.Rbfx.Bindings.dll` and the native files of
+  the runtime package. NuGet selects no asset from that folder, so a restore only downloads it. The executable finds its
+  libraries in its own folder (run path `$ORIGIN` or `@loader_path`). `SharpCpp.Rbfx.Editor` has no files and depends on the
+  editor runtime packages. It is not in the web, Android, iOS and UWP package sets.
+  The targets file of the runtime package sets `SharpCppRbfxEditorDirectory` (the editor folder) and
+  `SharpCppRbfxEditorExecutable` when the RID of the .NET SDK (`NETCoreSdkRuntimeIdentifier`) is the RID of the package. It also defines the target
+  `RunSharpCppRbfxEditor`. Use `dotnet msbuild -t:RunSharpCppRbfxEditor` in a project that references `SharpCpp.Rbfx.Editor`.
+
 ## Create Packages
 
 ```bash
@@ -37,6 +47,13 @@ The script fetches the matching prebuilt rbfx SDK with `eng/fetch-rbfx-sdk.sh`
 into `build/sdk/<rid>/` (see `eng/fetch-rbfx-sdk.sh --help`), builds the binding
 project (which drives the auxiliary native CMake target through MSBuild), stages
 files, and runs `dotnet pack`.
+On a desktop RID, when the SDK has the editor headers (`include/Tools/Editor/EditorApplication.h`), the script also builds
+the editor. It builds the CMake target `SharpCppRbfxEditor` in the native tree of the binding build, and then the project
+`SharpCpp.Rbfx.EditorHost` into the folder `SharpCppRbfxEditor.bin` of that tree (MSBuild drives this tree, so the plugin target of CMake does nothing).
+The script stages that folder and the native runtime files, sets the run path of the executable, and packs
+`SharpCpp.Rbfx.Editor.runtime.<rid>` and `SharpCpp.Rbfx.Editor`. CI uploads the runtime package of each desktop RID. The union job
+copies them and packs `SharpCpp.Rbfx.Editor` with a dependency on each one (`UnionPackage.cs pack`). The editor packages need
+no other change to the union phases.
 Package target-framework paths are derived from the repository `TargetFramework`
 property. Use `--target-framework TFM` only when explicitly overriding it.
 

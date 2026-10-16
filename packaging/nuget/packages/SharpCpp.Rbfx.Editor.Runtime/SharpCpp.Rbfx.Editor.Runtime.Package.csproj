@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The editor folder of one desktop RID: runtimes/<rid>/editor/. NuGet does not select files from that folder, so
+       a restore only downloads them. The buildTransitive targets file sets SharpCppRbfxEditorDirectory on the matching host. -->
+  <PropertyGroup>
+    <TargetFramework Condition="'$(SharpCppPackageTargetFramework)' != ''">$(SharpCppPackageTargetFramework)</TargetFramework>
+    <PackageId>SharpCpp.Rbfx.Editor.runtime.$(SharpCppRuntimeIdentifier)</PackageId>
+    <Title>$(PackageId)</Title>
+    <Version>$(PackageVersion)</Version>
+    <Authors>rbfx contributors</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/rbfx/rbfx</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rbfx/SharpCpp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Description>The rbfx editor with a .NET host ($(SharpCppRuntimeIdentifier)).</Description>
+    <PackageTags>rbfx SharpCpp Urho3D editor $(SharpCppRuntimeIdentifier)</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);NU5128;NU5131</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(SharpCppNuGetStageRoot)/editor/$(SharpCppRuntimeIdentifier)/**" Pack="true" PackagePath="runtimes/$(SharpCppRuntimeIdentifier)/editor/%(RecursiveDir)" />
+    <None Include="buildTransitive/SharpCpp.Rbfx.Editor.runtime.targets" Pack="true" PackagePath="buildTransitive/SharpCpp.Rbfx.Editor.runtime.$(SharpCppRuntimeIdentifier).targets" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <Target Name="ValidateSharpCppEditorPackageInputs" BeforeTargets="Pack">
+    <Error Condition="'$(SharpCppNuGetStageRoot)' == '' or '$(SharpCppRuntimeIdentifier)' == ''" Text="SharpCppNuGetStageRoot and SharpCppRuntimeIdentifier must be set." />
+    <PropertyGroup>
+      <SharpCppEditorStageDirectory>$(SharpCppNuGetStageRoot)/editor/$(SharpCppRuntimeIdentifier)</SharpCppEditorStageDirectory>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(SharpCppEditorStageDirectory)/SharpCppRbfxEditor') and !Exists('$(SharpCppEditorStageDirectory)/SharpCppRbfxEditor.exe')" Text="The editor executable was not staged for $(SharpCppRuntimeIdentifier)." />
+    <Error Condition="!Exists('$(SharpCppEditorStageDirectory)/SharpCpp.Rbfx.EditorHost.dll') or !Exists('$(SharpCppEditorStageDirectory)/SharpCpp.Rbfx.EditorHost.runtimeconfig.json')" Text="The files of SharpCpp.Rbfx.EditorHost were not staged for $(SharpCppRuntimeIdentifier)." />
+  </Target>
+</Project>

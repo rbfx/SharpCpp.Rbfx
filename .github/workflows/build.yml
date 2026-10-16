@@ -230,7 +230,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nuget-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/out/${{ matrix.packages }}
+          # The editor runtime package exists for the desktop RIDs only. The union job packs the editor package.
+          path: |
+            SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/out/${{ matrix.packages }}
+            SharpCpp.Rbfx/build/package/nuget/${{ matrix.rid }}/out/SharpCpp.Rbfx.Editor.runtime.*.nupkg
           if-no-files-found: error
 
       # The managed assembly of this platform. A later job reads the public API of each

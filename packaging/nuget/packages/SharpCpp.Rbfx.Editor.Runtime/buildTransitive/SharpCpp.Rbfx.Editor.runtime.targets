@@ -1,0 +1,14 @@
+<Project>
+  <!-- The package copies this file to SharpCpp.Rbfx.Editor.runtime.<rid>.targets. The file name selects the RID.
+       Only the package of the RID of the SDK host sets the properties. -->
+  <PropertyGroup Condition="'$(MSBuildThisFileName)' == 'SharpCpp.Rbfx.Editor.runtime.$(NETCoreSdkRuntimeIdentifier)'">
+    <SharpCppRbfxEditorDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', 'runtimes', '$(NETCoreSdkRuntimeIdentifier)', 'editor'))</SharpCppRbfxEditorDirectory>
+    <SharpCppRbfxEditorExecutable Condition="$(NETCoreSdkRuntimeIdentifier.StartsWith('win-'))">$(SharpCppRbfxEditorDirectory)SharpCppRbfxEditor.exe</SharpCppRbfxEditorExecutable>
+    <SharpCppRbfxEditorExecutable Condition="!$(NETCoreSdkRuntimeIdentifier.StartsWith('win-'))">$(SharpCppRbfxEditorDirectory)SharpCppRbfxEditor</SharpCppRbfxEditorExecutable>
+  </PropertyGroup>
+
+  <!-- dotnet msbuild -t:RunSharpCppRbfxEditor starts the editor. -->
+  <Target Name="RunSharpCppRbfxEditor" Condition="'$(SharpCppRbfxEditorDirectory)' != ''">
+    <Exec Command="&quot;$(SharpCppRbfxEditorExecutable)&quot;" WorkingDirectory="$(SharpCppRbfxEditorDirectory)" />
+  </Target>
+</Project>

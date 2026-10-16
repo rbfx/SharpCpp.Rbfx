@@ -165,7 +165,7 @@ function(rbfx_csharp_add_wrapper target)
   set(WRAP_GENERATED_ROOT "${generated_root}")
   set(WRAP_GENERATED_STAMP "${generated_stamp}")
   set(WRAP_NATIVE_LIBRARY_PATH
-      "${SHARPCPP_NATIVE_OUTPUT_ROOT}/$(Configuration)/${native_library_prefix}${WRAP_LIBRARY_NAME}${native_library_suffix}")
+      "${SHARPCPP_NATIVE_OUTPUT_ROOT}/$([MSBuild]::ValueOrDefault('$(RbfxNativeConfiguration)', '$(Configuration)'))/${native_library_prefix}${WRAP_LIBRARY_NAME}${native_library_suffix}")
   if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
     set(RBFX_CSHARP_MANAGED_REFERENCES
         "    <PackageReference Include=\"SharpCpp.Rbfx.Bindings\" Version=\"${RBFX_CSHARP_BINDINGS_PACKAGE_VERSION}\" />")

@@ -818,8 +818,27 @@ function(_rbfx_csharp_collect_native_link_items name kind files_var flags_var)
         list(APPEND queue ${dependencies})
         list(LENGTH queue count)
       endif()
+    elseif(item STREQUAL "-framework" OR item STREQUAL "-weak_framework")
+      # The name of the framework is the next item.
+      set(framework_option "${item}")
+      list(POP_FRONT queue item)
+      list(LENGTH queue count)
+      if(NOT item STREQUAL "")
+        list(APPEND flags "${framework_option} ${item}")
+      endif()
     elseif(item MATCHES "^-" OR item MATCHES "^SHELL:" OR item MATCHES "\\$<")
       list(APPEND flags "${item}")
+    elseif(IS_ABSOLUTE "${item}" AND (item MATCHES "(^|/)([^/]+)\\.framework(/([^/]+))?$"))
+      # The static libraries of the engine link a system framework as a path:
+      # <sdk>/System/Library/Frameworks/<Name>.framework/<Name>. The SDK of Apple has the stub <Name>.tbd in place of
+      # the binary, so the path does not exist. The linker gets the framework by name.
+      set(framework_name "${CMAKE_MATCH_2}")
+      list(APPEND flags "-framework ${framework_name}")
+    elseif(IS_ABSOLUTE "${item}" AND (item MATCHES "\\.tbd$"))
+      # A text stub of the SDK: <sdk>/usr/lib/lib<name>.tbd links as -l<name>.
+      get_filename_component(stub_name "${item}" NAME_WE)
+      string(REGEX REPLACE "^lib" "" stub_name "${stub_name}")
+      list(APPEND flags "-l${stub_name}")
     elseif(IS_ABSOLUTE "${item}")
       list(APPEND files "${item}")
     elseif(item MATCHES "::")

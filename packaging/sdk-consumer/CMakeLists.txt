@@ -28,6 +28,7 @@ rbfx_csharp_add_wrapper(Greeter
   HEADERS Greeter.hpp
   INCLUDE_DIRECTORIES .
   IMPLEMENTATION Greeter.Impl
+  SEPARATE_LIBRARY
   NAMESPACE Consumer)
 
 # A cross build checks the libraries only. The application needs a target platform entry point.

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstring>
+
 #include <SharpCpp/Marshaller.hpp>
 #include "RbfxRefCountedMarshallers.hpp"
 #include "RbfxMathMarshallers.hpp"
@@ -902,10 +904,51 @@ struct [[sharpcpp::managed_type(
 )]]
 Marshaller<Urho3D::Transform>
 {
+    // Quaternion has a user-provided copy constructor, so Transform is not trivially copyable.
+    // The ABI type has the same layout and is trivially copyable, so it returns like a C struct.
+    struct AbiTransform
+    {
+        Urho3D::Vector3 position_;
+        float rotation_[4];
+        Urho3D::Vector3 scale_;
+    };
+
     using cpp_type = Urho3D::Transform;
-    using abi_type = Urho3D::Transform;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    using abi_type = AbiTransform;
+
+    static_assert(sizeof(AbiTransform) == sizeof(Urho3D::Transform));
+    static_assert(sizeof(Urho3D::Quaternion) == sizeof(float) * 4);
+
+    abi_type ConvertToAbi(const cpp_type& v) noexcept
+    {
+        abi_type result;
+        result.position_ = v.position_;
+        std::memcpy(result.rotation_, &v.rotation_, sizeof(result.rotation_));
+        result.scale_ = v.scale_;
+        return result;
+    }
+
+    cpp_type ConvertToCpp(abi_type v) noexcept
+    {
+        cpp_type result;
+        result.position_ = v.position_;
+        std::memcpy(&result.rotation_, v.rotation_, sizeof(v.rotation_));
+        result.scale_ = v.scale_;
+        return result;
+    }
 };
+
+namespace detail
+{
+// Transform has the same bytes as its ABI type but is not trivially copyable (Quaternion has a
+// user-provided copy constructor), so the generic layout check rejects it.
+template <>
+struct is_layout_compatible_pair<Urho3D::Transform, Marshaller<Urho3D::Transform>::abi_type, void>
+    : std::bool_constant<
+          sizeof(Urho3D::Transform) == sizeof(Marshaller<Urho3D::Transform>::abi_type) &&
+          alignof(Urho3D::Transform) == alignof(Marshaller<Urho3D::Transform>::abi_type)>
+{
+};
+} // namespace detail
 
 } // namespace SharpCpp

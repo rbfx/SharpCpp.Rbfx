@@ -199,6 +199,13 @@ bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem:
     }
 }
 
+bool DotNetHost::RegisterPlugin(PluginManager*, const std::filesystem::path&, std::string& error)
+{
+    // The managed host table of the shim has no register entry. Only the desktop editor uses RegisterPlugin.
+    error = "RegisterPlugin is not available in the DotNetHost shim.";
+    return false;
+}
+
 bool DotNetHost::LoadPluginEntryPoint(std::string& error)
 {
     // The hostfxr class layout has this member. The shim never uses it.

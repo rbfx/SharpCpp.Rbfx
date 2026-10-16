@@ -352,6 +352,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddWrapper.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpPlugin.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpLauncher.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpEditor.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpData.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpProject.cmake")
@@ -431,6 +432,11 @@ endif()
 if(RBFX_BUILD_EXAMPLES)
   add_subdirectory(Rbfx.Examples/Example.NativeHost)
 endif()
+# The editor that hosts the .NET runtime. The rbfx SDK must have the editor library.
+# The editor needs the managed bootstrap plugin, which dotnet builds. MSBuild builds it when MSBuild drives the native build.
+if(RBFX_BUILD_HOST AND RBFX_HOST_MODE STREQUAL "hostfxr" AND TARGET EditorLibrary AND RBFX_CSHARP_BUILD_MANAGED)
+  rbfx_csharp_add_editor(SharpCppRbfxEditor)
+endif()
 
 if(RBFX_INSTALL_SDK)
   include(GNUInstallDirs)
@@ -477,6 +483,7 @@ if(RBFX_INSTALL_SDK)
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpPlugin.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpLauncher.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpEditor.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpData.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpProject.cmake"
@@ -545,6 +552,10 @@ if(RBFX_INSTALL_SDK)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/launcher"
     DESTINATION "${_rbfx_sdk_module_dir}")
+  # The sources of the bootstrap plugin of the editor (rbfx_csharp_add_editor).
+  install(
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.EditorHost/EditorHostPlugin.cs"
+    DESTINATION "${_rbfx_sdk_module_dir}/editor-host")
   # The new-project script and its templates. The script finds the folder project next to itself.
   install(
     FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpNewProject.cmake"

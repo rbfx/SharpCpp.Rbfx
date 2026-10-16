@@ -77,6 +77,12 @@ public:
     /// A plugin name can be loaded only once. Returns false and fills error on failure.
     bool LoadPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error);
 
+    /// Registers a managed rbfx plugin assembly in the plugin manager without loading it. It does the first part of
+    /// LoadPlugin only: the plugin manager adds the plugin as a static plugin, and PluginManager::SetPluginsLoaded and
+    /// Commit are not called, so the list of the loaded plugins does not change. A plugin name can be registered only
+    /// once for a plugin manager. Not available in the shim mode (returns false). Returns false and fills error on failure.
+    bool RegisterPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error);
+
     bool IsInitialized() const;
 
     /// Closes the host context. The runtime itself stays loaded.
@@ -92,6 +98,7 @@ private:
     void* loadAssemblyIntoDefaultFunction_{};
     void* getFunctionPointerFunction_{};
     void* loadPluginFunction_{};
+    void* registerPluginFunction_{};
     std::filesystem::path bindingsAssemblyPath_;
     /// Used only in shim mode. The layout is the same in both modes.
     bool shimInitialized_{};

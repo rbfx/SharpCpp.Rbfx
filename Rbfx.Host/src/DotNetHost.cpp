@@ -32,6 +32,7 @@ using HostString = std::basic_string<char_t>;
 // The managed entry point of LoadPlugin. It is in SharpCpp.Rbfx.Bindings/Plugins/NativeHostEntryPoints.cs.
 constexpr std::string_view LoadPluginTypeName = "Urho3D.Plugins.NativeHostEntryPoints, SharpCpp.Rbfx.Bindings";
 constexpr std::string_view LoadPluginMethodName = "LoadPlugin";
+constexpr std::string_view RegisterPluginMethodName = "RegisterPlugin";
 using ManagedErrorWriter = void (*)(void* state, const char* text, int length);
 using LoadPluginFunction = int (*)(void* pluginManager, const char* assemblyPath, ManagedErrorWriter writeError, void* state);
 
@@ -356,6 +357,28 @@ void* DotNetHost::GetFunctionPointer(
     }
 }
 
+namespace
+{
+
+// Calls LoadPlugin or RegisterPlugin of NativeHostEntryPoints. Both have the same signature.
+bool CallPluginEntryPoint(void* function, std::string_view action, PluginManager* pluginManager,
+    const std::filesystem::path& assemblyPath, std::string& error)
+{
+    const std::u8string path = std::filesystem::absolute(assemblyPath).u8string();
+    const std::string utf8Path(path.begin(), path.end());
+    std::string managedError;
+    const auto entryPoint = reinterpret_cast<LoadPluginFunction>(function);
+    if (entryPoint(pluginManager, utf8Path.c_str(), &AppendManagedError, &managedError) == 0)
+    {
+        error = "Cannot " + std::string(action) + " the managed plugin '" + assemblyPath.generic_string() + "': "
+            + (managedError.empty() ? std::string("unknown error.") : managedError);
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
 bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error)
 {
     error.clear();
@@ -373,18 +396,7 @@ bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem:
         }
         if (!loadPluginFunction_ && !LoadPluginEntryPoint(error))
             return false;
-
-        const std::u8string path = std::filesystem::absolute(assemblyPath).u8string();
-        const std::string utf8Path(path.begin(), path.end());
-        std::string managedError;
-        const auto loadPlugin = reinterpret_cast<LoadPluginFunction>(loadPluginFunction_);
-        if (loadPlugin(pluginManager, utf8Path.c_str(), &AppendManagedError, &managedError) == 0)
-        {
-            error = "Cannot load the managed plugin '" + assemblyPath.generic_string() + "': "
-                + (managedError.empty() ? std::string("unknown error.") : managedError);
-            return false;
-        }
-        return true;
+        return CallPluginEntryPoint(loadPluginFunction_, "load", pluginManager, assemblyPath, error);
     }
     catch (const std::exception& exception)
     {
@@ -394,6 +406,37 @@ bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem:
     catch (...)
     {
         error = "LoadPlugin failed with an unknown exception.";
+        return false;
+    }
+}
+
+bool DotNetHost::RegisterPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error)
+{
+    error.clear();
+    try
+    {
+        if (!IsInitialized())
+        {
+            error = "The .NET host is not initialized.";
+            return false;
+        }
+        if (!pluginManager)
+        {
+            error = "The plugin manager is null. Call RegisterPlugin after Engine::Initialize.";
+            return false;
+        }
+        if (!registerPluginFunction_ && !LoadPluginEntryPoint(error))
+            return false;
+        return CallPluginEntryPoint(registerPluginFunction_, "register", pluginManager, assemblyPath, error);
+    }
+    catch (const std::exception& exception)
+    {
+        error = std::string("RegisterPlugin failed: ") + exception.what();
+        return false;
+    }
+    catch (...)
+    {
+        error = "RegisterPlugin failed with an unknown exception.";
         return false;
     }
 }
@@ -420,18 +463,23 @@ bool DotNetHost::LoadPluginEntryPoint(std::string& error)
     }
 
     const HostString type = ToHostString(LoadPluginTypeName);
-    const HostString method = ToHostString(LoadPluginMethodName);
-    void* result = nullptr;
     const auto getFunctionPointer = reinterpret_cast<get_function_pointer_fn>(getFunctionPointerFunction_);
-    rc = getFunctionPointer(type.c_str(), method.c_str(), UNMANAGEDCALLERSONLY_METHOD, nullptr, nullptr, &result);
-    if (rc != 0 || result == nullptr)
+    void* functions[2] = {};
+    const std::string_view methods[2] = {LoadPluginMethodName, RegisterPluginMethodName};
+    for (int index = 0; index < 2; ++index)
     {
-        AppendError(error, "get_function_pointer failed (" + FormatCode(rc) + ") for '" + std::string(LoadPluginTypeName)
-            + "." + std::string(LoadPluginMethodName) + "'.");
-        return false;
+        const HostString method = ToHostString(methods[index]);
+        rc = getFunctionPointer(type.c_str(), method.c_str(), UNMANAGEDCALLERSONLY_METHOD, nullptr, nullptr, &functions[index]);
+        if (rc != 0 || functions[index] == nullptr)
+        {
+            AppendError(error, "get_function_pointer failed (" + FormatCode(rc) + ") for '" + std::string(LoadPluginTypeName)
+                + "." + std::string(methods[index]) + "'.");
+            return false;
+        }
     }
 
-    loadPluginFunction_ = result;
+    loadPluginFunction_ = functions[0];
+    registerPluginFunction_ = functions[1];
     error.clear();
     return true;
 }
@@ -446,6 +494,7 @@ void DotNetHost::Close()
     loadAssemblyIntoDefaultFunction_ = nullptr;
     getFunctionPointerFunction_ = nullptr;
     loadPluginFunction_ = nullptr;
+    registerPluginFunction_ = nullptr;
     // hostfxr stays loaded. The runtime cannot be unloaded from the process.
 }
 

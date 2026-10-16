@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -20,6 +21,7 @@ public static unsafe class NativeHostEntryPoints
     /// See <see cref="PluginManagerExtensions.LoadManagedPlugin(PluginManager, string, string?)"/>.
     /// Returns 1 on success. On failure it calls <paramref name="writeError"/> with a UTF-8 message and returns 0.
     /// </summary>
+    [RequiresUnreferencedCode("The hostfxr host loads the plugin assembly from a file. Trimmed and AOT applications attach through SharpCpp.Rbfx.NativeHost.")]
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     public static int LoadPlugin(
         nint pluginManager,

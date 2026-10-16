@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.Loader;
 
@@ -16,6 +17,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         _resolver = new AssemblyDependencyResolver(assemblyPath);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "This context loads plugin assemblies from files. Only PluginRuntime.Load creates it, and that method requires unreferenced code.")]
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         if (TryLoadFromHost(assemblyName) is { } shared)

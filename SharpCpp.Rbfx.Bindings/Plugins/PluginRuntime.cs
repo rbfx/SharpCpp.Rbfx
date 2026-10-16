@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -52,6 +53,7 @@ public static class PluginRuntime
     }
 
     /// <summary>Loads the plugin assembly at the path. A second call with the same full path returns the same assembly.</summary>
+    [RequiresUnreferencedCode("Loading a plugin assembly from a file needs the runtime to load code that the trimmer cannot analyze. Use the overloads that take an Assembly in trimmed and AOT applications.")]
     public static Assembly Load(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
@@ -72,6 +74,12 @@ public static class PluginRuntime
     /// Returns the plugin class of the assembly: the type of <see cref="PluginModuleAttribute"/>, else the first
     /// concrete <see cref="Plugin"/> subclass with a public constructor that takes a context.
     /// </summary>
+    // The scan runs on a plugin assembly. The trimmer and the AOT compiler keep every type of that assembly, because
+    // the head makes the plugin assembly a trimmer root. Thus Assembly.GetTypes sees all types with their public constructors.
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The plugin assembly is a trimmer root, so GetTypes returns all of its types.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The plugin assembly is a trimmer root, so its types keep their public constructors.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2073", Justification = "The plugin assembly is a trimmer root, so its types keep their public constructors.")]
     public static Type FindPluginType(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
@@ -121,7 +129,7 @@ public static class PluginRuntime
         return (Plugin)Activator.CreateInstance(type, context)!;
     }
 
-    private static bool IsPluginType(Type type) =>
+    private static bool IsPluginType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type) =>
         type.IsClass && !type.IsAbstract && !type.ContainsGenericParameters && type.IsSubclassOf(typeof(Plugin)) &&
         type.GetConstructor([typeof(global::Urho3D.Core.Context)]) is not null;
 }

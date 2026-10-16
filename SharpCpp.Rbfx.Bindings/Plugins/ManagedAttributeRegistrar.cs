@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -15,6 +16,11 @@ namespace Urho3D.Plugins;
 /// <summary>Adds the <see cref="SerializeFieldAttribute"/> members of a managed type to its engine reflection.</summary>
 internal static class ManagedAttributeRegistrar
 {
+    internal const DynamicallyAccessedMemberTypes ManagedTypeMembers =
+        DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.Interfaces |
+        DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.NonPublicFields |
+        DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.NonPublicProperties;
+
     private const BindingFlags DeclaredInstanceMembers =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
@@ -27,7 +33,11 @@ internal static class ManagedAttributeRegistrar
     /// Copies the attributes of the nearest reflected base type, then adds the marked members of the type and of its
     /// managed base types that have no reflection. A temporary instance gives the default values.
     /// </summary>
-    public static void Register(Context context, ObjectReflection reflection, TypeInfo typeInfo, Type type)
+    public static void Register(
+        Context context,
+        ObjectReflection reflection,
+        TypeInfo typeInfo,
+        [DynamicallyAccessedMembers(ManagedTypeMembers)] Type type)
     {
         CopyBaseAttributes(context, reflection, typeInfo);
 
@@ -91,7 +101,9 @@ internal static class ManagedAttributeRegistrar
 
     // Members of the type, and of managed base types up to the first base type with a reflection.
     // The attributes of that base type come from CopyAttributesFrom.
-    private static List<(MemberInfo Member, SerializeFieldAttribute Attribute)> CollectMembers(Context context, Type type)
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "The base types come from the annotated type. The annotation keeps the same members of the base types.")]
+    private static List<(MemberInfo Member, SerializeFieldAttribute Attribute)> CollectMembers(Context context, [DynamicallyAccessedMembers(ManagedTypeMembers)] Type type)
     {
         var result = new List<(MemberInfo, SerializeFieldAttribute)>();
         var chain = new List<Type>();
@@ -146,7 +158,7 @@ internal static class ManagedAttributeRegistrar
         return result;
     }
 
-    private static bool IsReflected(Context context, Type type)
+    private static bool IsReflected(Context context, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] Type type)
     {
         var method = type.GetMethod("GetTypeInfoStatic", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, Type.EmptyTypes);
         return method?.Invoke(null, null) is TypeInfo { IsInvalid: false } typeInfo && context.IsReflected(typeInfo.GetType());
@@ -174,6 +186,8 @@ internal static class ManagedAttributeRegistrar
 
     // Enum values are boxed by the enum converter, so every enum maps to the object binding.
     // The known value types use direct generic calls, which AOT compilers can see.
+    [UnconditionalSuppressMessage("Trimming", "IL2060",
+        Justification = "This fallback runs only when dynamic code is supported. The table above covers every known value type for AOT, which throws instead.")]
     private static ManagedAttributeBinding CreateBindingFor(Type type, Type valueType, MemberInfo member, object converter)
     {
         var bindingType = valueType.IsEnum ? typeof(object) : valueType;

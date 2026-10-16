@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace Urho3D.Plugins;
@@ -9,6 +10,7 @@ namespace Urho3D.Plugins;
 public static class PluginManagerExtensions
 {
     /// <summary>Loads the assembly at the path and registers its plugin. See <see cref="RegisterManagedPlugin(PluginManager, Assembly, string?)"/>.</summary>
+    [RequiresUnreferencedCode("Loading a plugin assembly from a file needs the runtime to load code that the trimmer cannot analyze. Use the overload that takes an Assembly in trimmed and AOT applications.")]
     public static Plugin RegisterManagedPlugin(this PluginManager manager, string assemblyPath, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(manager);
@@ -67,6 +69,7 @@ public static class PluginManagerExtensions
     /// assembly fails, because the name is used.
     /// </remarks>
     /// <exception cref="InvalidOperationException">A second call for an already loaded plugin throws "already registered".</exception>
+    [RequiresUnreferencedCode("Loading a plugin assembly from a file needs the runtime to load code that the trimmer cannot analyze. Use the overload that takes an Assembly in trimmed and AOT applications.")]
     public static Plugin LoadManagedPlugin(this PluginManager manager, string assemblyPath, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(manager);

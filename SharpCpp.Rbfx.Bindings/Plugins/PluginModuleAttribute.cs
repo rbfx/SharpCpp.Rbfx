@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Urho3D.Plugins;
 
 /// <summary>
@@ -7,12 +9,13 @@ namespace Urho3D.Plugins;
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
 public sealed class PluginModuleAttribute : Attribute
 {
-    public PluginModuleAttribute(Type pluginType)
+    public PluginModuleAttribute([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type pluginType)
     {
         PluginType = pluginType;
     }
 
     /// <summary>The plugin class. It derives from <see cref="Plugin"/> and has a public constructor that takes a context.</summary>
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type PluginType { get; }
 
     /// <summary>The plugin name in the plugin manager. The default is the simple name of the assembly.</summary>

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using SharpCpp.Rbfx.Bindings.Interop;
@@ -38,6 +39,7 @@ public abstract partial class ManagedPlugin : Plugin
     protected override void Unload() => UnregisterManagedTypes();
 
     /// <summary>Returns the candidate types. The default is all types of the plugin assembly.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The plugin assembly is a trimmer root, so GetTypes returns all of its types.")]
     protected virtual IEnumerable<Type> GetManagedTypes()
     {
         try
@@ -51,10 +53,12 @@ public abstract partial class ManagedPlugin : Plugin
     }
 
     /// <summary>Returns true to register the type. The default accepts every factory type that is not a plugin.</summary>
-    protected virtual bool ShouldRegister(Type type) =>
+    protected virtual bool ShouldRegister([DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type) =>
         ManagedObjectFactory.IsFactoryType(type) && !typeof(Plugin).IsAssignableFrom(type);
 
     /// <summary>Registers the factories and the attributes. A second call does nothing until the types are unregistered.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
     protected void RegisterManagedTypes()
     {
         if (_registeredTypes.Count > 0)
@@ -68,7 +72,7 @@ public abstract partial class ManagedPlugin : Plugin
         var category = FactoryCategory;
 
         // A base type registers before its derived types, so that the derived types can copy its attributes.
-        var types = GetManagedTypes().Where(ShouldRegister).OrderBy(GetDepth).ThenBy(static t => t.FullName, StringComparer.Ordinal);
+        var types = GetManagedTypes().Where(candidate => ShouldRegister(candidate)).OrderBy(GetDepth).ThenBy(static t => t.FullName, StringComparer.Ordinal);
         foreach (var type in types)
         {
             try

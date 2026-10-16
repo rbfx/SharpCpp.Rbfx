@@ -1,26 +1,51 @@
 # rbfx_csharp_add_wrapper(<target> HEADERS <header>... [keywords])
 #
-# Generates a C# wrapper over user C++ headers that use the rbfx SDK. The function creates the bindings
-# target <target>: the native library with the generated wrapper code. The implementation of the wrapped
-# headers is a separate target that the caller passes in IMPLEMENTATION. See build/PLAN-dotnet-hosting.md, section 3.3.
-# The function also writes the managed bindings project at configure time. It never runs MSBuild.
+# Generates a C# wrapper over user C++ headers that use the rbfx SDK. The function also writes the managed bindings
+# project at configure time. It never runs MSBuild. See build/PLAN-dotnet-hosting.md, section 3.3.
+# The implementation of the wrapped headers is a separate target that the caller passes in IMPLEMENTATION.
+# There are two modes:
+#   Integration (default, with one IMPLEMENTATION target): the generated C++ glue is a source of the IMPLEMENTATION
+#     target itself (target_sources, the include directories, cxx_std_20 and a dependency on the generation).
+#     <target> is an INTERFACE library that holds the properties of the wrapper. There is no native library of the
+#     wrapper: the C# code imports the entry points from the library of the IMPLEMENTATION target. Its name is the
+#     OUTPUT_NAME of that target (or the target name), so set OUTPUT_NAME before this call. The IMPLEMENTATION target
+#     must be a SHARED, MODULE, STATIC or OBJECT library of the project (not imported, not an alias). A static or
+#     object library needs RBFX_NATIVE_LIBRARY_TYPE STATIC (iOS, Emscripten): the code is in the executable and the
+#     import name is "__Internal" ("lib<name>" on Emscripten). On another platform it is an error. The entry points
+#     have the visibility "default" (SHARPCPP_EXPORT), so a library that hides its symbols still exports them.
+#     The library path, the install rules and the run-time path are the ones of the IMPLEMENTATION target.
+#     The IMPLEMENTATION target must use the keyword signature of target_link_libraries (PUBLIC, PRIVATE), because the
+#     function adds links to it. Otherwise use SEPARATE_LIBRARY. An object library is only for Emscripten.
+#   Separate library (keyword SEPARATE_LIBRARY, or no IMPLEMENTATION): <target> is a native library with the
+#     generated code. It links the IMPLEMENTATION targets PUBLIC.
+# The property SHARPCPP_RBFX_NATIVE_TARGET of <target> names the target that holds the native code (the IMPLEMENTATION
+# target, or <target> itself). Use rbfx_csharp_wrapper_native_target(<target> <out_var>) to read it.
 #
 # Keywords with one value:
 #   NAMESPACE            C# namespace of the bindings. Default: <target> without "." and "-".
 #   ASSEMBLY_NAME        Name of the managed assembly. Default: <target>.
+#   BINDINGS_CLASS       Name of the generated static partial class in NAMESPACE that holds the module initializer and
+#                        the callback entry points. Two assemblies that share a namespace need different names, or
+#                        the compiler reports CS0436 in the code that references both. Default: <target> with every
+#                        character that is not a letter, a digit or "_" replaced by "_", followed by "Bindings"
+#                        (for example Plugin_Core_SamplePlugin_WrapperBindings).
 #   LIBRARY_NAME         Name of the native library without prefix and suffix. Default: <target>.Native.
+#                        Only for the separate-library mode. The integration mode takes the name from the
+#                        IMPLEMENTATION target and stops with an error when LIBRARY_NAME is present.
 #                        The generated C# imports "lib<LIBRARY_NAME>" for a static library on Emscripten,
 #                        "__Internal" for another static library, and LIBRARY_NAME otherwise.
 #   SYMBOL_PREFIX        Prefix of the exported native symbols. Default: lower-case <target> with letters and digits only.
 #   GENERATED_DIRECTORY  Directory below SHARPCPP_GENERATED_ROOT for the generated sources. Default: <target>.
-#   LIBRARY_TYPE         SHARED or STATIC. Default: RBFX_NATIVE_LIBRARY_TYPE.
+#   LIBRARY_TYPE         SHARED or STATIC. Default: RBFX_NATIVE_LIBRARY_TYPE. Only for the separate-library mode.
+#   SEPARATE_LIBRARY     (option, no value) Make the separate-library mode, also when IMPLEMENTATION is present.
 #   CSPROJ               Path of a managed project that the user maintains. The function does not write
 #                        a project file when this keyword is present. The project files that the function
 #                        writes are the same, except the csproj.
 # Keywords with a list of values:
 #   HEADERS              Header files to wrap. Required.
 #   INCLUDE_DIRECTORIES  Include directories of the headers.
-#   IMPLEMENTATION       Libraries that implement the headers. The function links them PUBLIC.
+#   IMPLEMENTATION       Integration mode: the one library target that implements the headers and gets the glue.
+#                        Separate-library mode: libraries that implement the headers. The function links them PUBLIC.
 #
 # Files written to ${SHARPCPP_GENERATED_ROOT}/usercode/<target>/ (only when the content changes):
 #   Directory.Build.props, Directory.Build.targets  Import RBFX_CSHARP_MSBUILD_PROPS and RBFX_CSHARP_MSBUILD_TARGETS.
@@ -31,6 +56,7 @@
 #   SHARPCPP_RBFX_MANAGED_PROJECT   Path of the managed project (the CSPROJ value, or the written csproj).
 #   SHARPCPP_RBFX_MANAGED_PROPS     Path of <target>.props.
 #   SHARPCPP_RBFX_MANAGED_ASSEMBLY  Path of the managed assembly (a generator expression).
+#   SHARPCPP_RBFX_NATIVE_TARGET     The target with the native code (see above).
 #
 # Cache variables (defined by the top-level CMakeLists.txt):
 #   RBFX_CSHARP_BINDINGS_PROJECTS         Projects that the written csproj references (one ProjectReference for each path).
@@ -78,11 +104,26 @@ define_property(GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS
   BRIEF_DOCS "Targets created by rbfx_csharp_add_wrapper()"
   FULL_DOCS "Targets created by rbfx_csharp_add_wrapper(). The top-level CMakeLists.txt adds them to the aggregate targets.")
 
+# rbfx_csharp_wrapper_native_target(<wrapper target> <out_var>)
+# Sets <out_var> to the target that holds the native code of a wrapper target of rbfx_csharp_add_wrapper(): the
+# IMPLEMENTATION target (integration mode) or the wrapper target itself (separate-library mode). For another target
+# <out_var> is the target itself.
+function(rbfx_csharp_wrapper_native_target wrapper out_var)
+  set(native "${wrapper}")
+  if(TARGET ${wrapper})
+    get_target_property(host ${wrapper} SHARPCPP_RBFX_NATIVE_TARGET)
+    if(host)
+      set(native "${host}")
+    endif()
+  endif()
+  set(${out_var} "${native}" PARENT_SCOPE)
+endfunction()
+
 function(rbfx_csharp_add_wrapper target)
   cmake_parse_arguments(
     WRAP
-    ""
-    "NAMESPACE;ASSEMBLY_NAME;LIBRARY_NAME;SYMBOL_PREFIX;GENERATED_DIRECTORY;LIBRARY_TYPE;CSPROJ"
+    "SEPARATE_LIBRARY"
+    "NAMESPACE;ASSEMBLY_NAME;BINDINGS_CLASS;LIBRARY_NAME;SYMBOL_PREFIX;GENERATED_DIRECTORY;LIBRARY_TYPE;CSPROJ"
     "HEADERS;INCLUDE_DIRECTORIES;IMPLEMENTATION"
     ${ARGN})
 
@@ -109,7 +150,57 @@ function(rbfx_csharp_add_wrapper target)
   if(NOT WRAP_ASSEMBLY_NAME)
     set(WRAP_ASSEMBLY_NAME "${target}")
   endif()
-  if(NOT WRAP_LIBRARY_NAME)
+  if(NOT WRAP_BINDINGS_CLASS)
+    string(MAKE_C_IDENTIFIER "${target}" WRAP_BINDINGS_CLASS)
+    string(APPEND WRAP_BINDINGS_CLASS "Bindings")
+  endif()
+  if(NOT WRAP_BINDINGS_CLASS MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
+    message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): BINDINGS_CLASS '${WRAP_BINDINGS_CLASS}' is not a C# identifier.")
+  endif()
+
+  # The mode. Integration is the default with one IMPLEMENTATION target.
+  set(WRAP_INTEGRATION OFF)
+  if(WRAP_IMPLEMENTATION AND NOT WRAP_SEPARATE_LIBRARY)
+    set(WRAP_INTEGRATION ON)
+  endif()
+  if(WRAP_INTEGRATION)
+    list(LENGTH WRAP_IMPLEMENTATION implementation_count)
+    if(NOT implementation_count EQUAL 1)
+      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION has ${implementation_count} items. The default mode needs one target. Use SEPARATE_LIBRARY for a list.")
+    endif()
+    if(WRAP_LIBRARY_NAME OR WRAP_LIBRARY_TYPE)
+      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): LIBRARY_NAME and LIBRARY_TYPE belong to the library of IMPLEMENTATION '${WRAP_IMPLEMENTATION}'. Remove them, or add SEPARATE_LIBRARY.")
+    endif()
+    set(implementation "${WRAP_IMPLEMENTATION}")
+    if(NOT TARGET ${implementation})
+      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is not a target. Make it before this call, or add SEPARATE_LIBRARY.")
+    endif()
+    get_target_property(aliased ${implementation} ALIASED_TARGET)
+    if(aliased)
+      set(implementation "${aliased}")
+    endif()
+    get_target_property(implementation_imported ${implementation} IMPORTED)
+    get_target_property(implementation_type ${implementation} TYPE)
+    if(implementation_imported OR NOT implementation_type MATCHES "^(SHARED_LIBRARY|MODULE_LIBRARY|STATIC_LIBRARY|OBJECT_LIBRARY)$")
+      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is not a SHARED, MODULE, STATIC or OBJECT library of this project (type ${implementation_type}). Add SEPARATE_LIBRARY.")
+    endif()
+    if(implementation_type MATCHES "^(SHARED|MODULE)_LIBRARY$")
+      set(WRAP_LIBRARY_TYPE "SHARED")
+    elseif(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
+      # The iOS head force-loads $<TARGET_FILE:...>, which an object library does not have. The wasm head uses
+      # $<TARGET_OBJECTS:...>.
+      if(implementation_type STREQUAL "OBJECT_LIBRARY" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+        message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is an object library. Only Emscripten supports it in the default mode. Add SEPARATE_LIBRARY, or make '${implementation}' a static library.")
+      endif()
+      set(WRAP_LIBRARY_TYPE "STATIC")
+    else()
+      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is a static or object library, but RBFX_NATIVE_LIBRARY_TYPE is not STATIC. The C# code cannot load it. Add SEPARATE_LIBRARY, or make '${implementation}' a shared library.")
+    endif()
+    get_target_property(WRAP_LIBRARY_NAME ${implementation} OUTPUT_NAME)
+    if(NOT WRAP_LIBRARY_NAME)
+      set(WRAP_LIBRARY_NAME "${implementation}")
+    endif()
+  elseif(NOT WRAP_LIBRARY_NAME)
     set(WRAP_LIBRARY_NAME "${target}.Native")
   endif()
 
@@ -164,8 +255,14 @@ function(rbfx_csharp_add_wrapper target)
   set(WRAP_TARGET "${target}")
   set(WRAP_GENERATED_ROOT "${generated_root}")
   set(WRAP_GENERATED_STAMP "${generated_stamp}")
-  set(WRAP_NATIVE_LIBRARY_PATH
-      "${SHARPCPP_NATIVE_OUTPUT_ROOT}/$(Configuration)/${native_library_prefix}${WRAP_LIBRARY_NAME}${native_library_suffix}")
+  # The integration mode has no library of its own. The library of IMPLEMENTATION is in the output folder of the
+  # project, which is not known here, so the managed project does not check the path.
+  if(WRAP_INTEGRATION)
+    set(WRAP_NATIVE_LIBRARY_PATH "")
+  else()
+    set(WRAP_NATIVE_LIBRARY_PATH
+        "${SHARPCPP_NATIVE_OUTPUT_ROOT}/$(Configuration)/${native_library_prefix}${WRAP_LIBRARY_NAME}${native_library_suffix}")
+  endif()
   if(RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
     set(RBFX_CSHARP_MANAGED_REFERENCES
         "    <PackageReference Include=\"SharpCpp.Rbfx.Bindings\" Version=\"${RBFX_CSHARP_BINDINGS_PACKAGE_VERSION}\" />")
@@ -278,7 +375,7 @@ function(rbfx_csharp_add_wrapper target)
             ${include_directory_arguments}
             --assembly-name "${WRAP_ASSEMBLY_NAME}"
             --namespace "${WRAP_NAMESPACE}"
-            --bindings-class "Bindings"
+            --bindings-class "${WRAP_BINDINGS_CLASS}"
             --library-name "${WRAP_IMPORT_LIBRARY_NAME}"
             --file-stem "${file_stem}"
             --symbol-prefix "${WRAP_SYMBOL_PREFIX}"
@@ -308,34 +405,11 @@ function(rbfx_csharp_add_wrapper target)
   endif()
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${generated_stamp}")
 
-  set_source_files_properties(
-    "${generated_cpp}"
-    PROPERTIES
-      GENERATED TRUE
-      OBJECT_DEPENDS "${generated_stamp}")
-  add_library(${target} ${WRAP_LIBRARY_TYPE} "${generated_cpp}")
-  add_dependencies(${target} sharpcpp-generate-${target})
-  # The source-tree build of a consumer builds the user-code generator itself.
-  if(TARGET sharpcpp-rbfx-build-usercode-generator)
-    add_dependencies(sharpcpp-generate-${target} sharpcpp-rbfx-build-usercode-generator)
-  endif()
-  if(TARGET sharpcpp-rbfx-runtime)
-    add_dependencies(${target} sharpcpp-rbfx-runtime)
-  endif()
-  target_compile_features(${target} PRIVATE cxx_std_20)
-  if(MSVC)
-    # A unity source of the generated wrappers exceeds the section limit of the default object format.
-    target_compile_options(${target} PRIVATE /bigobj)
-  endif()
-  set_target_properties(
-    ${target}
-    PROPERTIES
-      CXX_SCAN_FOR_MODULES OFF
-      UNITY_BUILD ON
-      UNITY_BUILD_BATCH_SIZE 100
-      OUTPUT_NAME "${WRAP_LIBRARY_NAME}"
-      BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
-      INSTALL_RPATH "${RBFX_RUNTIME_RPATH}"
+  set(generated_cpp_options
+      "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-attributes>"
+      # A unity source of the generated wrappers exceeds the section limit of the default object format.
+      "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/bigobj>")
+  set(wrapper_properties
       SHARPCPP_RBFX_GENERATED_DIR "${generated_root}"
       SHARPCPP_RBFX_WRAPPER_ASSEMBLY "${WRAP_ASSEMBLY_NAME}"
       SHARPCPP_RBFX_GENERATED_STAMP "${generated_stamp}"
@@ -344,25 +418,96 @@ function(rbfx_csharp_add_wrapper target)
       SHARPCPP_RBFX_MANAGED_PROJECT "${managed_project}"
       SHARPCPP_RBFX_MANAGED_PROPS "${managed_props}"
       SHARPCPP_RBFX_MANAGED_ASSEMBLY "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/${WRAP_ASSEMBLY_NAME}.dll")
-  target_include_directories(
-    ${target}
-    PRIVATE
-      "${generated_root}"
-      "${RBFX_ENGINE_UMBRELLA_DIRECTORY}"
-      ${umbrella_include_directories}
-    PUBLIC
-      ${include_directories})
-  target_link_libraries(
-    ${target}
-    PUBLIC
-      ${WRAP_IMPLEMENTATION}
-    PRIVATE
-      SharpCpp::NativeSupport
-      "${RBFX_URHO3D_TARGET}")
-  target_compile_options(
-    ${target}
-    PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-attributes>)
-  sharpcpp_set_native_output(${target})
+
+  if(WRAP_INTEGRATION)
+    # Integration mode: the glue is a source of the IMPLEMENTATION target. <target> only holds the properties.
+    add_library(${target} INTERFACE)
+    set_target_properties(${target} PROPERTIES ${wrapper_properties} SHARPCPP_RBFX_NATIVE_TARGET "${implementation}")
+    # The generated file has a property in the folder of the caller and in the folder of the IMPLEMENTATION target.
+    set_source_files_properties(
+      "${generated_cpp}"
+      TARGET_DIRECTORY ${implementation}
+      PROPERTIES
+        GENERATED TRUE
+        OBJECT_DEPENDS "${generated_stamp}"
+        CXX_SCAN_FOR_MODULES OFF
+        SKIP_UNITY_BUILD_INCLUSION ON
+        COMPILE_OPTIONS "${generated_cpp_options}")
+    set_source_files_properties(
+      "${generated_cpp}"
+      PROPERTIES
+        GENERATED TRUE
+        OBJECT_DEPENDS "${generated_stamp}")
+    add_dependencies(${implementation} sharpcpp-generate-${target})
+    if(TARGET sharpcpp-rbfx-runtime)
+      add_dependencies(${implementation} sharpcpp-rbfx-runtime)
+    endif()
+    target_sources(${implementation} PRIVATE "${generated_cpp}")
+    # The glue needs C++20. This also sets the standard of the other sources of the IMPLEMENTATION target.
+    target_compile_features(${implementation} PRIVATE cxx_std_20)
+    target_include_directories(
+      ${implementation}
+      PRIVATE
+        "${generated_root}"
+        "${RBFX_ENGINE_UMBRELLA_DIRECTORY}"
+        ${umbrella_include_directories}
+        ${include_directories})
+    target_link_libraries(
+      ${implementation}
+      PRIVATE
+        SharpCpp::NativeSupport
+        "${RBFX_URHO3D_TARGET}")
+  else()
+    set_source_files_properties(
+      "${generated_cpp}"
+      PROPERTIES
+        GENERATED TRUE
+        OBJECT_DEPENDS "${generated_stamp}")
+    add_library(${target} ${WRAP_LIBRARY_TYPE} "${generated_cpp}")
+    add_dependencies(${target} sharpcpp-generate-${target})
+    if(TARGET sharpcpp-rbfx-runtime)
+      add_dependencies(${target} sharpcpp-rbfx-runtime)
+    endif()
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    if(MSVC)
+      # A unity source of the generated wrappers exceeds the section limit of the default object format.
+      target_compile_options(${target} PRIVATE /bigobj)
+    endif()
+    set_target_properties(
+      ${target}
+      PROPERTIES
+        CXX_SCAN_FOR_MODULES OFF
+        UNITY_BUILD ON
+        UNITY_BUILD_BATCH_SIZE 100
+        OUTPUT_NAME "${WRAP_LIBRARY_NAME}"
+        BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
+        INSTALL_RPATH "${RBFX_RUNTIME_RPATH}"
+        SHARPCPP_RBFX_NATIVE_TARGET "${target}"
+        ${wrapper_properties})
+    target_include_directories(
+      ${target}
+      PRIVATE
+        "${generated_root}"
+        "${RBFX_ENGINE_UMBRELLA_DIRECTORY}"
+        ${umbrella_include_directories}
+      PUBLIC
+        ${include_directories})
+    target_link_libraries(
+      ${target}
+      PUBLIC
+        ${WRAP_IMPLEMENTATION}
+      PRIVATE
+        SharpCpp::NativeSupport
+        "${RBFX_URHO3D_TARGET}")
+    target_compile_options(
+      ${target}
+      PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-attributes>)
+    sharpcpp_set_native_output(${target})
+  endif()
+  # The source-tree build of a consumer builds the user-code generator itself.
+  if(TARGET sharpcpp-rbfx-build-usercode-generator)
+    add_dependencies(sharpcpp-generate-${target} sharpcpp-rbfx-build-usercode-generator)
+  endif()
 
   set_property(GLOBAL APPEND PROPERTY SHARPCPP_RBFX_WRAP_TARGETS "${target}")
 endfunction()

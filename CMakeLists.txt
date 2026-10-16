@@ -571,7 +571,9 @@ add_custom_target(sharpcpp-rbfx-native DEPENDS sharpcpp-rbfx-runtime)
 get_property(_rbfx_csharp_add_wrapper_targets GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS)
 foreach(_wrap_target IN LISTS _rbfx_csharp_add_wrapper_targets)
   add_dependencies(sharpcpp-rbfx-generate sharpcpp-generate-${_wrap_target})
-  add_dependencies(sharpcpp-rbfx-native ${_wrap_target})
+  # In the integration mode the native code is in the IMPLEMENTATION target.
+  rbfx_csharp_wrapper_native_target(${_wrap_target} _wrap_native_target)
+  add_dependencies(sharpcpp-rbfx-native ${_wrap_native_target})
 endforeach()
 
 if(RBFX_BUILD_HOST AND RBFX_HOST_MODE STREQUAL "hostfxr")

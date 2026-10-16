@@ -17,7 +17,11 @@ set_target_properties(
     POSITION_INDEPENDENT_CODE ON)
 
 # Bindings target. It holds the generated wrappers and links the implementation.
+# SEPARATE_LIBRARY makes a native library Example.UserCode.Native, because the implementation is a static
+# library (or an object library). Without SEPARATE_LIBRARY the generated code goes into the library of the
+# IMPLEMENTATION target, which must then be a shared library on desktop (see the sample plugins of rbfx).
 rbfx_csharp_add_wrapper(Example.UserCode
+  SEPARATE_LIBRARY
   HEADERS RotatingComponent.hpp TextTools.hpp
   INCLUDE_DIRECTORIES .
   IMPLEMENTATION Example.UserCode.Impl

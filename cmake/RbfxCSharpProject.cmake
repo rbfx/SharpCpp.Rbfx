@@ -29,7 +29,9 @@
 #   [HEADERS <headers...>]
 #   [INCLUDE_DIRECTORIES <dirs...>]
 #   [IMPLEMENTATION <target>]
+#   [SEPARATE_LIBRARY]
 #   [NAMESPACE <namespace>]
+#   [WRAPPERS <targets...>]
 #   [PLUGINS <targets...>]
 #   [LINK_LIBRARIES <libraries...>]
 #   [DATA <dirs...>]
@@ -43,7 +45,7 @@
 #   A relative path is relative to CMAKE_CURRENT_SOURCE_DIR.
 #   The function calls these functions in this order:
 #   1. rbfx_csharp_add_wrapper(<name>.Wrapper), only with HEADERS.
-#   2. rbfx_csharp_add_plugin(<plugin>): CSHARP_DIR, CSPROJ, PROPERTIES and the wrapper as REFERENCES. The plugin target
+#   2. rbfx_csharp_add_plugin(<plugin>): CSHARP_DIR, CSPROJ, PROPERTIES, and the wrapper and WRAPPERS as REFERENCES. The plugin target
 #      is <name>.Managed, or the file name of CSPROJ without the extension.
 #   3. rbfx_csharp_add_launcher(<name>): SOURCES, PLUGINS, LINK_LIBRARIES and CONSOLE.
 #   4. rbfx_csharp_add_data(<name>.Data): DATA as DIRECTORIES. The data target is always made, so CoreData is also
@@ -51,8 +53,16 @@
 #   5. rbfx_csharp_package_application(<name>): the plugin, the data, RESOURCES and APPLICATION_ID.
 #   HEADERS         The C++ headers to bind to C#. The wrapper target is <name>.Wrapper.
 #   INCLUDE_DIRECTORIES  Include directories of HEADERS. The default is the folders of HEADERS.
-#   IMPLEMENTATION  The target that implements HEADERS. It is linked to the bindings.
+#   IMPLEMENTATION  The target that implements HEADERS. By default the generated C++ code is a source of this target
+#                   (integration mode, see rbfx_csharp_add_wrapper), so it must be a shared or module library, and it
+#                   must use the keyword signature of target_link_libraries.
+#   SEPARATE_LIBRARY  Passed to rbfx_csharp_add_wrapper: the generated code goes into the separate library
+#                   <name>.Wrapper.Native, and IMPLEMENTATION is linked to it (also a static library).
 #   NAMESPACE       The C# namespace of the bindings.
+#   WRAPPERS        Targets that rbfx_csharp_add_wrapper already made, for example the wrapper of another plugin. They
+#                   are REFERENCES of the plugin after the wrapper of the project. The packaging and the install rules
+#                   handle them in the same way as the wrapper of the project. Wrappers in the same namespace need
+#                   different BINDINGS_CLASS values (the default is different for each target name).
 #   DATA            Resource folders. They go to rbfx_csharp_add_data(<name>.Data) as DIRECTORIES. It packs the folders
 #                   and CoreData into paks on Emscripten, Android and iOS. On desktop the install rules copy the folders
 #                   (rbfx_csharp_install_application). See RbfxCSharpData.cmake.
@@ -112,6 +122,13 @@ function(rbfx_csharp_install_application name)
       set(${list_name})
     endif()
   endforeach()
+  # The wrapper targets (they have the managed assembly) and the targets with their native code. In the integration
+  # mode the native code is in the IMPLEMENTATION target of the wrapper.
+  set(wrapper_natives)
+  foreach(wrapper_target IN LISTS wrapper)
+    rbfx_csharp_wrapper_native_target(${wrapper_target} wrapper_native)
+    list(APPEND wrapper_natives ${wrapper_native})
+  endforeach()
 
   install(TARGETS ${name} RUNTIME DESTINATION "${arg_DESTINATION}" BUNDLE DESTINATION "${arg_DESTINATION}")
   install(FILES "$<TARGET_FILE:SharpCpp::RbfxNative>" DESTINATION "${arg_DESTINATION}")
@@ -147,7 +164,7 @@ function(rbfx_csharp_install_application name)
 
   # The shared libraries of the wrapper targets and of the native plugins. A static library is in the executable.
   set(patterns PATTERN "${plugin_name}.*" PATTERN "SharpCpp.*.dll")
-  set(libraries ${wrapper} ${plugins})
+  set(libraries ${wrapper_natives} ${plugins})
   list(REMOVE_DUPLICATES libraries)
   foreach(library IN LISTS libraries)
     get_target_property(library_type ${library} TYPE)
@@ -184,9 +201,9 @@ endfunction()
 
 function(rbfx_csharp_add_project name)
   cmake_parse_arguments(
-    PARSE_ARGV 1 arg "CONSOLE;INSTALL"
+    PARSE_ARGV 1 arg "CONSOLE;INSTALL;SEPARATE_LIBRARY"
     "CSHARP_DIR;CSPROJ;IMPLEMENTATION;NAMESPACE;APPLICATION_ID;INSTALL_DESTINATION"
-    "SOURCES;HEADERS;INCLUDE_DIRECTORIES;PLUGINS;LINK_LIBRARIES;DATA;RESOURCES;PROPERTIES")
+    "SOURCES;HEADERS;INCLUDE_DIRECTORIES;WRAPPERS;PLUGINS;LINK_LIBRARIES;DATA;RESOURCES;PROPERTIES")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "rbfx_csharp_add_project(${name}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
@@ -223,6 +240,9 @@ function(rbfx_csharp_add_project name)
     if(arg_IMPLEMENTATION)
       list(APPEND wrapper_options IMPLEMENTATION ${arg_IMPLEMENTATION})
     endif()
+    if(arg_SEPARATE_LIBRARY)
+      list(APPEND wrapper_options SEPARATE_LIBRARY)
+    endif()
     if(arg_NAMESPACE)
       list(APPEND wrapper_options NAMESPACE ${arg_NAMESPACE})
     endif()
@@ -245,8 +265,18 @@ function(rbfx_csharp_add_project name)
       list(APPEND plugin_options CSHARP_DIR "${arg_CSHARP_DIR}")
     endif()
   endif()
+  set(plugin_references)
   if(arg_HEADERS)
-    list(APPEND plugin_options REFERENCES ${name}.Wrapper)
+    list(APPEND plugin_references ${name}.Wrapper)
+  endif()
+  foreach(wrapper IN LISTS arg_WRAPPERS)
+    if(NOT TARGET ${wrapper})
+      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): WRAPPERS item '${wrapper}' is not a target. Make it with rbfx_csharp_add_wrapper before this call.")
+    endif()
+    list(APPEND plugin_references ${wrapper})
+  endforeach()
+  if(plugin_references)
+    list(APPEND plugin_options REFERENCES ${plugin_references})
   endif()
   if(arg_PROPERTIES)
     list(APPEND plugin_options PROPERTIES ${arg_PROPERTIES})

@@ -196,7 +196,7 @@
            Text="Generated sources are missing for $(MSBuildProjectName) at '$(RbfxConsumedGeneratedDir)'." />
     <Error Condition="!Exists('$(RbfxConsumedGeneratedStamp)')"
            Text="Generation did not produce '$(RbfxConsumedGeneratedStamp)'." />
-    <Error Condition="!Exists('$(RbfxConsumedNativeLibraryPath)')"
+    <Error Condition="'$(RbfxConsumedNativeLibraryPath)' != '' and !Exists('$(RbfxConsumedNativeLibraryPath)')"
            Text="The native build did not produce '$(RbfxConsumedNativeLibraryPath)'." />
   </Target>
 

@@ -29,7 +29,7 @@ A consumer project wraps its own C++ headers like this. The consumer needs no Sh
 
 ```cmake
 find_package(SharpCppRbfx CONFIG REQUIRED)
-add_library(MyGame.Impl STATIC MyGame.cpp)
+add_library(MyGame.Impl SHARED MyGame.cpp)
 target_include_directories(MyGame.Impl PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(MyGame.Impl PUBLIC Urho3D)
 rbfx_csharp_add_wrapper(MyGame
@@ -39,7 +39,25 @@ rbfx_csharp_add_wrapper(MyGame
   NAMESPACE MyGame)
 ```
 
+This example shows the integration mode (the default with one `IMPLEMENTATION` target): the generated code goes into the shared
+library `MyGame.Impl`. For a static implementation library on desktop, add `SEPARATE_LIBRARY` to the call (see below).
+
 The C++ namespace of the wrapped types must be the value of `NAMESPACE`. The generator ignores the other namespaces.
+`BINDINGS_CLASS` is the name of the generated `static partial class` in `NAMESPACE`. The default is the target name with each
+character that is not a letter, a digit or `_` replaced by `_`, plus `Bindings` (for example `MyGameBindings` for `MyGame`).
+Use a different value when two assemblies share a namespace, or the compiler reports `CS0436`.
+
+With one `IMPLEMENTATION` target the generated C++ code becomes a source of that target (integration mode). The target is
+then the native library of the wrapper: the C# code imports the entry points from the library with the `OUTPUT_NAME` of the
+target (or its name), and the wrapper makes no `<name>.Native` library. Set `OUTPUT_NAME` before the call. The target must be
+a shared or module library, or a static or object library on a platform with static native libraries (iOS, wasm). The glue needs
+C++20, so the target gets `cxx_std_20`. Add `SEPARATE_LIBRARY` to get the old behavior: a native library `LIBRARY_NAME`
+(default `<target>.Native`) that links the `IMPLEMENTATION` targets. The mode is also separate without `IMPLEMENTATION`.
+`LIBRARY_NAME` and `LIBRARY_TYPE` are only for the separate mode. A `RbfxUserCodeReference` item with an integration wrapper
+needs the metadata `LibraryName` (the output name of the implementation target).
+The integration mode needs an implementation target that uses the keyword signature of `target_link_libraries` (`PUBLIC`,
+`PRIVATE`), because the function adds links to it. Otherwise use `SEPARATE_LIBRARY`. An object library works only on Emscripten.
+`rbfx_csharp_add_project()` has the same `SEPARATE_LIBRARY` option and passes it to the wrapper.
 The package file sets the inputs of the function. They are the installed metadata, generator, headers and Clang headers.
 The parse flags come from the target `Urho3D` and the compiler of the consumer. The rbfx SDK root comes from `Urho3D_DIR`.
 The generated sources go to `<build>/generated` and the native library goes to `<build>/bin/<Config>`.
@@ -148,7 +166,8 @@ The install step needs a finished build, because the generator writes the metada
 ```cmake
 rbfx_csharp_add_project(MyApp
     [SOURCES Main.cpp] [CSHARP_DIR <dir>] [CSPROJ <csproj>]
-    [HEADERS <headers...>] [INCLUDE_DIRECTORIES <dirs...>] [IMPLEMENTATION <target>] [NAMESPACE <namespace>]
+    [HEADERS <headers...>] [INCLUDE_DIRECTORIES <dirs...>] [IMPLEMENTATION <target>] [SEPARATE_LIBRARY] [NAMESPACE <namespace>]
+    [WRAPPERS <targets...>]
     [PLUGINS <targets...>] [LINK_LIBRARIES <libraries...>] [DATA <dirs...>] [RESOURCES <files...>]
     [APPLICATION_ID <id>] [CONSOLE] [PROPERTIES <Name=Value>...]
     [INSTALL] [INSTALL_DESTINATION <dir>])
@@ -157,7 +176,10 @@ rbfx_csharp_add_project(MyApp
 - A relative path is relative to `CMAKE_CURRENT_SOURCE_DIR`.
 - With `HEADERS` the function calls `rbfx_csharp_add_wrapper(MyApp.Wrapper ...)`. The plugin `MyApp.Managed` (or the name of the `CSPROJ` file) references this target.
   `INCLUDE_DIRECTORIES` is the list that you give, or the folders of `HEADERS`. `IMPLEMENTATION` is the target that implements the headers
-  (linked to the bindings). `NAMESPACE` is the C# namespace of the bindings.
+  (by default the generated code is a source of this target; `SEPARATE_LIBRARY` makes the library `MyApp.Wrapper.Native` instead and links
+  the target to it). `NAMESPACE` is the C# namespace of the bindings.
+- `WRAPPERS` is a list of wrapper targets that `rbfx_csharp_add_wrapper()` already made (for example from other plugins). The plugin
+  references them after `MyApp.Wrapper`, and the packaging and the install rules use them in the same way.
 - `DATA` goes to `rbfx_csharp_add_data(MyApp.Data DIRECTORIES ...)`. The data target is always made, so CoreData is also packed without `DATA`.
   On Emscripten, Android and iOS the paks are in `${CMAKE_CURRENT_BINARY_DIR}/MyApp.Data.Resources/`.
 - `SOURCES`, `PLUGINS`, `LINK_LIBRARIES` and `CONSOLE` go to `rbfx_csharp_add_launcher()`. `CSHARP_DIR`, `CSPROJ` and `PROPERTIES` go to

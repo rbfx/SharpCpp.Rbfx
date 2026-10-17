@@ -6,6 +6,10 @@
 #include <string>
 #include <string_view>
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
 namespace Urho3D
 {
 
@@ -21,6 +25,17 @@ inline bool StartDotNetPlugin(DotNetHost& host, PluginManager* pluginManager, co
 
     DotNetHostOptions options;
     options.runtimeConfigPath = directory / (name + ".runtimeconfig.json");
+#if defined(URHO3D_DOTNETHOST_SHIM) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) \
+    && !(defined(__APPLE__) && TARGET_OS_IOS)
+    // Desktop shim: the NativeAOT head is <name>.Head with the shared library suffix of the platform.
+#if defined(_WIN32)
+    options.headLibraryPath = directory / (name + ".Head.dll");
+#elif defined(__APPLE__)
+    options.headLibraryPath = directory / (name + ".Head.dylib");
+#else
+    options.headLibraryPath = directory / (name + ".Head.so");
+#endif
+#endif
     std::string detail;
     if (!host.Initialize(options, detail))
     {

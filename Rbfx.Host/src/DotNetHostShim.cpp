@@ -7,6 +7,25 @@
 #include <exception>
 #include <mutex>
 
+// Desktop shim: the native side loads the NativeAOT head library. Mobile and web heads attach by themselves.
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#if defined(_WIN32) || (defined(__linux__) && !defined(__ANDROID__)) || (defined(__APPLE__) && TARGET_OS_OSX)
+#define SHARPCPP_RBFX_SHIM_LOAD_HEAD 1
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+#endif
+
 namespace Urho3D
 {
 
@@ -51,6 +70,70 @@ void AppendManagedError(void* state, const char* text, int length)
         static_cast<std::string*>(state)->append(text, static_cast<std::size_t>(length));
 }
 
+#if defined(SHARPCPP_RBFX_SHIM_LOAD_HEAD)
+using HeadAttachFunction = int (*)();
+using HeadDetachFunction = void (*)();
+
+void* LoadHeadLibrary(const std::filesystem::path& path, std::string& reason)
+{
+#if defined(_WIN32)
+    void* library = reinterpret_cast<void*>(LoadLibraryW(path.c_str()));
+    if (!library)
+        reason = "LoadLibrary failed with error code " + std::to_string(static_cast<unsigned long>(GetLastError()));
+    return library;
+#else
+    void* library = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
+    if (!library)
+    {
+        const char* message = dlerror();
+        reason = message ? message : "unknown error";
+    }
+    return library;
+#endif
+}
+
+void* FindHeadExport(void* library, const char* name)
+{
+#if defined(_WIN32)
+    return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(library), name));
+#else
+    return dlsym(library, name);
+#endif
+}
+
+// Loads the head library and calls its attach export. The handle stays loaded: a NativeAOT runtime cannot unload.
+bool AttachHead(const std::filesystem::path& path, void*& handle, std::string& error)
+{
+    const std::string pathText = path.generic_string();
+    std::string reason;
+    void* library = LoadHeadLibrary(path, reason);
+    if (!library)
+    {
+        error = "Cannot load the NativeAOT head library '" + pathText + "': " + reason;
+        return false;
+    }
+    const auto attach = reinterpret_cast<HeadAttachFunction>(FindHeadExport(library, "sharpcpp_rbfx_head_attach"));
+    if (!attach)
+    {
+        error = "The NativeAOT head library '" + pathText + "' has no export 'sharpcpp_rbfx_head_attach'.";
+        return false;
+    }
+    if (attach() != 1)
+    {
+        error = "The export 'sharpcpp_rbfx_head_attach' of '" + pathText + "' failed.";
+        return false;
+    }
+    handle = library;
+    return true;
+}
+
+void DetachHead(void* handle)
+{
+    if (const auto detach = reinterpret_cast<HeadDetachFunction>(FindHeadExport(handle, "sharpcpp_rbfx_head_detach")))
+        detach();
+}
+#endif
+
 } // namespace
 
 DotNetHost::DotNetHost() = default;
@@ -67,7 +150,6 @@ bool DotNetHost::IsInitialized() const
 
 bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error)
 {
-    (void)options;
     error.clear();
     const AttachFunction keepAttachExport = KeepAttachExport;
     (void)keepAttachExport;
@@ -78,6 +160,24 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
             std::lock_guard<std::mutex> lock(TableMutex());
             attached = IsAttachedLocked();
         }
+#if defined(SHARPCPP_RBFX_SHIM_LOAD_HEAD)
+        // The shim has no hostfxr library. It keeps the handle of the head library in hostfxrLibrary_.
+        if (!attached && !options.headLibraryPath.empty())
+        {
+            if (!AttachHead(options.headLibraryPath, hostfxrLibrary_, error))
+                return false;
+            std::lock_guard<std::mutex> lock(TableMutex());
+            attached = IsAttachedLocked();
+            if (!attached)
+            {
+                error = "The NativeAOT head library '" + options.headLibraryPath.generic_string()
+                    + "' did not attach the managed host table.";
+                return false;
+            }
+        }
+#else
+        (void)options;
+#endif
         if (!attached)
         {
             error = NotAttachedError;
@@ -215,6 +315,20 @@ bool DotNetHost::LoadPluginEntryPoint(std::string& error)
 
 void DotNetHost::Close()
 {
+#if defined(SHARPCPP_RBFX_SHIM_LOAD_HEAD)
+    if (hostfxrLibrary_)
+    {
+        try
+        {
+            DetachHead(hostfxrLibrary_);
+        }
+        catch (...)
+        {
+        }
+        // A NativeAOT runtime cannot unload, so the library stays loaded. Only the handle is dropped.
+        hostfxrLibrary_ = nullptr;
+    }
+#endif
     shimInitialized_ = false;
 }
 

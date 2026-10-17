@@ -21,6 +21,8 @@ struct DotNetHostOptions
     /// Path of SharpCpp.Rbfx.Bindings.dll. Optional. Empty means the file next to the runtime config.
     /// LoadPlugin loads this assembly once, into the default load context of the runtime.
     std::filesystem::path bindingsAssemblyPath;
+    /// Shim mode on desktop: native library of the NativeAOT head. Empty on other platforms.
+    std::filesystem::path headLibraryPath;
 };
 
 /// Hosts the .NET runtime in the current process through hostfxr.

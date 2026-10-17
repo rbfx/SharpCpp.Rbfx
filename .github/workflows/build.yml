@@ -333,6 +333,81 @@ jobs:
           path: SharpCpp.Rbfx/build/test-results/e2e/*.trx
           if-no-files-found: ignore
 
+  # The NativeAOT desktop head starts the engine headless, registers a managed component and exits
+  # with code 0. This job does not block the union job. The release jobs do not wait for it yet.
+  AOT:
+    name: AOT (${{ matrix.rid }})
+    needs: [Version]
+    runs-on: ${{ matrix.runs_on }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runs_on: ubuntu-24.04
+          - rid: osx-arm64
+            runs_on: macos-latest
+          - rid: win-x64
+            runs_on: windows-latest
+    steps:
+      - name: Checkout SharpCpp.Rbfx
+        uses: actions/checkout@v5
+        with:
+          path: SharpCpp.Rbfx
+          persist-credentials: false
+
+      # SharpCpp is consumed as a sibling checkout (SharpCppRoot defaults to ../SharpCpp).
+      - name: Checkout SharpCpp
+        uses: actions/checkout@v5
+        with:
+          repository: rokups/SharpCpp
+          path: SharpCpp
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Native Toolchain
+        uses: ./SharpCpp.Rbfx/.github/actions/native-toolchain
+        with:
+          rid: ${{ matrix.rid }}
+
+      # NativeAOT links with clang and needs the zlib headers on Linux.
+      - name: Install NativeAOT Prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y clang zlib1g-dev
+
+      # The script uses timeout, and macOS has only gtimeout.
+      - name: Install GNU coreutils
+        if: runner.os == 'macOS'
+        run: brew install coreutils
+
+      - name: Fetch rbfx SDK
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: ./eng/fetch-rbfx-sdk.sh --rid '${{ matrix.rid }}'
+
+      - name: Run AOT test
+        timeout-minutes: 60
+        env:
+          GLIBC_TUNABLES: glibc.rtld.optional_static_tls=32768
+        shell: bash
+        working-directory: SharpCpp.Rbfx
+        run: ./eng/run-aot-test.sh --rid '${{ matrix.rid }}'
+
+      - name: Upload AOT test log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aot-${{ matrix.rid }}
+          path: SharpCpp.Rbfx/build/aot-test/${{ matrix.rid }}/aot-test.log
+          if-no-files-found: ignore
+
   # The union packages come from three jobs. Union Reference builds the union API and the
   # reference assembly. Union Implementation builds, checks and packs one RID in each entry.
   # Union validates all RIDs and makes the final packages. The jobs use the same paths below

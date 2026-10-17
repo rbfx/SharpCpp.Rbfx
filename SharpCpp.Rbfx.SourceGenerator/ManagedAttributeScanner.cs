@@ -106,6 +106,7 @@ internal sealed class ManagedAttributeScanner
     private readonly INamedTypeSymbol? _nonSerialized;
     private readonly IAssemblySymbol _bindingsAssembly;
     private readonly IAssemblySymbol _assembly;
+    private readonly INamedTypeSymbol? _registryAttribute;
     private readonly AttributeDefaultResolver _defaults;
     private int _accessorCount;
 
@@ -118,8 +119,10 @@ internal sealed class ManagedAttributeScanner
         INamedTypeSymbol? nonSerialized,
         IAssemblySymbol bindingsAssembly,
         IAssemblySymbol assembly,
+        INamedTypeSymbol? registryAttribute,
         AttributeDefaultResolver defaults)
     {
+        _registryAttribute = registryAttribute;
         _serializeField = serializeField;
         _serializable = serializable;
         _nonSerialized = nonSerialized;
@@ -144,6 +147,7 @@ internal sealed class ManagedAttributeScanner
             compilation.GetTypeByMetadataName("System.NonSerializedAttribute"),
             bindingsAssembly,
             compilation.Assembly,
+            compilation.GetTypeByMetadataName(ManagedObjectRttiGenerator.RegistryAttributeMetadataName),
             new AttributeDefaultResolver(compilation));
     }
 
@@ -160,7 +164,8 @@ internal sealed class ManagedAttributeScanner
         for (var current = type; current is not null; current = current.BaseType)
         {
             if (!SymbolEqualityComparer.Default.Equals(current, type) &&
-                (registered.Contains(current) || SymbolEqualityComparer.Default.Equals(current.ContainingAssembly, _bindingsAssembly)))
+                (registered.Contains(current) || SymbolEqualityComparer.Default.Equals(current.ContainingAssembly, _bindingsAssembly) ||
+                 IsRegisteredInOtherAssembly(current)))
             {
                 break;
             }
@@ -199,6 +204,30 @@ internal sealed class ManagedAttributeScanner
 
         return entries;
     }
+
+    // A concrete type of another assembly with a generated registry is registered by that registry. The engine reflects it
+    // (with its attributes) before the derived type, so the chain stops there and the runtime copies the attributes of the base type.
+    private bool IsRegisteredInOtherAssembly(INamedTypeSymbol type)
+    {
+        if (_registryAttribute is null || SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, _assembly) || type.IsAbstract)
+        {
+            return false;
+        }
+
+        for (var current = type; current is not null; current = current.ContainingType)
+        {
+            if (current.TypeParameters.Length > 0)
+            {
+                return false;
+            }
+        }
+
+        return HasRegistry(type.ContainingAssembly);
+    }
+
+    private bool HasRegistry(IAssemblySymbol assembly) =>
+        _registryAttribute is not null && assembly.GetAttributes().Any(attribute =>
+            attribute.AttributeClass is { } attributeClass && SymbolEqualityComparer.Default.Equals(attributeClass.BaseType, _registryAttribute));
 
     private void ScanField(
         SourceProductionContext context, INamedTypeSymbol type, INamedTypeSymbol declaring, bool isLocal, IFieldSymbol field, List<AttributeEntry> entries)
@@ -639,9 +668,12 @@ internal sealed class ManagedAttributeScanner
         return false;
     }
 
-    private static bool ReportForeign(SourceProductionContext context, INamedTypeSymbol type, INamedTypeSymbol declaring, ISymbol member)
+    private bool ReportForeign(SourceProductionContext context, INamedTypeSymbol type, INamedTypeSymbol declaring, ISymbol member)
     {
-        Report(context, type.Locations, member.Name, type, "its base type '" + declaring.ToDisplayString() + "' is in another assembly, and the generator lists only the members of the types of this assembly. Declare the member in a type of this assembly");
+        var reason = HasRegistry(declaring.ContainingAssembly)
+            ? "its base type '" + declaring.ToDisplayString() + "' is in another assembly with a generated registry, but the type is abstract or generic and no registry registers it. Make the base type concrete and not generic, or declare the member in a type of this assembly"
+            : "its base type '" + declaring.ToDisplayString() + "' is in another assembly that has no generated type registry. Add the SharpCpp.Rbfx.SourceGenerator to the assembly of the base type, or declare the member in a type of this assembly";
+        Report(context, type.Locations, member.Name, type, reason);
         return false;
     }
 

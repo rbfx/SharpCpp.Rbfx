@@ -696,6 +696,87 @@ public sealed class ManagedAttributeGeneratorTests
     }
 
     [Fact]
+    public void Serialize_field_in_a_base_type_of_another_assembly_with_a_registry_stops_the_chain()
+    {
+        var result = Run(
+            Header + """
+            public partial class Boss : ForeignEnemy
+            {
+                [SerializeField] public int Rage = 4;
+                public Boss(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public partial class ForeignEnemy : Component
+            {
+                [SerializeField] public float Speed = 1;
+                [SerializeField] private int Hidden = 2;
+                public ForeignEnemy(Context context) : base(context) { }
+            }
+            """,
+            foreignGenerated: true);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        AssertNoErrors(result);
+        var boss = result.Registration("GeneratorTest.Boss");
+        Assert.Contains("\"Rage\"", boss);
+        Assert.DoesNotContain("Speed", boss);
+        Assert.DoesNotContain("Hidden", boss);
+        Assert.DoesNotContain("__Field", result.Registry);
+    }
+
+    [Fact]
+    public void Serialize_field_in_an_abstract_base_type_of_another_assembly_with_a_registry_is_an_error()
+    {
+        var result = Run(
+            Header + """
+            public partial class Boss : ForeignBase
+            {
+                public Boss(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public abstract partial class ForeignBase : Component
+            {
+                [SerializeField] public float Speed = 1;
+                protected ForeignBase(Context context) : base(context) { }
+            }
+
+            public partial class ForeignConcrete : ForeignBase
+            {
+                public ForeignConcrete(Context context) : base(context) { }
+            }
+            """,
+            foreignGenerated: true);
+
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Contains("abstract or generic", error.GetMessage());
+    }
+
+    [Fact]
+    public void Serialize_field_in_a_base_type_of_another_assembly_without_a_registry_names_the_generator()
+    {
+        var result = Run(
+            Header + """
+            public partial class Boss : ForeignBase
+            {
+                public Boss(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public class ForeignBase : Component
+            {
+                [SerializeField] public float Speed = 1;
+                public ForeignBase(Context context) : base(context) { }
+            }
+            """);
+
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Contains("no generated type registry", error.GetMessage());
+        Assert.Contains("SharpCpp.Rbfx.SourceGenerator", error.GetMessage());
+    }
+
+    [Fact]
     public void Member_of_a_generic_base_type_compiles()
     {
         var result = Run(Header + """
@@ -781,7 +862,8 @@ public sealed class ManagedAttributeGeneratorTests
         Assert.True(result.OutputErrors.Length == 0, string.Join("\n", result.OutputErrors) + "\n" + result.Registry);
 
     // The optional second source is compiled into another assembly that the tested assembly references.
-    private static GeneratorResult Run(string source, string? foreignSource = null)
+    // With foreignGenerated, the generator also runs on the other assembly, so that it has a registry.
+    private static GeneratorResult Run(string source, string? foreignSource = null, bool foreignGenerated = false)
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
@@ -794,6 +876,13 @@ public sealed class ManagedAttributeGeneratorTests
                 [CSharpSyntaxTree.ParseText(foreignSource)],
                 references,
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            if (foreignGenerated)
+            {
+                var foreignDriver = CSharpGeneratorDriver.Create(new ManagedObjectRttiGenerator());
+                foreignDriver.RunGeneratorsAndUpdateCompilation(foreign, out var updated, out _);
+                foreign = (CSharpCompilation)updated;
+            }
+
             var image = new MemoryStream();
             var emitted = foreign.Emit(image);
             Assert.True(emitted.Success, string.Join("\n", emitted.Diagnostics));

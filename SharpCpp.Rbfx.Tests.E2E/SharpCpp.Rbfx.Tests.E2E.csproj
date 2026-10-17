@@ -44,8 +44,8 @@
 
   <!-- Each test plugin is a separate assembly. Only its dll goes to plugins/<name>/, away from the test assemblies. -->
   <ItemGroup>
-    <Compile Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**" />
-    <None Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**" />
+    <Compile Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**" />
+    <None Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**" />
     <ProjectReference Include="TestPlugin/SharpCpp.Rbfx.Tests.E2E.TestPlugin.csproj"
                       OutputItemType="E2ETestPluginAssembly"
                       ReferenceOutputAssembly="false" />
@@ -60,6 +60,9 @@
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="NoRegistryPlugin/SharpCpp.Rbfx.Tests.E2E.NoRegistryPlugin.csproj"
                       OutputItemType="E2ENoRegistryPluginAssembly"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="BossPlugin/SharpCpp.Rbfx.Tests.E2E.BossPlugin.csproj"
+                      OutputItemType="E2EBossPluginAssembly"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
@@ -98,6 +101,14 @@
     <Copy SourceFiles="@(_E2ENoRegistryPluginFile)"
           Condition="Exists('%(_E2ENoRegistryPluginFile.FullPath)')"
           DestinationFolder="$(OutDir)plugins/NoRegistryPlugin/"
+          SkipUnchangedFiles="true" />
+    <!-- The plugin directory of BossPlugin also holds the AttributePlugin assembly that BossPlugin references. -->
+    <ItemGroup>
+      <_E2EBossPluginFile Include="@(E2EBossPluginAssembly);@(E2EBossPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb');@(E2EBossPluginAssembly->'%(RootDir)%(Directory)SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_E2EBossPluginFile)"
+          Condition="Exists('%(_E2EBossPluginFile.FullPath)')"
+          DestinationFolder="$(OutDir)plugins/BossPlugin/"
           SkipUnchangedFiles="true" />
   </Target>
 </Project>

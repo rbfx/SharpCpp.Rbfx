@@ -62,7 +62,9 @@ public static class PluginRuntime
         {
             if (!Assemblies.TryGetValue(fullPath, out var assembly))
             {
-                assembly = new PluginLoadContext(fullPath).LoadFromAssemblyPath(fullPath);
+                // Another plugin can have loaded this assembly as its dependency. Then the plugin uses that copy, so the types are shared.
+                assembly = PluginLoadContext.FindLoadedFile(fullPath) ?? new PluginLoadContext(fullPath).LoadFromAssemblyPath(fullPath);
+                PluginLoadContext.Remember(assembly);
                 Assemblies.Add(fullPath, assembly);
             }
 

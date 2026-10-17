@@ -19,9 +19,13 @@ public sealed unsafe class ManagedPluginLoadFailureTests
 
     private static readonly StringHash AttributeType = new("AttributeComponent");
     private static readonly StringHash RetryType = new("RetryPluginComponent");
+    private static readonly StringHash BossType = new("AttributeBoss");
 
     private static string AttributePath =>
         Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll");
+
+    private static string BossPath =>
+        Path.Combine(AppContext.BaseDirectory, "plugins", "BossPlugin", "SharpCpp.Rbfx.Tests.E2E.BossPlugin.dll");
 
     private static string RetryPath =>
         Path.Combine(AppContext.BaseDirectory, "plugins", "RetryPlugin", "SharpCpp.Rbfx.Tests.E2E.RetryPlugin.dll");
@@ -41,6 +45,37 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         host.Unload();
         Assert.False(plugin.IsLoaded);
         host.AssertNotCreatable(AttributeType);
+    }
+
+    [Fact]
+    public void Type_with_a_base_type_of_another_plugin_copies_the_base_attributes()
+    {
+        using var host = new Host();
+        host.Manager.LoadManagedPlugin(AttributePath);
+        var boss = host.Manager.LoadManagedPlugin(BossPath);
+        Assert.True(boss.IsLoaded);
+
+        // The registry of the plugin B lists only "Rage". The others come from the reflection of the base type of plugin A.
+        var component = host.Create(BossType);
+        Assert.Equal(4, host.ReadInt(component, "Rage"));
+        Assert.Equal(7, host.ReadInt(component, "Count"));
+        Assert.Equal(42, host.ReadInt(component, "Secret Value"));
+        Assert.Equal(2.5f, host.ReadFloat(component, "Speed"));
+        Assert.True(host.WriteInt(component, "Secret Value", 11));
+        Assert.Equal(11, host.ReadInt(component, "Secret Value"));
+        host.Unload();
+    }
+
+    [Fact]
+    public void Type_with_a_base_type_of_a_plugin_that_is_not_loaded_is_not_registered()
+    {
+        using var host = new Host();
+        var boss = host.Manager.LoadManagedPlugin(BossPath);
+
+        // The plugin loads and logs an error. The derived type is not registered, because it would lack the base attributes.
+        Assert.True(boss.IsLoaded);
+        host.AssertNotCreatable(BossType);
+        host.Unload();
     }
 
     [Fact]
@@ -244,6 +279,34 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         {
             using var loaded = Manager.LoadedPlugins;
             return loaded.Select(static item => item.ToString()).ToArray();
+        }
+
+        public Component Create(StringHash type)
+        {
+            var created = _node.CreateComponent(type);
+            Assert.False(created is null || created.IsInvalid);
+            return created!;
+        }
+
+        public int ReadInt(Component component, string name)
+        {
+            using var text = new Ea.String(name);
+            using var value = component.GetAttribute(text);
+            return value.Int;
+        }
+
+        public float ReadFloat(Component component, string name)
+        {
+            using var text = new Ea.String(name);
+            using var value = component.GetAttribute(text);
+            return value.Float;
+        }
+
+        public bool WriteInt(Component component, string name, int number)
+        {
+            using var text = new Ea.String(name);
+            using var value = new Variant(number);
+            return component.SetAttribute(text, value);
         }
 
         public void AssertCreatable(StringHash type)

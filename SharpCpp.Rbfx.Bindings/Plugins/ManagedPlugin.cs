@@ -151,8 +151,47 @@ public abstract partial class ManagedPlugin : Plugin
                 continue;
             }
 
+            // The attributes of a base type of another assembly are copied from its engine reflection. The plugin of that
+            // assembly must be loaded first. Else the derived type has no base attributes, so the type is an error.
+            if (FindUnreflectedForeignBase(context, item.Type, typeInfo, listed) is { } missingBase)
+            {
+                ManagedAttributeAccessor.LogError(
+                    $"Cannot register the managed type {item.Type.FullName}: its base type {missingBase.FullName} is in the assembly {missingBase.Assembly.GetName().Name}, and the engine does not reflect it. Load the plugin of that assembly first.");
+                RemoveReflections(context, new List<StringHash> { typeInfo.GetType() });
+                skipped.Add(item.Type);
+                continue;
+            }
+
             RegisterAttributes(context, item.Type, typeInfo, registered, item.Attributes);
         }
+    }
+
+    // Walks the managed base types together with the base type infos up to the first base type of this registry or of the bindings.
+    // A base type of another assembly that its own registry lists must have an engine reflection.
+    private static Type? FindUnreflectedForeignBase(Context context, Type type, TypeInfo typeInfo, HashSet<Type> listed)
+    {
+        var info = typeInfo.BaseTypeInfo;
+        for (var current = type.BaseType; current is not null && info is { IsInvalid: false }; current = current.BaseType, info = info.BaseTypeInfo)
+        {
+            if (listed.Contains(current) || current.Assembly == typeof(ManagedPlugin).Assembly)
+            {
+                return null;
+            }
+
+            if (current.Assembly != type.Assembly)
+            {
+                if (ManagedTypeRegistries.Find(current.Assembly) is not { } foreignRegistry ||
+                    !foreignRegistry.Registrations.Any(item => item.Type == current))
+                {
+                    return null;
+                }
+
+                var reflection = context.GetReflection(info.GetType());
+                return reflection is { IsInvalid: false } ? null : current;
+            }
+        }
+
+        return null;
     }
 
     private static Type? GetSkippedListedBase(Type type, HashSet<Type> listed, HashSet<Type> skipped)

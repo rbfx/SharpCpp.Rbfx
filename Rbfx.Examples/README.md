@@ -41,6 +41,28 @@ own build tree, so no two projects write the same file. `Rbfx.Examples.Apple.sln
 
 `Example.NativeHost` is also an exception. It is a C++ rbfx application that uses C# as a scripting layer. It builds from source with the main CMake project and is not part of the example solutions. See its README.
 
+`Example.DesktopAot` is a desktop NativeAOT application. It is a CMake project and is not part of the example solutions, because
+its C# plugin project needs the properties that CMake passes. It shows the shim host mode: a native launcher starts the
+engine, and a NativeAOT head (the C# runtime is compiled ahead of time, so no .NET runtime is installed) loads the C# plugin
+`DesktopAot`. The plugin creates a scene with the managed `Spinner` component (a `LogicComponent` with the `[SerializeField]`
+float `Speed`). `CMakeLists.txt` uses `rbfx_csharp_add_plugin`, `rbfx_csharp_add_launcher`, `rbfx_csharp_package_application`
+and `rbfx_csharp_install_application`. NativeAOT needs `-DRBFX_HOST_MODE=shim`, the SDK of the RID (`build/sdk/<rid>`) and
+the native toolchain of the .NET ILCompiler (a C and C++ compiler and a linker). With a window
+the example runs until you close it. With `--headless` it stops after three updates. Build and run it (Linux x64) from the
+repository root:
+
+```sh
+cd Rbfx.Examples/Example.DesktopAot
+cmake --preset linux-gcc-x64-dll -B /tmp/desktop-aot \
+  "-DCMAKE_PREFIX_PATH=$PWD/../../build/sdk/linux-x64;$PWD/../../cmake/SharpCppRbfx" \
+  -DRBFX_HOST_MODE=shim -DRBFX_BUILD_HOST=ON
+cmake --build /tmp/desktop-aot --config Debug --target ExampleDesktopAot.CSharp
+/tmp/desktop-aot/bin/Debug/ExampleDesktopAot --headless
+```
+
+The log shows `DesktopAot: loaded`, the updates and `DesktopAot: spinner turns at 90 degrees per second`.
+`SharpCpp.Rbfx.Tests.Aot` (run by `eng/run-aot-test.sh --rid linux-x64`) is the test of the same setup.
+
 From the SharpCpp.Rbfx repository root:
 
 ```sh

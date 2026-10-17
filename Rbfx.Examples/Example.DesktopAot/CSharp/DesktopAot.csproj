@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The C# plugin of the NativeAOT desktop example. CMake passes SharpCppRbfxPluginProps (rbfx_csharp_add_plugin). -->
+  <Import Project="$(SharpCppRbfxPluginProps)" />
+
+  <PropertyGroup>
+    <AssemblyName>DesktopAot</AssemblyName>
+    <RootNamespace>DesktopAot</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+</Project>

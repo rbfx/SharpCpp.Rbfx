@@ -246,6 +246,88 @@ public sealed class ManagedAttributeDescriptorTests
         }
     }
 
+    [Fact]
+    public void Descriptors_of_a_derived_type_are_complete_when_the_base_type_is_registered()
+    {
+        using var context = new Context();
+        var plugin = new RegistryTestPlugin(context);
+        plugin.RegisterFromRegistry(context, BaseDerivedRegistry(), "E2E");
+        try
+        {
+            using var derived = new DescriptorDerivedComponent(context);
+            Assert.Equal(11, ReadAttribute(derived, "BaseValue", static v => v.Int));
+            Assert.Equal(22, ReadAttribute(derived, "OwnValue", static v => v.Int));
+        }
+        finally
+        {
+            plugin.Unregister();
+        }
+    }
+
+    [Fact]
+    public void Derived_type_uses_the_reflection_scan_when_its_listed_base_type_is_not_registered()
+    {
+        using var context = new Context();
+        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
+        var plugin = new RegistryTestPlugin(context) { Filter = static type => type != typeof(DescriptorBaseComponent) };
+        plugin.RegisterFromRegistry(context, BaseDerivedRegistry(), "E2E");
+        try
+        {
+            // The generated list has no base members, because the generator expects the base type to be registered.
+            Assert.Equal(scans + 1, ManagedAttributeRegistrar.ReflectionScanCount);
+            Assert.False(context.IsReflected(new StringHash(nameof(DescriptorBaseComponent))));
+            using var derived = new DescriptorDerivedComponent(context);
+            Assert.Equal(11, ReadAttribute(derived, "BaseValue", static v => v.Int));
+            Assert.Equal(22, ReadAttribute(derived, "OwnValue", static v => v.Int));
+        }
+        finally
+        {
+            plugin.Unregister();
+        }
+    }
+
+    [Fact]
+    public void Force_registry_of_a_fully_described_assembly_needs_no_member_scan_and_no_Activator()
+    {
+        // The generator describes every type of the test assembly. A type with attributes has a factory of the temporary instance.
+        var registrations = ManagedTypeRegistries.Find(typeof(DescriptorProbeComponent).Assembly)!.Registrations;
+        Assert.NotEmpty(registrations);
+        Assert.All(registrations, static item => Assert.NotNull(item.Attributes));
+        Assert.All(registrations, static item => Assert.True(item.Attributes!.Length == 0 || item.CreateDefaults is not null, item.Type.FullName));
+
+        ManagedPlugin.ForceRegistry = true;
+        using var context = new Context();
+        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
+        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
+        var plugin = new RegistryTestPlugin(context);
+        try
+        {
+            plugin.Register();
+            Assert.NotEmpty(plugin.RegisteredTypes);
+            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
+            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
+        }
+        finally
+        {
+            plugin.Unregister();
+            ManagedPlugin.ForceRegistry = false;
+        }
+    }
+
+    private static TestRegistry BaseDerivedRegistry() => new(
+        new ManagedTypeRegistration(
+            typeof(DescriptorBaseComponent),
+            static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<DescriptorBaseComponent>(ctx, category),
+            [ManagedAttributeDescriptor.Create<int>("BaseValue", nameof(DescriptorBaseComponent.BaseValue), typeof(int), AttributeMode.AmDefault,
+                static o => ((DescriptorBaseComponent)o).BaseValue, static (o, v) => ((DescriptorBaseComponent)o).BaseValue = v)],
+            static ctx => new DescriptorBaseComponent(ctx)),
+        new ManagedTypeRegistration(
+            typeof(DescriptorDerivedComponent),
+            static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<DescriptorDerivedComponent>(ctx, category),
+            [ManagedAttributeDescriptor.Create<int>("OwnValue", nameof(DescriptorDerivedComponent.OwnValue), typeof(int), AttributeMode.AmDefault,
+                static o => ((DescriptorDerivedComponent)o).OwnValue, static (o, v) => ((DescriptorDerivedComponent)o).OwnValue = v)],
+            static ctx => new DescriptorDerivedComponent(ctx)));
+
     private static T ReadAttribute<T>(Serializable serializable, string name, Func<Variant, T> read)
     {
         using var text = new Ea.String(name);
@@ -333,5 +415,27 @@ internal sealed partial class GuardedDefaultsComponent : Component
         {
             Blocked = blocked;
         }
+    }
+}
+
+internal partial class DescriptorBaseComponent : Component
+{
+    [SerializeField]
+    public int BaseValue = 11;
+
+    public DescriptorBaseComponent(Context context)
+        : base(context)
+    {
+    }
+}
+
+internal sealed partial class DescriptorDerivedComponent : DescriptorBaseComponent
+{
+    [SerializeField]
+    public int OwnValue = 22;
+
+    public DescriptorDerivedComponent(Context context)
+        : base(context)
+    {
     }
 }

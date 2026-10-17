@@ -189,6 +189,13 @@ internal sealed partial class RegistryTestPlugin : ManagedPlugin
 
     public Type[] Types { get; init; } = Array.Empty<Type>();
 
+    // A type for which this returns false is not registered. Null keeps the default rule.
+    public Func<Type, bool>? Filter { get; init; }
+
+    protected override bool ShouldRegister(
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type) =>
+        Filter?.Invoke(type) ?? base.ShouldRegister(type);
+
     public void Register() => RegisterManagedTypes();
 
     public void Unregister() => UnregisterManagedTypes();

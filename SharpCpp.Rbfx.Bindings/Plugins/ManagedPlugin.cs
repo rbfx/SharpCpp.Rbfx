@@ -144,7 +144,18 @@ public abstract partial class ManagedPlugin : Plugin
     private void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category, List<StringHash> registered)
     {
         // The generated list is in base-before-derived order. The sort keeps the order of the scan path for any list.
-        var items = registry.Registrations.Where(item => ShouldRegister(item.Type)).OrderBy(static item => GetDepth(item.Type))
+        var registrations = registry.Registrations;
+        var listed = new HashSet<Type>(registrations.Select(static item => item.Type));
+        var skipped = new HashSet<Type>();
+        foreach (var item in registrations)
+        {
+            if (!ShouldRegister(item.Type))
+            {
+                skipped.Add(item.Type);
+            }
+        }
+
+        var items = registrations.Where(item => !skipped.Contains(item.Type)).OrderBy(static item => GetDepth(item.Type))
             .ThenBy(static item => item.Type.FullName, StringComparer.Ordinal);
         foreach (var item in items)
         {
@@ -156,11 +167,28 @@ public abstract partial class ManagedPlugin : Plugin
             catch (Exception exception)
             {
                 LogRegistrationFailure(item.Type, exception);
+                skipped.Add(item.Type);
                 continue;
             }
 
-            RegisterAttributes(context, item.Type, typeInfo, registered, item.Attributes, item.CreateDefaults);
+            // The generated list of a type leaves out the members of its nearest listed base type. When that base type is not
+            // registered, the list is incomplete, and the reflection scan finds the members.
+            var complete = item.Attributes is not null && !HasSkippedListedBase(item.Type, listed, skipped);
+            RegisterAttributes(context, item.Type, typeInfo, registered, complete ? item.Attributes : null, complete ? item.CreateDefaults : null);
         }
+    }
+
+    private static bool HasSkippedListedBase(Type type, HashSet<Type> listed, HashSet<Type> skipped)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (listed.Contains(current))
+            {
+                return skipped.Contains(current);
+            }
+        }
+
+        return false;
     }
 
     private void RegisterAttributes(Context context, [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type, TypeInfo typeInfo)

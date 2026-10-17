@@ -468,6 +468,8 @@ Managed type registration needs no reflection scan in the head:
 - The generator warns RBFXSG003 for a factory type that the registry omits because it or a containing type is private or protected. The type is not registered on AOT hosts.
 - The registry also lists the `[SerializeField]` members of each type as attribute descriptors (getter and setter delegates). The registry path then finds and reads the members without reflection.
 - The generator warns RBFXSG004 for a `[SerializeField]` member that it cannot list: a private, protected, readonly or init-only member, a property without a public getter and setter, or an unsupported value type. That type has no list and reads its attributes by reflection.
+- A described type with a public `(Context)` constructor also gets a `static ctx => new T(ctx)` factory. It makes the temporary instance for the default values, so the registry path needs no `Activator`. A type without that constructor keeps `Activator`.
+- If a listed base type is not registered (`ShouldRegister` returns false, or the registration fails), the plugin reads the attributes of the derived type by reflection, because its list has no base members.
 - Call `ManagedTypeRegistries.Add(typeof(MyType).Assembly)` in `OnManagedStartup` to register the types of another assembly, for example the head assembly.
 - The first plugin that loads registers these types with the assembly name as category. The last plugin that unloads removes them. This applies to both runtimes.
 

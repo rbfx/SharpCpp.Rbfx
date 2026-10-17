@@ -400,12 +400,19 @@ jobs:
         working-directory: SharpCpp.Rbfx
         run: ./eng/run-aot-test.sh --rid '${{ matrix.rid }}'
 
+      # The vcxproj and rule files of the Visual Studio generator hold the dotnet command line of the
+      # managed build targets. They show the arguments that MSBuild receives.
       - name: Upload AOT test log
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: aot-${{ matrix.rid }}
-          path: SharpCpp.Rbfx/build/aot-test/${{ matrix.rid }}/aot-test.log
+          path: |
+            SharpCpp.Rbfx/build/aot-test/${{ matrix.rid }}/aot-test.log
+            SharpCpp.Rbfx/build/aot-test/${{ matrix.rid }}/aot-build.log
+            SharpCpp.Rbfx/build/aot-test/${{ matrix.rid }}/**/sharpcpp-rbfx-build-managed.vcxproj
+            SharpCpp.Rbfx/build/aot-test/${{ matrix.rid }}/**/*build-managed*.rule
+            SharpCpp.Rbfx/build/aot-test/${{ matrix.rid }}/**/*.bat
           if-no-files-found: ignore
 
   # The union packages come from three jobs. Union Reference builds the union API and the

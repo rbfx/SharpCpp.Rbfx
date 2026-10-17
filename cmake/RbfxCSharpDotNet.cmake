@@ -76,9 +76,12 @@ function(rbfx_csharp_add_dotnet_project target)
 
   # The Xcode generator exports TARGETNAME to a script phase. MSBuild reads it as the property TargetName and
   # gives every project the same output name. The command removes the variable.
+  # The command also sets RbfxNativeBuildDriver as an environment variable. MSBuild reads it as a property in
+  # each project, also if a global property does not reach a project (for example after a mangled command line
+  # of a generator). The global property -p:RbfxNativeBuildDriver wins when it is present.
   add_custom_target(
     ${target}
-    COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+    COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
     BYPRODUCTS ${arg_BYPRODUCTS}
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "Building ${arg_PROJECT} with dotnet"

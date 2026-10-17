@@ -1225,7 +1225,7 @@ jobs:
 
   Publish-NuGet:
     name: Publish NuGet Packages
-    needs: [Union, Smoke, Cross-Consumer, E2E]
+    needs: [Union, Smoke, Cross-Consumer, E2E, AOT]
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     permissions:
@@ -1260,7 +1260,7 @@ jobs:
 
   Release-Latest:
     name: Release Latest
-    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Sample, Sample-Android, Sample-Mobile]
+    needs: [Union, Smoke, Cross-Consumer, E2E, AOT, SDK-Consumer, Sample, Sample-Android, Sample-Mobile]
     if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-24.04
     concurrency:
@@ -1320,7 +1320,7 @@ jobs:
 
   Release-Tag:
     name: Release Tag
-    needs: [Union, Smoke, Cross-Consumer, E2E, SDK-Consumer, Version]
+    needs: [Union, Smoke, Cross-Consumer, E2E, AOT, SDK-Consumer, Version]
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     permissions:

@@ -6,6 +6,7 @@
     <AssemblyName>SharpCpp.Rbfx.NativeHost</AssemblyName>
     <DisableRuntimeMarshalling>true</DisableRuntimeMarshalling>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>

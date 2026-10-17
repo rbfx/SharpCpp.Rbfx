@@ -2,6 +2,7 @@
   <PropertyGroup>
     <AssemblyName>SharpCpp.Ea</AssemblyName>
     <RootNamespace>Ea</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>

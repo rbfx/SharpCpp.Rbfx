@@ -3,6 +3,7 @@
     <AssemblyName>SharpCpp.Rbfx.Bindings</AssemblyName>
     <DisableRuntimeMarshalling>true</DisableRuntimeMarshalling>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
     <NoWarn>$(NoWarn);CS0108;CS0109</NoWarn>
   </PropertyGroup>
 

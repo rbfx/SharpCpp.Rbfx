@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 
 using Microsoft.CodeAnalysis;
@@ -11,7 +12,21 @@ namespace SharpCpp.Rbfx.SourceGenerator;
 /// <summary>One engine attribute of a managed type: the data for one ManagedAttributeDescriptor.Create call.</summary>
 internal sealed class AttributeEntry
 {
-    public AttributeEntry(string name, string memberName, string memberIdentifier, string declaringType, string valueType, string bindingType, string mode, ValueKind kind, string? defaultExpression = null)
+    public const string ValuePlaceholder = "{VALUE}";
+
+    public AttributeEntry(
+        string name,
+        string memberName,
+        string memberIdentifier,
+        string declaringType,
+        string valueType,
+        string bindingType,
+        string mode,
+        ValueKind kind,
+        string defaultExpression,
+        string readAccess,
+        string writeTemplate,
+        IReadOnlyList<string> accessors)
     {
         Name = name;
         MemberName = memberName;
@@ -22,6 +37,9 @@ internal sealed class AttributeEntry
         Mode = mode;
         Kind = kind;
         DefaultExpression = defaultExpression;
+        ReadAccess = readAccess;
+        WriteTemplate = writeTemplate;
+        Accessors = accessors;
     }
 
     public string Name { get; }
@@ -40,8 +58,17 @@ internal sealed class AttributeEntry
 
     public ValueKind Kind { get; }
 
-    /// <summary>The body of the default delegate, from the declaration of the member. It is null when the default is not emittable.</summary>
-    public string? DefaultExpression { get; }
+    /// <summary>The body of the default delegate, from the declaration of the member.</summary>
+    public string DefaultExpression { get; }
+
+    /// <summary>The expression that reads the member of the owner <c>o</c>.</summary>
+    public string ReadAccess { get; }
+
+    /// <summary>The expression that writes the member of the owner <c>o</c>. <see cref="ValuePlaceholder"/> stands for the new value.</summary>
+    public string WriteTemplate { get; }
+
+    /// <summary>The declarations of the UnsafeAccessor methods that the member needs. The list is empty for a member with direct access.</summary>
+    public IReadOnlyList<string> Accessors { get; }
 }
 
 internal enum ValueKind
@@ -52,19 +79,26 @@ internal enum ValueKind
 }
 
 /// <summary>
-/// Finds the SerializeField members of a managed type with the rules of ManagedAttributeRegistrar.CollectMembers, so that the
-/// generated registry can list the attributes without reflection. A type that the scanner cannot describe gets no list, and the
-/// run time falls back to reflection for that type.
+/// Finds the SerializeField members of a managed type, so that the generated registry lists the attributes without reflection.
+/// Every member that the scanner cannot describe is an error (RBFXSG004).
+///
+/// A member that the registry file can see (public or internal, in a type that is public or internal) is read and written
+/// directly. A private or protected member is read and written through an UnsafeAccessor method of the registry class:
+/// a field gets a field accessor that returns a reference, a property gets one accessor for the getter and one for the setter.
+/// The members of a generic type get a generic accessor with the type parameters of the type (.NET 9 and later).
+/// UnsafeAccessor needs a declaring type that the registry file can name, and a non-virtual member. Else the scanner reports an error.
 /// </summary>
 internal sealed class ManagedAttributeScanner
 {
     internal static readonly DiagnosticDescriptor MemberDiagnostic = new(
         id: "RBFXSG004",
-        title: "Managed rbfx attribute members must be describable without reflection",
-        messageFormat: "Attribute member '{0}' of type '{1}' cannot be listed in the managed type registry: {2}. The type reads its attributes by reflection, which is not AOT safe.",
+        title: "Managed rbfx attribute members must be describable by the source generator",
+        messageFormat: "Attribute member '{0}' of type '{1}' cannot be listed in the managed type registry: {2}",
         category: "SharpCpp.Rbfx.SourceGenerator",
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    private const string AccessorAttribute = "global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.";
 
     private readonly INamedTypeSymbol _serializeField;
     private readonly INamedTypeSymbol _serializable;
@@ -72,6 +106,7 @@ internal sealed class ManagedAttributeScanner
     private readonly IAssemblySymbol _bindingsAssembly;
     private readonly IAssemblySymbol _assembly;
     private readonly AttributeDefaultResolver _defaults;
+    private int _accessorCount;
 
     // The constructors of the type that Scan works on. The scanner runs in one thread.
     private List<(SemanticModel Model, SyntaxNode Node)> _constructors = new();
@@ -92,7 +127,7 @@ internal sealed class ManagedAttributeScanner
         _defaults = defaults;
     }
 
-    /// <summary>Returns null when the bindings have no SerializeFieldAttribute, so that no type gets a list.</summary>
+    /// <summary>Returns null when the bindings have no SerializeFieldAttribute, so that no type has attributes.</summary>
     public static ManagedAttributeScanner? Create(Compilation compilation, IAssemblySymbol bindingsAssembly)
     {
         var serializeField = compilation.GetTypeByMetadataName("Urho3D.Scene.SerializeFieldAttribute");
@@ -112,11 +147,12 @@ internal sealed class ManagedAttributeScanner
     }
 
     /// <summary>
-    /// Returns the attributes in the order of the reflection path, or null when the type must use reflection.
-    /// <paramref name="registered"/> holds the types of the registry. The reflection path stops at the first base type that
+    /// Returns the attributes of the type: its own members, and the members of the base types that have no reflection of their own.
+    /// A member that the scanner cannot describe gets an error and is left out.
+    /// <paramref name="registered"/> holds the types of the registry. The chain stops at the first base type that
     /// the engine reflects, and a registered base type is reflected before the derived type.
     /// </summary>
-    public List<AttributeEntry>? Scan(SourceProductionContext context, INamedTypeSymbol type, HashSet<INamedTypeSymbol> registered)
+    public List<AttributeEntry> Scan(SourceProductionContext context, INamedTypeSymbol type, HashSet<INamedTypeSymbol> registered)
     {
         // The members of the type, and of the base types up to the first reflected one or a native binding type.
         var chain = new List<INamedTypeSymbol>();
@@ -135,7 +171,6 @@ internal sealed class ManagedAttributeScanner
         chain.Reverse();
         _constructors = _defaults.CollectConstructors(chain);
         var entries = new List<AttributeEntry>();
-        var describable = true;
         foreach (var current in chain)
         {
             var isLocal = SymbolEqualityComparer.Default.Equals(current.ContainingAssembly, _assembly);
@@ -143,7 +178,7 @@ internal sealed class ManagedAttributeScanner
             {
                 if (member is IFieldSymbol field && !field.IsStatic)
                 {
-                    describable &= ScanField(context, type, current, isLocal, field, entries);
+                    ScanField(context, type, current, isLocal, field, entries);
                 }
             }
 
@@ -151,119 +186,168 @@ internal sealed class ManagedAttributeScanner
             {
                 if (member is IPropertySymbol property && !property.IsStatic)
                 {
-                    describable &= ScanProperty(context, type, current, isLocal, property, entries);
+                    ScanProperty(context, type, current, isLocal, property, entries);
                 }
             }
         }
 
         if (entries.Count > 0 && !DerivesFrom(type, _serializable))
         {
-            Report(context, type.Locations, type.Name, type, "the type is not a Serializable");
-            describable = false;
+            Report(context, type.Locations, type.Name, type, "the type is not a Serializable. Derive it from Serializable or Component, or remove the SerializeField attributes");
         }
 
-        return describable ? entries : null;
+        return entries;
     }
 
-    private bool ScanField(
+    private void ScanField(
         SourceProductionContext context, INamedTypeSymbol type, INamedTypeSymbol declaring, bool isLocal, IFieldSymbol field, List<AttributeEntry> entries)
     {
         var marker = FindAttribute(field, _serializeField);
         if (marker is null)
         {
-            return true;
+            return;
         }
 
-        // The reflection path skips a NonSerialized field silently, so the check comes before the check of the assembly.
+        // A NonSerialized field is skipped silently, so the check comes before the check of the assembly.
         if (IsNotSerialized(field))
         {
-            return true;
+            return;
         }
 
         if (!isLocal)
         {
-            return ReportForeign(context, type, declaring, field);
+            ReportForeign(context, type, declaring, field);
+            return;
         }
 
         if (GetObsoleteError(field, declaring) is { } obsolete)
         {
-            return Fail(context, type, field, obsolete);
+            Fail(context, type, field, obsolete);
+            return;
         }
 
         if (field.AssociatedSymbol is not null)
         {
-            return Fail(context, type, field, "the attribute is on the backing field of a property");
+            Fail(context, type, field, "the attribute is on the backing field of a property. Put the attribute on the property");
+            return;
         }
 
         if (field.IsReadOnly)
         {
-            return Fail(context, type, field, "it is readonly");
+            Fail(context, type, field, "it is readonly. The engine writes the attribute, so remove readonly");
+            return;
         }
 
-        if (!IsAccessible(field.DeclaredAccessibility) || !IsTypeAccessible(declaring))
+        var direct = IsAccessible(field.DeclaredAccessibility) && IsTypeAccessible(declaring);
+        if (!direct && !CanUseAccessor(context, type, field, declaring))
         {
-            return Fail(context, type, field, "it is private or protected");
+            return;
         }
 
-        return AddEntry(context, type, declaring, field, field.Type, marker, entries);
+        AddEntry(context, type, declaring, field, field.Type, marker, direct, entries);
     }
 
-    private bool ScanProperty(
+    private void ScanProperty(
         SourceProductionContext context, INamedTypeSymbol type, INamedTypeSymbol declaring, bool isLocal, IPropertySymbol property, List<AttributeEntry> entries)
     {
         var marker = FindAttribute(property, _serializeField);
         if (marker is null)
         {
-            return true;
+            return;
         }
 
         if (!isLocal)
         {
-            return ReportForeign(context, type, declaring, property);
+            ReportForeign(context, type, declaring, property);
+            return;
         }
 
         if (GetObsoleteError(property, declaring) is { } obsolete)
         {
-            return Fail(context, type, property, obsolete);
+            Fail(context, type, property, obsolete);
+            return;
         }
 
         if (property.GetMethod is null || property.SetMethod is null || property.IsIndexer || property.RefKind != RefKind.None ||
             property.ExplicitInterfaceImplementations.Length > 0)
         {
-            return Fail(context, type, property, "it must be a property with a getter and a setter");
+            Fail(context, type, property, "it must be a property with a getter and a setter");
+            return;
         }
 
         if (property.SetMethod.IsInitOnly)
         {
-            return Fail(context, type, property, "its setter is init-only");
+            Fail(context, type, property, "its setter is init-only. Use a normal setter");
+            return;
         }
 
-        if (!IsAccessible(property.DeclaredAccessibility) || !IsAccessible(property.GetMethod.DeclaredAccessibility) ||
-            !IsAccessible(property.SetMethod.DeclaredAccessibility) || !IsTypeAccessible(declaring))
+        var direct = IsAccessible(property.DeclaredAccessibility) && IsAccessible(property.GetMethod.DeclaredAccessibility) &&
+                     IsAccessible(property.SetMethod.DeclaredAccessibility) && IsTypeAccessible(declaring);
+        if (!direct && !CanUseAccessor(context, type, property, declaring))
         {
-            return Fail(context, type, property, "it, its getter or its setter is private or protected");
+            return;
         }
 
-        return AddEntry(context, type, declaring, property, property.Type, marker, entries);
+        AddEntry(context, type, declaring, property, property.Type, marker, direct, entries);
     }
 
-    private bool AddEntry(
+    // An UnsafeAccessor method names the declaring type in its signature, and it calls the member without a virtual dispatch.
+    private bool CanUseAccessor(SourceProductionContext context, INamedTypeSymbol type, ISymbol member, INamedTypeSymbol declaring)
+    {
+        if (!IsTypeAccessible(declaring))
+        {
+            Fail(context, type, member, "its declaring type '" + declaring.Name + "' is private or protected, and the generated registry cannot name it. Make the declaring type internal or public");
+            return false;
+        }
+
+        if (member.IsVirtual || member.IsOverride || member.IsAbstract)
+        {
+            Fail(context, type, member, "it is private or protected and virtual, and UnsafeAccessor cannot call a virtual member. Make it public or internal, or not virtual");
+            return false;
+        }
+
+        for (var current = declaring; current is not null; current = current.ContainingType)
+        {
+            if (current.TypeParameters.Any(static parameter =>
+                    parameter.HasReferenceTypeConstraint || parameter.HasValueTypeConstraint || parameter.HasNotNullConstraint ||
+                    parameter.HasUnmanagedTypeConstraint || parameter.HasConstructorConstraint || parameter.ConstraintTypes.Length > 0))
+            {
+                Fail(context, type, member, "it is private or protected in the generic type '" + current.Name + "' with type parameter constraints, and UnsafeAccessor cannot reach it. Make the member public or internal");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void AddEntry(
         SourceProductionContext context,
         INamedTypeSymbol type,
         INamedTypeSymbol declaring,
         ISymbol member,
         ITypeSymbol valueType,
         AttributeData marker,
+        bool direct,
         List<AttributeEntry> entries)
     {
         if (!TryGetKind(valueType, out var kind))
         {
-            return Fail(context, type, member, "its type '" + valueType.ToDisplayString() + "' is not a supported attribute type");
+            Fail(context, type, member, "its type '" + valueType.ToDisplayString() + "' is not a supported attribute type. Use bool, int, long, float, double, string, an enum with a 32-bit underlying type, or a Urho3D.Math vector, quaternion or color");
+            return;
         }
 
         if (kind == ValueKind.Enum && valueType is INamedTypeSymbol enumType && !IsTypeAccessible(enumType))
         {
-            return Fail(context, type, member, "its enum type is private or protected");
+            Fail(context, type, member, "its enum type is private or protected, and the generated registry cannot name it. Make the enum internal or public");
+            return;
+        }
+
+        var defaultExpression = _defaults.TryGetDefault(member, valueType, kind, _constructors, out var defaultReason);
+        if (defaultExpression is null)
+        {
+            Fail(context, type, member, "its default value cannot be read without an instance: " + defaultReason +
+                ". Give the member a default with a literal, a constant or a static initializer (for example '= 2.5f;'), and do not assign it in a constructor");
+            return;
         }
 
         string? name = null;
@@ -281,17 +365,100 @@ internal sealed class ManagedAttributeScanner
         }
 
         var display = valueType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var declaringDisplay = declaring.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var identifier = SyntaxFacts.GetKeywordKind(member.Name) != SyntaxKind.None ? "@" + member.Name : member.Name;
+        string readAccess;
+        string writeTemplate;
+        var accessors = new List<string>();
+        if (direct)
+        {
+            readAccess = "((" + declaringDisplay + ")o)." + identifier;
+            writeTemplate = readAccess + " = " + AttributeEntry.ValuePlaceholder;
+        }
+        else
+        {
+            var index = _accessorCount++;
+            var typeParameters = GetTypeParameterList(declaring.OriginalDefinition);
+            var typeArguments = GetTypeArgumentList(declaring);
+            var ownerType = declaring.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var memberType = (member is IFieldSymbol field ? field.OriginalDefinition.Type : ((IPropertySymbol)member).OriginalDefinition.Type)
+                .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var owner = "((" + declaringDisplay + ")o)";
+            if (member is IFieldSymbol)
+            {
+                var accessor = "__Field" + index;
+                accessors.Add(
+                    "[" + AccessorAttribute + "Field, Name = " + SymbolDisplay.FormatLiteral(member.Name, quote: true) + ")]\n" +
+                    "private static extern ref " + memberType + " " + accessor + typeParameters + "(" + ownerType + " owner);");
+                readAccess = accessor + typeArguments + "(" + owner + ")";
+                writeTemplate = readAccess + " = " + AttributeEntry.ValuePlaceholder;
+            }
+            else
+            {
+                var property = (IPropertySymbol)member;
+                var getter = "__Get" + index;
+                var setter = "__Set" + index;
+                accessors.Add(
+                    "[" + AccessorAttribute + "Method, Name = " + SymbolDisplay.FormatLiteral(property.GetMethod!.Name, quote: true) + ")]\n" +
+                    "private static extern " + memberType + " " + getter + typeParameters + "(" + ownerType + " owner);");
+                accessors.Add(
+                    "[" + AccessorAttribute + "Method, Name = " + SymbolDisplay.FormatLiteral(property.SetMethod!.Name, quote: true) + ")]\n" +
+                    "private static extern void " + setter + typeParameters + "(" + ownerType + " owner, " + memberType + " value);");
+                readAccess = getter + typeArguments + "(" + owner + ")";
+                writeTemplate = setter + typeArguments + "(" + owner + ", " + AttributeEntry.ValuePlaceholder + ")";
+            }
+        }
+
         entries.Add(new AttributeEntry(
             SymbolDisplay.FormatLiteral(name ?? member.Name, quote: true),
             SymbolDisplay.FormatLiteral(member.Name, quote: true),
-            SyntaxFacts.GetKeywordKind(member.Name) != SyntaxKind.None ? "@" + member.Name : member.Name,
-            declaring.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            identifier,
+            declaringDisplay,
             display,
             kind == ValueKind.Enum ? "object" : display,
             mode,
             kind,
-            _defaults.TryGetDefault(member, valueType, kind, _constructors)));
-        return true;
+            defaultExpression,
+            readAccess,
+            writeTemplate,
+            accessors));
+    }
+
+    // The type parameters of the type and of its containing types, outermost first: the order of an UnsafeAccessor method of a generic type.
+    private static List<ITypeSymbol> GetTypeParameters(INamedTypeSymbol type)
+    {
+        var result = new List<ITypeSymbol>();
+        for (var current = type; current is not null; current = current.ContainingType)
+        {
+            result.InsertRange(0, current.TypeParameters);
+        }
+
+        return result;
+    }
+
+    private static List<ITypeSymbol> GetTypeArguments(INamedTypeSymbol type)
+    {
+        var result = new List<ITypeSymbol>();
+        for (var current = type; current is not null; current = current.ContainingType)
+        {
+            result.InsertRange(0, current.TypeArguments);
+        }
+
+        return result;
+    }
+
+    private static string GetTypeParameterList(INamedTypeSymbol type)
+    {
+        var parameters = GetTypeParameters(type);
+        return parameters.Count == 0 ? string.Empty : "<" + string.Join(", ", parameters.Select(static parameter => parameter.Name)) + ">";
+    }
+
+    private static string GetTypeArgumentList(INamedTypeSymbol type)
+    {
+        var arguments = GetTypeArguments(type);
+        return arguments.Count == 0
+            ? string.Empty
+            : "<" + string.Join(", ", arguments.Select(static argument => argument.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))) + ">";
     }
 
     // Value types of VariantConverters. An enum with a 32-bit underlying type is listed as object.
@@ -394,7 +561,7 @@ internal sealed class ManagedAttributeScanner
 
     private static bool ReportForeign(SourceProductionContext context, INamedTypeSymbol type, INamedTypeSymbol declaring, ISymbol member)
     {
-        Report(context, type.Locations, member.Name, type, "its base type '" + declaring.ToDisplayString() + "' is in another assembly");
+        Report(context, type.Locations, member.Name, type, "its base type '" + declaring.ToDisplayString() + "' is in another assembly, and the generator lists only the members of the types of this assembly. Declare the member in a type of this assembly");
         return false;
     }
 

@@ -227,7 +227,7 @@ public abstract partial class ManagedPlugin : Plugin
             // The generated list of a type leaves out the members of its nearest listed base type. When that base type is not
             // registered, the list is incomplete, and the reflection scan finds the members.
             var complete = item.Attributes is not null && !HasSkippedListedBase(item.Type, listed, skipped);
-            RegisterAttributes(context, item.Type, typeInfo, registered, complete ? item.Attributes : null, complete ? item.CreateDefaults : null);
+            RegisterAttributes(context, item.Type, typeInfo, registered, complete ? item.Attributes : null);
         }
     }
 
@@ -252,14 +252,13 @@ public abstract partial class ManagedPlugin : Plugin
         [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type,
         TypeInfo typeInfo,
         List<StringHash> registered,
-        ManagedAttributeDescriptor[]? descriptors = null,
-        Func<Context, Serializable>? createDefaults = null)
+        ManagedAttributeDescriptor[]? descriptors = null)
     {
         try
         {
             registered.Add(typeInfo.GetType());
             var reflection = context.GetReflection(typeInfo.GetType());
-            ManagedAttributeRegistrar.Register(context, reflection, typeInfo, type, descriptors, createDefaults);
+            ManagedAttributeRegistrar.Register(context, reflection, typeInfo, type, descriptors);
         }
         catch (Exception exception)
         {

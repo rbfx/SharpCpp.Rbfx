@@ -51,8 +51,7 @@ public sealed class ManagedAttributeGeneratorTests
             public partial class Base : Component
             {
                 [SerializeField] public float Speed = 1;
-                [SerializeField] public float Assigned;
-                public Base(Context context) : base(context) { Assigned = 3; }
+                public Base(Context context) : base(context) { }
             }
 
             public partial class Derived : Base
@@ -87,12 +86,11 @@ public sealed class ManagedAttributeGeneratorTests
             derivedText);
         Assert.DoesNotContain("Skipped", derivedText);
 
-        // A constructor assigns Assigned, so Base carries a factory of the temporary instance. Derived has a default for every member.
-        Assert.Contains("}, static ctx => new global::GeneratorTest.Base(ctx)", baseText);
+        Assert.DoesNotContain("static ctx =>", baseText);
         Assert.DoesNotContain("static ctx =>", derivedText);
         Assert.DoesNotContain("NotMarked", derivedText);
 
-        // The reflection path lists the fields of a type first, then its properties.
+        // The generator lists the fields of a type first, then its properties.
         Assert.True(derivedText.IndexOf("\"Mood\"", StringComparison.Ordinal) < derivedText.IndexOf("\"Label Text\"", StringComparison.Ordinal));
     }
 
@@ -155,17 +153,17 @@ public sealed class ManagedAttributeGeneratorTests
     [InlineData("[SerializeField] public float Speed = 1;", "Init(out Speed);")]
     [InlineData("[SerializeField] public float Speed = 1;", "(Speed, _) = (2, 3);")]
     [InlineData("[SerializeField] public float Speed { get; set; } = 1;", "Speed = 2;")]
-    public void Member_assigned_by_a_constructor_has_no_default_and_the_type_keeps_the_factory(string member, string statement)
+    [InlineData("[SerializeField] private float Speed = 1;", "Speed = 2;")]
+    public void Member_assigned_by_a_constructor_is_an_error(string member, string statement)
     {
         var result = Run(Header + "public partial class Probe : Component\n{\n    " + member +
             "\n    private int _unused;\n    private static void Init(out float value) { value = 3; }\n" +
             "    public Probe(Context context) : base(context) { " + statement + " }\n}\n");
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        AssertNoErrors(result);
-        var text = result.Registration("GeneratorTest.Probe");
-        Assert.DoesNotContain("static () =>", text);
-        Assert.Contains("}, static ctx => new global::GeneratorTest.Probe(ctx)", text);
+        var error = AssertMemberError(result, "Speed");
+        Assert.Contains("constructor", error.GetMessage());
+        Assert.Contains("literal", error.GetMessage());
+        Assert.DoesNotContain("Create<", result.Registration("GeneratorTest.Probe"));
     }
 
     [Theory]
@@ -177,17 +175,13 @@ public sealed class ManagedAttributeGeneratorTests
     [InlineData("Offset.Normalize();")]
     [InlineData("this.Offset.Normalize();")]
     [InlineData("(Offset).X = 1;")]
-    public void Part_of_a_value_type_member_written_by_a_constructor_removes_its_default(string statement)
+    public void Part_of_a_value_type_member_written_by_a_constructor_is_an_error(string statement)
     {
         var result = Run(Header + "public partial class Probe : Component\n{\n    [SerializeField] public Vector3 Offset;\n" +
             "    private static void Init(ref float value) { value = 3; }\n" +
             "    public Probe(Context context) : base(context) { " + statement + " }\n}\n");
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        AssertNoErrors(result);
-        var text = result.Registration("GeneratorTest.Probe");
-        Assert.DoesNotContain("static () =>", text);
-        Assert.Contains("}, static ctx => new global::GeneratorTest.Probe(ctx)", text);
+        Assert.Contains("constructor", AssertMemberError(result, "Offset").GetMessage());
     }
 
     [Fact]
@@ -230,7 +224,7 @@ public sealed class ManagedAttributeGeneratorTests
     }
 
     [Fact]
-    public void Static_member_of_a_generic_base_type_has_no_default()
+    public void Static_member_of_a_generic_base_type_as_a_default_is_an_error()
     {
         var result = Run(Header + """
             public abstract partial class Base<T> : Component
@@ -249,13 +243,10 @@ public sealed class ManagedAttributeGeneratorTests
             }
             """);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        AssertNoErrors(result);
-        var text = result.Registration("GeneratorTest.D");
-        Assert.DoesNotContain("static () =>", result.Entry(text, "X"));
-        Assert.DoesNotContain("static () =>", result.Entry(text, "Y"));
-        Assert.EndsWith("static () => 5),", result.Entry(text, "Z"));
-        Assert.Contains("}, static ctx => new global::GeneratorTest.D(ctx)", text);
+        Assert.Equal(2, result.Diagnostics.Count(static d => d.Id == "RBFXSG004" && d.Severity == DiagnosticSeverity.Error));
+        AssertMemberError(result, "X");
+        AssertMemberError(result, "Y");
+        Assert.EndsWith("static () => 5),", result.Entry(result.Registration("GeneratorTest.D"), "Z"));
     }
 
     [Fact]
@@ -277,7 +268,7 @@ public sealed class ManagedAttributeGeneratorTests
     }
 
     [Fact]
-    public void Constructor_of_a_derived_type_that_assigns_a_base_member_removes_its_default()
+    public void Constructor_of_a_derived_type_that_assigns_a_base_member_is_an_error()
     {
         var result = Run(Header + """
             public abstract partial class Abstract : Component
@@ -293,15 +284,12 @@ public sealed class ManagedAttributeGeneratorTests
             }
             """);
 
-        AssertNoErrors(result);
-        var text = result.Registration("GeneratorTest.Concrete");
-        Assert.DoesNotContain("static () => 1)", text);
-        Assert.EndsWith("static () => 2),", result.Entry(text, "Kept"));
-        Assert.Contains("}, static ctx => new global::GeneratorTest.Concrete(ctx)", text);
+        Assert.Contains("constructor", AssertMemberError(result, "Shared").GetMessage());
+        Assert.EndsWith("static () => 2),", result.Entry(result.Registration("GeneratorTest.Concrete"), "Kept"));
     }
 
     [Fact]
-    public void Initializer_that_needs_the_instance_or_a_hidden_symbol_has_no_default()
+    public void Initializer_that_needs_the_instance_or_a_hidden_symbol_is_an_error()
     {
         var result = Run(Header + """
             public partial class Probe(Context context) : Component(context)
@@ -314,21 +302,19 @@ public sealed class ManagedAttributeGeneratorTests
                 [SerializeField] public int FromProtected = Counter;
                 [SerializeField] public int FromLambda = ((System.Func<int>)(() => 3))();
                 [SerializeField] public int WithBody { get => _body; set => _body = value; }
+                [SerializeField] public virtual int Virtual { get; set; } = 1;
                 [SerializeField] public float Plain = 7;
                 private int _body;
             }
             """);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        AssertNoErrors(result);
-        var text = result.Registration("GeneratorTest.Probe");
-        foreach (var name in new[] { "FromParameter", "FromPrivate", "FromProtected", "FromLambda", "WithBody" })
+        foreach (var name in new[] { "FromParameter", "FromPrivate", "FromProtected", "FromLambda", "WithBody", "Virtual" })
         {
-            Assert.DoesNotContain("static () =>", result.Entry(text, name));
+            AssertMemberError(result, name);
         }
 
-        Assert.EndsWith("static () => 7),", result.Entry(text, "Plain"));
-        Assert.Contains("}, static ctx => new global::GeneratorTest.Probe(ctx)", text);
+        Assert.Equal(6, result.Diagnostics.Count(static d => d.Id == "RBFXSG004"));
+        Assert.EndsWith("static () => 7),", result.Entry(result.Registration("GeneratorTest.Probe"), "Plain"));
     }
 
     [Fact]
@@ -349,9 +335,7 @@ public sealed class ManagedAttributeGeneratorTests
                 {
                     [SerializeField] public float Rounded = M.Abs(-2.5f);
                     [SerializeField] public Level Level = Level.High;
-                    [SerializeField] public float Computed = (float)System.Math.Sqrt(Count) + 1;
                     [SerializeField] public Vector2 Pair = new(x: 1, y: 2);
-                    private static readonly float Count = 9;
                     public Probe(Context context) : base(context) { }
                 }
             }
@@ -362,7 +346,6 @@ public sealed class ManagedAttributeGeneratorTests
         var text = result.Registration("Other.Probe");
         Assert.EndsWith("static () => global::System.Math.Abs(-2.5F)),", result.Entry(text, "Rounded"));
         Assert.EndsWith("static () => (object)global::Other.Level.High),", result.Entry(text, "Level"));
-        Assert.DoesNotContain("static () =>", result.Entry(text, "Computed"));
         Assert.EndsWith("static () => new(x: 1, y: 2)),", result.Entry(text, "Pair"));
     }
 
@@ -412,65 +395,180 @@ public sealed class ManagedAttributeGeneratorTests
     }
 
     [Fact]
-    public void Private_member_reports_a_warning_and_the_type_falls_back_to_reflection()
+    public void Private_members_use_UnsafeAccessor_and_the_generated_code_compiles()
     {
         var result = Run(Header + """
             public partial class Hidden : Component
             {
-                [SerializeField] public float Open;
-                [SerializeField] private int _secret;
+                [SerializeField] public float Open = 1;
+                [SerializeField(Name = "Secret Value")] private int _secret = 42;
+                [SerializeField] protected Mood Feeling = Mood.Happy;
+                [SerializeField] private string Title { get; set; } = "x";
+                [SerializeField] public int PrivateSetter { get; private set; } = 3;
+                [SerializeField] internal float Inside = 2;
                 public Hidden(Context context) : base(context) { }
-            }
-
-            public partial class Visible : Component
-            {
-                [SerializeField] public float Open;
-                public Visible(Context context) : base(context) { }
             }
             """);
 
-        var warning = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        Assert.Equal(DiagnosticSeverity.Warning, warning.Severity);
-        Assert.Contains("_secret", warning.GetMessage());
-        Assert.Contains("GeneratorTest.Hidden", warning.GetMessage());
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
         AssertNoErrors(result);
-
-        // The type has no list at all, not even for its public members.
+        var text = result.Registry;
+        Assert.Contains("UnsafeAccessorKind.Field, Name = \"_secret\")]", text);
+        Assert.Contains("private static extern ref int __Field0(global::GeneratorTest.Hidden owner);", text);
+        Assert.Contains("UnsafeAccessorKind.Field, Name = \"Feeling\")]", text);
+        Assert.Contains("UnsafeAccessorKind.Method, Name = \"get_Title\")]", text);
+        Assert.Contains("UnsafeAccessorKind.Method, Name = \"set_Title\")]", text);
+        Assert.Contains("UnsafeAccessorKind.Method, Name = \"set_PrivateSetter\")]", text);
         var hidden = result.Registration("GeneratorTest.Hidden");
-        Assert.DoesNotContain("ManagedAttributeDescriptor", hidden);
-        Assert.DoesNotContain("static ctx =>", hidden);
-        Assert.Contains("ManagedAttributeDescriptor.Create<float>", result.Registration("GeneratorTest.Visible"));
+        Assert.Contains("\"Secret Value\", \"_secret\", typeof(int)", hidden);
+        Assert.Contains("static o => __Field0(((global::GeneratorTest.Hidden)o))", hidden);
+        Assert.Contains("static (o, v) => __Field0(((global::GeneratorTest.Hidden)o)) = v", hidden);
+
+        // Public and internal members are accessed directly.
+        Assert.Contains("static o => ((global::GeneratorTest.Hidden)o).Open", hidden);
+        Assert.Contains("static o => ((global::GeneratorTest.Hidden)o).Inside", hidden);
+        Assert.DoesNotContain("Name = \"Open\"", text);
+        Assert.DoesNotContain("Name = \"Inside\"", text);
+    }
+
+    [Fact]
+    public void Private_members_of_generic_and_nested_types_compile()
+    {
+        var result = Run(Header + """
+            public abstract partial class Base<T> : Component
+            {
+                [SerializeField] private T _value;
+                [SerializeField] protected float Gain { get; set; } = 2;
+                protected Base(Context context) : base(context) { }
+            }
+
+            public partial class D : Base<int>
+            {
+                public D(Context context) : base(context) { }
+            }
+
+            public partial class Holder
+            {
+                public class Nested : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<Nested>
+                {
+                    [SerializeField] private int Value;
+                    public Nested(Context context) : base(context) { }
+                    public static Nested Create(Context context) => new Nested(context);
+                    public new static TypeInfo GetTypeInfoStatic() => throw new System.NotSupportedException();
+                }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        AssertNoErrors(result);
+        Assert.Contains("private static extern ref T __Field1<T>(global::GeneratorTest.Base<T> owner);", result.Registry);
+        Assert.Contains("static o => __Field1<int>(((global::GeneratorTest.Base<int>)o))", result.Registration("GeneratorTest.D"));
+        Assert.Contains("private static extern float __Get2<T>(global::GeneratorTest.Base<T> owner);", result.Registry);
+        Assert.Contains("private static extern ref int __Field0(global::GeneratorTest.Holder.Nested owner);", result.Registry);
+        Assert.Contains("(global::GeneratorTest.Holder.Nested owner);", result.Registry);
     }
 
     [Theory]
-    [InlineData("[SerializeField] protected int Member;")]
-    [InlineData("[SerializeField] public readonly int Member;")]
-    [InlineData("[SerializeField] public int Member { get; init; }")]
-    [InlineData("[SerializeField] public int Member { get; }")]
-    [InlineData("[SerializeField] public int Member { get; private set; }")]
-    [InlineData("[SerializeField] public byte Member;")]
-    [InlineData("[SerializeField] public int? Member;")]
-    [InlineData("[SerializeField] public System.Guid Member;")]
-    public void Member_the_generated_code_cannot_describe_falls_back_to_reflection(string member)
+    [InlineData("[SerializeField] public readonly int Member = 1;", "readonly")]
+    [InlineData("[SerializeField] private readonly int Member = 1;", "readonly")]
+    [InlineData("[SerializeField] public int Member { get; init; }", "init-only")]
+    [InlineData("[SerializeField] public int Member { get; }", "getter and a setter")]
+    [InlineData("[SerializeField] private int Member { get; }", "getter and a setter")]
+    [InlineData("[SerializeField] public byte Member;", "not a supported attribute type")]
+    [InlineData("[SerializeField] private byte Member;", "not a supported attribute type")]
+    [InlineData("[SerializeField] public int? Member;", "not a supported attribute type")]
+    [InlineData("[SerializeField] public System.Guid Member;", "not a supported attribute type")]
+    [InlineData("[SerializeField] public int this[int index] { get => 0; set { } }", "getter and a setter")]
+    [InlineData("[field: SerializeField] public int Member { get; set; }", "backing field")]
+    [InlineData("[SerializeField] protected virtual int Member { get; set; } = 1;", "virtual")]
+    [InlineData("[SerializeField, System.Obsolete(\"old\", true)] public int Member;", "Obsolete")]
+    [InlineData("[SerializeField, System.Obsolete(\"old\", true)] public int Member { get; set; }", "Obsolete")]
+    public void Member_the_generator_cannot_describe_is_an_error(string member, string reason)
     {
-        var result = Run(Header + "public partial class Probe : Component\n{\n    " + member + "\n    public Probe(Context context) : base(context) { }\n}\n");
+        var result = Run(Header + "public partial class Probe : Component\n{\n    " + member +
+            "\n    public Probe(Context context) : base(context) { }\n}\n");
 
-        Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        AssertNoErrors(result);
-        Assert.DoesNotContain("ManagedAttributeDescriptor", result.Registration("GeneratorTest.Probe"));
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains(reason, error.GetMessage());
+        Assert.Contains("GeneratorTest.Probe", error.GetMessage());
     }
 
-    [Theory]
-    [InlineData("[SerializeField, System.Obsolete(\"old\", true)] public int Member;")]
-    [InlineData("[SerializeField, System.Obsolete(\"old\", true)] public int Member { get; set; }")]
-    public void Member_marked_Obsolete_as_error_falls_back_to_reflection(string member)
+    [Fact]
+    public void Private_enum_type_of_a_member_is_an_error()
     {
-        var result = Run(Header + "public partial class Probe : Component\n{\n    " + member + "\n    public Probe(Context context) : base(context) { }\n}\n");
+        var result = Run(Header + """
+            public partial class Probe : Component
+            {
+                private enum Hidden { A, B }
+                [SerializeField] public Hidden Member = Hidden.B;
+                public Probe(Context context) : base(context) { }
+            }
+            """);
 
-        var warning = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        Assert.Contains("Obsolete", warning.GetMessage());
-        AssertNoErrors(result);
-        Assert.DoesNotContain("ManagedAttributeDescriptor", result.Registration("GeneratorTest.Probe"));
+        Assert.Contains("enum", AssertMemberError(result, "Member").GetMessage());
+    }
+
+    [Fact]
+    public void Private_member_of_a_generic_type_with_constraints_is_an_error()
+    {
+        var result = Run(Header + """
+            public abstract partial class Base<T> : Component where T : class
+            {
+                [SerializeField] private int _value = 1;
+                [SerializeField] public int Open = 1;
+                protected Base(Context context) : base(context) { }
+            }
+
+            public partial class D : Base<string>
+            {
+                public D(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.Contains("constraints", AssertMemberError(result, "_value").GetMessage());
+        Assert.Contains("Create<int>(\"Open\"", result.Registration("GeneratorTest.D"));
+    }
+
+    [Fact]
+    public void Type_that_is_not_a_Serializable_is_an_error()
+    {
+        var result = Run(Header + """
+            public partial class Plain : Urho3D.Core.Object
+            {
+                [SerializeField] public int Value = 1;
+                public Plain(Context context) : base(context) { }
+            }
+            """);
+
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains("Serializable", error.GetMessage());
+    }
+
+    [Fact]
+    public void Private_nested_managed_type_is_an_error()
+    {
+        var result = Run(Header + """
+            public partial class Visible : Component
+            {
+                public Visible(Context context) : base(context) { }
+            }
+
+            public partial class Outer
+            {
+                private class Hidden : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<Hidden>
+                {
+                    public Hidden(Context context) : base(context) { }
+                    public static Hidden Create(Context context) => new Hidden(context);
+                    public new static TypeInfo GetTypeInfoStatic() => throw new System.NotSupportedException();
+                }
+            }
+            """);
+
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG003");
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains("Hidden", error.GetMessage());
     }
 
     [Fact]
@@ -514,7 +612,7 @@ public sealed class ManagedAttributeGeneratorTests
     }
 
     [Fact]
-    public void Serialize_field_in_a_base_type_of_another_assembly_falls_back_to_reflection()
+    public void Serialize_field_in_a_base_type_of_another_assembly_is_an_error()
     {
         var result = Run(
             Header + """
@@ -531,8 +629,9 @@ public sealed class ManagedAttributeGeneratorTests
             }
             """);
 
-        Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        AssertNoErrors(result);
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains("another assembly", error.GetMessage());
     }
 
     [Fact]
@@ -541,7 +640,7 @@ public sealed class ManagedAttributeGeneratorTests
         var result = Run(Header + """
             public abstract class Base<T> : Component
             {
-                [SerializeField] public T Value = default!;
+                [SerializeField] public T Value;
                 protected Base(Context context) : base(context) { }
             }
 
@@ -596,21 +695,25 @@ public sealed class ManagedAttributeGeneratorTests
     }
 
     [Fact]
-    public void Attribute_plugin_registry_has_descriptors_only_for_types_without_private_members()
+    public void Attribute_plugin_registry_lists_the_private_members()
     {
         var assembly = Assembly.LoadFrom(Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll"));
         var registry = ManagedTypeRegistries.Find(assembly)!;
         var byName = registry.Registrations.ToDictionary(static item => item.Type.Name);
 
         // AttributeComponent has a private [SerializeField] field. DerivedAttributeComponent copies its attributes from the base reflection.
-        Assert.Null(byName["AttributeComponent"].Attributes);
-        Assert.Null(byName["AttributeComponent"].CreateDefaults);
-
-        // Every member of DerivedAttributeComponent has a default from its initializer, so it needs no temporary instance.
-        Assert.Null(byName["DerivedAttributeComponent"].CreateDefaults);
+        Assert.Contains(byName["AttributeComponent"].Attributes!, static descriptor => descriptor.Name == "Secret Value");
         var derived = Assert.Single(byName["DerivedAttributeComponent"].Attributes!);
         Assert.Equal("Extra", derived.Name);
         Assert.Equal(typeof(double), derived.ValueType);
+    }
+
+    // The generator reports one error for the member, and the message names the member.
+    private static Diagnostic AssertMemberError(GeneratorResult result, string member)
+    {
+        var error = Assert.Single(result.Diagnostics, d => d.Id == "RBFXSG004" && d.GetMessage().Contains("'" + member + "'", StringComparison.Ordinal));
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        return error;
     }
 
     private static void AssertNoErrors(GeneratorResult result) =>

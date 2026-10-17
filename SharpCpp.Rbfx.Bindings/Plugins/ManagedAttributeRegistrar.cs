@@ -43,17 +43,14 @@ internal static class ManagedAttributeRegistrar
     /// managed base types that have no reflection. A temporary instance gives the default values.
     /// When <paramref name="descriptors"/> is not null, it is the complete list of the attributes of the type (the generated registry).
     /// The type is not scanned for members then. When it is null, the members come from reflection.
-    /// A descriptor with a default value (<see cref="ManagedAttributeDescriptor.HasDefault"/>) needs no instance. When all descriptors have
-    /// one, no temporary instance is made. Else the instance gives the default values of the other descriptors.
-    /// With descriptors, <paramref name="createDefaults"/> makes the temporary instance without <see cref="Activator"/>. When it is null, <see cref="Activator"/> makes it.
+    /// A descriptor has its own default value, so a descriptor list needs no temporary instance.
     /// </summary>
     public static void Register(
         Context context,
         ObjectReflection reflection,
         TypeInfo typeInfo,
         [DynamicallyAccessedMembers(ManagedTypeMembers)] Type type,
-        ManagedAttributeDescriptor[]? descriptors = null,
-        Func<Context, Serializable>? createDefaults = null)
+        ManagedAttributeDescriptor[]? descriptors = null)
     {
         CopyBaseAttributes(context, reflection, typeInfo);
 
@@ -76,19 +73,12 @@ internal static class ManagedAttributeRegistrar
         }
 
         Serializable? defaults = null;
-        if (descriptors is null || !Array.TrueForAll(descriptors, static descriptor => descriptor.HasDefault))
+        if (descriptors is null)
         {
             try
             {
-                if (descriptors is not null && createDefaults is not null)
-                {
-                    defaults = createDefaults(context);
-                }
-                else
-                {
-                    Interlocked.Increment(ref _activatorCreateCount);
-                    defaults = (Serializable)Activator.CreateInstance(type, context)!;
-                }
+                Interlocked.Increment(ref _activatorCreateCount);
+                defaults = (Serializable)Activator.CreateInstance(type, context)!;
             }
             catch (Exception exception)
             {

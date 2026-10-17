@@ -30,8 +30,8 @@ namespace SharpCpp.Rbfx.SourceGenerator;
 ///    A private constant needs no access then. The constants nameof(x) and string concatenation are folded too.
 ///  - Each type name becomes a global::-qualified name, and each unqualified static member becomes global::Type.Member.
 ///  - All other tokens stay as they are, and a literal stays as written.
-/// The semantic model of the compilation decides all of this, not the text. A default that does not pass is not emittable.
-/// A later step turns a not emittable default into an error, when the temporary instance is removed.
+/// The semantic model of the compilation decides all of this, not the text. A default that does not pass is not emittable,
+/// and the scanner reports an error for the member.
 /// </summary>
 internal sealed class AttributeDefaultResolver
 {
@@ -80,16 +80,19 @@ internal sealed class AttributeDefaultResolver
 
     /// <summary>
     /// Returns the body of the default delegate (the text after <c>static () =&gt;</c>), or null when the default is not emittable.
+    /// <paramref name="reason"/> tells why in that case.
     /// An enum member gets the boxed enum value, a string member the null-forgiving operator when its value can be null.
     /// </summary>
-    public string? TryGetDefault(ISymbol member, ITypeSymbol valueType, ValueKind kind, List<(SemanticModel Model, SyntaxNode Node)> constructors)
+    public string? TryGetDefault(ISymbol member, ITypeSymbol valueType, ValueKind kind, List<(SemanticModel Model, SyntaxNode Node)> constructors, out string? reason)
     {
+        reason = null;
         ExpressionSyntax? initializer;
         switch (member)
         {
             case IFieldSymbol field:
                 if (field.DeclaringSyntaxReferences.Length != 1 || field.DeclaringSyntaxReferences[0].GetSyntax() is not VariableDeclaratorSyntax declarator)
                 {
+                    reason = "the field is not declared in one field declaration";
                     return null;
                 }
 
@@ -102,17 +105,20 @@ internal sealed class AttributeDefaultResolver
                     declaration.ExpressionBody is not null || declaration.AccessorList is null ||
                     declaration.AccessorList.Accessors.Any(static accessor => accessor.Body is not null || accessor.ExpressionBody is not null))
                 {
+                    reason = "the property is virtual, abstract, partial or not an auto-property, so its value can come from code";
                     return null;
                 }
 
                 initializer = declaration.Initializer?.Value;
                 break;
             default:
+                reason = "the member is not a field or a property";
                 return null;
         }
 
         if (IsAssignedInConstructors(member, constructors))
         {
+            reason = "a constructor of the type or of a base type assigns the member";
             return null;
         }
 
@@ -133,6 +139,7 @@ internal sealed class AttributeDefaultResolver
 
         if (model.GetOperation(operand) is not { } operation || !IsEmittable(operation))
         {
+            reason = "its initializer uses the instance, a lambda, an object or collection initializer, an extension method, a ref or out argument, or a private or protected symbol";
             return null;
         }
 
@@ -140,6 +147,7 @@ internal sealed class AttributeDefaultResolver
         var text = rewriter.Visit(initializer)?.NormalizeWhitespace().ToFullString();
         if (text is null || rewriter.Failed)
         {
+            reason = "its initializer uses a name that the generated code cannot write";
             return null;
         }
 

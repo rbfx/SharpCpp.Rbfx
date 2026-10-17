@@ -48,7 +48,7 @@ public sealed class ManagedAttributePluginTests
         Assert.Equal(42, ReadAttribute(component, "Secret Value", static v => v.Int));
         Assert.True(ReadAttribute(component, "Flag", static v => v.Bool));
 
-        // The engine default values come from a temporary instance.
+        // The engine default values come from the generated descriptors.
         Assert.Equal(2.5f, ReadDefault(component, "Speed", static v => v.Float));
         Assert.Equal("hello", ReadDefault(component, "Label", ReadString));
         Assert.Equal(42, ReadDefault(component, "Secret Value", static v => v.Int));

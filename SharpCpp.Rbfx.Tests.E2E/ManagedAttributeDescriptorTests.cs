@@ -32,14 +32,16 @@ public sealed class ManagedAttributeDescriptorTests
             {
                 writes++;
                 ((DescriptorProbeComponent)o).Speed = v;
-            });
+            },
+            static () => 2.5f);
         var mood = ManagedAttributeDescriptor.Create<object>(
             "Mood",
             nameof(DescriptorProbeComponent.Mood),
             typeof(DescriptorMood),
             AttributeMode.AmDefault,
             static o => ((DescriptorProbeComponent)o).Mood,
-            static (o, v) => ((DescriptorProbeComponent)o).Mood = (DescriptorMood)v);
+            static (o, v) => ((DescriptorProbeComponent)o).Mood = (DescriptorMood)v,
+            static () => (object)DescriptorMood.Happy);
         Assert.Equal("Fast Speed", speed.Name);
         Assert.Equal(nameof(DescriptorProbeComponent.Speed), speed.MemberName);
         Assert.Equal(typeof(float), speed.ValueType);
@@ -55,10 +57,11 @@ public sealed class ManagedAttributeDescriptorTests
         {
             using var probe = new DescriptorProbeComponent(context);
 
-            // The default values come from a temporary instance, which the getter reads.
+            // The default values come from the descriptors. The getter reads the attribute.
             Assert.Equal(2.5f, ReadAttribute(probe, "Fast Speed", static v => v.Float));
             Assert.Equal(2.5f, ReadDefault(probe, "Fast Speed", static v => v.Float));
             Assert.Equal(1, ReadAttribute(probe, "Mood", static v => v.Int));
+            Assert.Equal(1, ReadDefault(probe, "Mood", static v => v.Int));
             Assert.True(reads > 0);
 
             // The set and get round trip uses the delegates.
@@ -130,105 +133,12 @@ public sealed class ManagedAttributeDescriptorTests
     }
 
     [Fact]
-    public void Reflection_path_scans_members_and_creates_the_temporary_instance_with_Activator()
-    {
-        using var context = new Context();
-        var registry = new TestRegistry(
-            new ManagedTypeRegistration(
-                typeof(DescriptorProbeComponent),
-                static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<DescriptorProbeComponent>(ctx, category)));
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
-        var plugin = new RegistryTestPlugin(context);
-        plugin.RegisterFromRegistry(context, registry, "E2E");
-        try
-        {
-            Assert.Equal(scans + 1, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.Equal(creations + 1, ManagedAttributeRegistrar.ActivatorCreateCount);
-        }
-        finally
-        {
-            plugin.Unregister();
-        }
-    }
-
-    [Fact]
-    public void Factory_makes_the_temporary_instance_when_Activator_cannot()
-    {
-        using var context = new Context();
-        var factoryCalls = 0;
-        var descriptors = new[]
-        {
-            ManagedAttributeDescriptor.Create<float>(
-                "Speed",
-                nameof(GuardedDefaultsComponent.Speed),
-                typeof(float),
-                AttributeMode.AmDefault,
-                static o => ((GuardedDefaultsComponent)o).Speed,
-                static (o, v) => ((GuardedDefaultsComponent)o).Speed = v),
-        };
-        var withFactory = new TestRegistry(
-            new ManagedTypeRegistration(
-                typeof(GuardedDefaultsComponent),
-                static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<GuardedDefaultsComponent>(ctx, category),
-                descriptors,
-                ctx =>
-                {
-                    factoryCalls++;
-                    return GuardedDefaultsComponent.CreateAllowed(ctx);
-                }));
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
-        GuardedDefaultsComponent.Blocked = true;
-        var plugin = new RegistryTestPlugin(context);
-        plugin.RegisterFromRegistry(context, withFactory, "E2E");
-        try
-        {
-            Assert.Equal(1, factoryCalls);
-            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
-            using var probe = GuardedDefaultsComponent.CreateAllowed(context);
-            Assert.Equal(4.5f, ReadDefault(probe, "Speed", static v => v.Float));
-        }
-        finally
-        {
-            plugin.Unregister();
-            GuardedDefaultsComponent.Blocked = false;
-        }
-
-        // Without the factory, Activator runs the blocked constructor. It fails, and the variant default is used.
-        var withoutFactory = new TestRegistry(
-            new ManagedTypeRegistration(
-                typeof(GuardedDefaultsComponent),
-                static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<GuardedDefaultsComponent>(ctx, category),
-                descriptors));
-        GuardedDefaultsComponent.Blocked = true;
-        plugin = new RegistryTestPlugin(context);
-        plugin.RegisterFromRegistry(context, withoutFactory, "E2E");
-        try
-        {
-            Assert.Equal(creations + 1, ManagedAttributeRegistrar.ActivatorCreateCount);
-            using var probe = GuardedDefaultsComponent.CreateAllowed(context);
-            Assert.NotEqual(4.5f, ReadDefault(probe, "Speed", static v => v.Float));
-        }
-        finally
-        {
-            plugin.Unregister();
-            GuardedDefaultsComponent.Blocked = false;
-        }
-    }
-
-    [Fact]
     public void Generated_registration_of_a_described_type_needs_no_member_scan_and_no_Activator()
     {
         using var context = new Context();
         var generated = ManagedTypeRegistries.Find(typeof(DescriptorProbeComponent).Assembly)!.Registrations
             .Single(static item => item.Type == typeof(DescriptorProbeComponent));
         Assert.NotNull(generated.Attributes);
-
-        // Every member has a default from its initializer, so the registration has no factory of a temporary instance.
-        Assert.All(generated.Attributes!, static descriptor => Assert.True(descriptor.HasDefault));
-        Assert.Null(generated.CreateDefaults);
 
         var scans = ManagedAttributeRegistrar.ReflectionScanCount;
         var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
@@ -250,7 +160,7 @@ public sealed class ManagedAttributeDescriptorTests
     }
 
     [Fact]
-    public void Descriptor_default_replaces_the_temporary_instance()
+    public void Descriptor_default_is_used_and_no_temporary_instance_is_made()
     {
         using var context = new Context();
         var defaultCalls = 0;
@@ -269,25 +179,17 @@ public sealed class ManagedAttributeDescriptorTests
                     return 8.5f;
                 }),
         };
-        Assert.True(descriptors[0].HasDefault);
-        var factoryCalls = 0;
         var registry = new TestRegistry(
             new ManagedTypeRegistration(
                 typeof(GuardedDefaultsComponent),
                 static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<GuardedDefaultsComponent>(ctx, category),
-                descriptors,
-                ctx =>
-                {
-                    factoryCalls++;
-                    return GuardedDefaultsComponent.CreateAllowed(ctx);
-                }));
+                descriptors));
         var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
         GuardedDefaultsComponent.Blocked = true;
         var plugin = new RegistryTestPlugin(context);
         plugin.RegisterFromRegistry(context, registry, "E2E");
         try
         {
-            Assert.Equal(0, factoryCalls);
             Assert.Equal(1, defaultCalls);
             Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
             using var probe = GuardedDefaultsComponent.CreateAllowed(context);
@@ -302,31 +204,18 @@ public sealed class ManagedAttributeDescriptorTests
     }
 
     [Fact]
-    public void Generated_defaults_of_a_type_with_a_throwing_constructor_need_no_instance_and_no_factory()
+    public void Generated_defaults_of_a_type_with_a_throwing_constructor_need_no_instance()
     {
         using var context = new Context();
         var generated = ManagedTypeRegistries.Find(typeof(GuardedDefaultsComponent).Assembly)!.Registrations
             .Single(static item => item.Type == typeof(GuardedDefaultsComponent));
-        Assert.Null(generated.CreateDefaults);
-
-        // A factory that throws would show a call: the registrar would log a warning and use the variant default 0.
-        var factoryCalls = 0;
-        var registration = generated with
-        {
-            CreateDefaults = ctx =>
-            {
-                factoryCalls++;
-                throw new InvalidOperationException("The factory must not be called.");
-            },
-        };
         var scans = ManagedAttributeRegistrar.ReflectionScanCount;
         var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
         GuardedDefaultsComponent.Blocked = true;
         var plugin = new RegistryTestPlugin(context);
-        plugin.RegisterFromRegistry(context, new TestRegistry(registration), "E2E");
+        plugin.RegisterFromRegistry(context, new TestRegistry(generated), "E2E");
         try
         {
-            Assert.Equal(0, factoryCalls);
             Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
             Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
             using var probe = GuardedDefaultsComponent.CreateAllowed(context);
@@ -336,42 +225,6 @@ public sealed class ManagedAttributeDescriptorTests
         {
             plugin.Unregister();
             GuardedDefaultsComponent.Blocked = false;
-        }
-    }
-
-    [Fact]
-    public void Member_without_a_declaration_default_reads_the_temporary_instance_and_the_others_use_their_default()
-    {
-        using var context = new Context();
-        var generated = ManagedTypeRegistries.Find(typeof(ConstructorDefaultsComponent).Assembly)!.Registrations
-            .Single(static item => item.Type == typeof(ConstructorDefaultsComponent));
-        Assert.NotNull(generated.CreateDefaults);
-        Assert.True(generated.Attributes!.Single(static d => d.MemberName == "Speed").HasDefault);
-        Assert.False(generated.Attributes!.Single(static d => d.MemberName == "Scale").HasDefault);
-
-        var factoryCalls = 0;
-        var registration = generated with
-        {
-            CreateDefaults = ctx =>
-            {
-                factoryCalls++;
-                return generated.CreateDefaults!(ctx);
-            },
-        };
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
-        var plugin = new RegistryTestPlugin(context);
-        plugin.RegisterFromRegistry(context, new TestRegistry(registration), "E2E");
-        try
-        {
-            Assert.Equal(1, factoryCalls);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
-            using var probe = new ConstructorDefaultsComponent(context);
-            Assert.Equal(2.5f, ReadDefault(probe, "Speed", static v => v.Float));
-            Assert.Equal(6f, ReadDefault(probe, "Scale", static v => v.Float));
-        }
-        finally
-        {
-            plugin.Unregister();
         }
     }
 
@@ -418,14 +271,10 @@ public sealed class ManagedAttributeDescriptorTests
     [Fact]
     public void Registry_of_a_fully_described_assembly_needs_no_member_scan_and_no_Activator()
     {
-        // The generator describes every type of the test assembly. A type has a factory of the temporary instance only when a member has no default.
+        // The generator describes every type of the test assembly.
         var registrations = ManagedTypeRegistries.Find(typeof(DescriptorProbeComponent).Assembly)!.Registrations;
         Assert.NotEmpty(registrations);
         Assert.All(registrations, static item => Assert.NotNull(item.Attributes));
-        Assert.All(
-            registrations,
-            static item => Assert.True(
-                item.Attributes!.Any(static descriptor => !descriptor.HasDefault) == (item.CreateDefaults is not null), item.Type.FullName));
 
         using var context = new Context();
         var scans = ManagedAttributeRegistrar.ReflectionScanCount;
@@ -449,14 +298,12 @@ public sealed class ManagedAttributeDescriptorTests
             typeof(DescriptorBaseComponent),
             static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<DescriptorBaseComponent>(ctx, category),
             [ManagedAttributeDescriptor.Create<int>("BaseValue", nameof(DescriptorBaseComponent.BaseValue), typeof(int), AttributeMode.AmDefault,
-                static o => ((DescriptorBaseComponent)o).BaseValue, static (o, v) => ((DescriptorBaseComponent)o).BaseValue = v)],
-            static ctx => new DescriptorBaseComponent(ctx)),
+                static o => ((DescriptorBaseComponent)o).BaseValue, static (o, v) => ((DescriptorBaseComponent)o).BaseValue = v, static () => 11)]),
         new ManagedTypeRegistration(
             typeof(DescriptorDerivedComponent),
             static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<DescriptorDerivedComponent>(ctx, category),
             [ManagedAttributeDescriptor.Create<int>("OwnValue", nameof(DescriptorDerivedComponent.OwnValue), typeof(int), AttributeMode.AmDefault,
-                static o => ((DescriptorDerivedComponent)o).OwnValue, static (o, v) => ((DescriptorDerivedComponent)o).OwnValue = v)],
-            static ctx => new DescriptorDerivedComponent(ctx)));
+                static o => ((DescriptorDerivedComponent)o).OwnValue, static (o, v) => ((DescriptorDerivedComponent)o).OwnValue = v, static () => 22)]));
 
     private static T ReadAttribute<T>(Serializable serializable, string name, Func<Variant, T> read)
     {
@@ -545,22 +392,6 @@ internal sealed partial class GuardedDefaultsComponent : Component
         {
             Blocked = blocked;
         }
-    }
-}
-
-// A constructor assigns Scale, so the generator reads no default for it. Speed has a default from its initializer.
-internal sealed partial class ConstructorDefaultsComponent : Component
-{
-    [SerializeField]
-    public float Speed = 2.5f;
-
-    [SerializeField]
-    public float Scale;
-
-    public ConstructorDefaultsComponent(Context context)
-        : base(context)
-    {
-        Scale = 6;
     }
 }
 

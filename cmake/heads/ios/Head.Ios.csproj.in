@@ -24,6 +24,7 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <!-- A device build of the .NET iOS SDK compiles the app with full AOT. iOS requires it. The head relies on this default. -->
   <ItemGroup>
     <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/Program.cs" />
 

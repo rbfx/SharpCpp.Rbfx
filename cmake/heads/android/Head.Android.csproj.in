@@ -25,8 +25,12 @@
 
   <!-- The workload of .NET for Android tests the configurations Debug and Release only (Microsoft.Android.Sdk.DefaultProperties.targets,
        Microsoft.Android.Sdk.CoreCLR.targets). Each other configuration of CMake, for example RelWithDebInfo, gets the Release
-       defaults here. The default runtime of the workload is MonoVM, so the Release default is Mono AOT (RunAOTCompilation).
-       Only a CoreCLR head (UseMonoRuntime=false) gets ReadyToRun instead. -->
+       defaults here. The default runtime of the workload is MonoVM. The head must be AOT compatible, so Release and these
+       configurations use Mono AOT (RunAOTCompilation). Only a CoreCLR head (UseMonoRuntime=false) gets ReadyToRun instead. -->
+  <PropertyGroup>
+    <RunAOTCompilation Condition="'$(Configuration)' == 'Release' and '$(RunAOTCompilation)' == '' and '$(AotAssemblies)' == '' and '$(UseMonoRuntime)' != 'false'">true</RunAOTCompilation>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(Configuration)' != 'Debug' and '$(Configuration)' != 'Release'">
     <AndroidManagedSymbols Condition="'$(AndroidManagedSymbols)' == ''">true</AndroidManagedSymbols>
     <AndroidPackageFormats Condition="'$(AndroidPackageFormats)' == ''">aab;apk</AndroidPackageFormats>

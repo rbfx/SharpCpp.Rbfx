@@ -17,6 +17,8 @@
     <WasmEnableExceptionHandling>true</WasmEnableExceptionHandling>
     <!-- The native application is linked into dotnet.native.wasm. -->
     <WasmBuildNative>true</WasmBuildNative>
+    <!-- The head must be AOT compatible. Debug stays interpreted. AOT needs the wasm-tools workload. -->
+    <RunAOTCompilation Condition="'$(RunAOTCompilation)' == '' and '$(Configuration)' != 'Debug'">true</RunAOTCompilation>
     <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
     <OutputPath>bin/$(Configuration)/</OutputPath>
     <PublishDir>bin/publish/</PublishDir>

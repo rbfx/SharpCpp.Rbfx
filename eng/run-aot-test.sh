@@ -115,6 +115,7 @@ fi
 EXPECTED_LINES=(
   "AotApp: component registered"
   "AotApp: attribute 2.5"
+  "AotApp: private attributes 7.5 9"
   "AotApp: override called"
   "AotApp: head component registered"
   "AotApp: head override called"

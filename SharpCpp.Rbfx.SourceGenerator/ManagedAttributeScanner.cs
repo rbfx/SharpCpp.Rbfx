@@ -96,7 +96,8 @@ internal sealed class ManagedAttributeScanner
         messageFormat: "Attribute member '{0}' of type '{1}' cannot be listed in the managed type registry: {2}",
         category: "SharpCpp.Rbfx.SourceGenerator",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        customTags: new[] { WellKnownDiagnosticTags.NotConfigurable });
 
     private const string AccessorAttribute = "global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.";
 
@@ -306,6 +307,26 @@ internal sealed class ManagedAttributeScanner
             return false;
         }
 
+        // The runtime does not find a method accessor (get_ and set_ of a property) on a generic type. A field accessor works.
+        if (member is IPropertySymbol)
+        {
+            for (var current = declaring; current is not null; current = current.ContainingType)
+            {
+                if (current.TypeParameters.Length > 0)
+                {
+                    Fail(context, type, member, "it is a private or protected property in the generic type '" + current.Name + "', and UnsafeAccessor cannot call the accessors of a property in a generic type. Use a field, or make the property public or internal");
+                    return false;
+                }
+            }
+        }
+
+        // The same for a field whose type uses a type parameter: the runtime does not find the field.
+        if (member is IFieldSymbol typed && ContainsTypeParameter(typed.OriginalDefinition.Type))
+        {
+            Fail(context, type, member, "it is a private or protected field of the generic type '" + declaring.Name + "' and its type uses a type parameter, and UnsafeAccessor cannot reach such a field. Use a field with a type that does not use a type parameter, or make the field public or internal");
+            return false;
+        }
+
         for (var current = declaring; current is not null; current = current.ContainingType)
         {
             if (current.TypeParameters.Any(static parameter =>
@@ -378,11 +399,14 @@ internal sealed class ManagedAttributeScanner
         else
         {
             var index = _accessorCount++;
-            var typeParameters = GetTypeParameterList(declaring.OriginalDefinition);
+            // The accessor declares positional type parameters (T0, T1, ...). The names in the source can repeat (Outer<T>.Inner<T>).
+            var names = GetTypeParameters(declaring.OriginalDefinition)
+                .Select(static (parameter, position) => (parameter, name: "T" + position.ToString(CultureInfo.InvariantCulture)))
+                .ToList();
+            var typeParameters = names.Count == 0 ? string.Empty : "<" + string.Join(", ", names.Select(static pair => pair.name)) + ">";
             var typeArguments = GetTypeArgumentList(declaring);
-            var ownerType = declaring.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var memberType = (member is IFieldSymbol field ? field.OriginalDefinition.Type : ((IPropertySymbol)member).OriginalDefinition.Type)
-                .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var ownerType = RenderType(declaring.OriginalDefinition, names);
+            var memberType = RenderType(member is IFieldSymbol field ? field.OriginalDefinition.Type : ((IPropertySymbol)member).OriginalDefinition.Type, names);
             var owner = "((" + declaringDisplay + ")o)";
             if (member is IFieldSymbol)
             {
@@ -447,10 +471,66 @@ internal sealed class ManagedAttributeScanner
         return result;
     }
 
-    private static string GetTypeParameterList(INamedTypeSymbol type)
+    // The display of a type with its type parameters of the declaring type replaced by the positional names.
+    private static string RenderType(ITypeSymbol type, List<(ITypeSymbol Parameter, string Name)> names)
     {
-        var parameters = GetTypeParameters(type);
-        return parameters.Count == 0 ? string.Empty : "<" + string.Join(", ", parameters.Select(static parameter => parameter.Name)) + ">";
+        switch (type)
+        {
+            case ITypeParameterSymbol parameter:
+                foreach (var pair in names)
+                {
+                    if (SymbolEqualityComparer.Default.Equals(pair.Parameter, parameter))
+                    {
+                        return pair.Name;
+                    }
+                }
+
+                return parameter.Name;
+            case IArrayTypeSymbol array:
+            {
+                // The outermost rank specifier is the first one: int[][,] is an array of two-dimensional arrays.
+                var ranks = string.Empty;
+                ITypeSymbol element = array;
+                while (element is IArrayTypeSymbol current)
+                {
+                    ranks += "[" + new string(',', current.Rank - 1) + "]";
+                    element = current.ElementType;
+                }
+
+                return RenderType(element, names) + ranks;
+            }
+            case INamedTypeSymbol named when ContainsTypeParameter(named):
+            {
+                var prefix = named.ContainingType is not null
+                    ? RenderType(named.ContainingType, names) + "."
+                    : named.ContainingNamespace.IsGlobalNamespace
+                        ? "global::"
+                        : named.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".";
+                var arguments = named.TypeArguments.Length == 0
+                    ? string.Empty
+                    : "<" + string.Join(", ", named.TypeArguments.Select(argument => RenderType(argument, names))) + ">";
+                var name = SyntaxFacts.GetKeywordKind(named.Name) != SyntaxKind.None ? "@" + named.Name : named.Name;
+                return prefix + name + arguments;
+            }
+            default:
+                return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        }
+    }
+
+    private static bool ContainsTypeParameter(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case ITypeParameterSymbol:
+                return true;
+            case IArrayTypeSymbol array:
+                return ContainsTypeParameter(array.ElementType);
+            case INamedTypeSymbol named:
+                return (named.ContainingType is not null && ContainsTypeParameter(named.ContainingType))
+                    || named.TypeArguments.Any(ContainsTypeParameter);
+            default:
+                return false;
+        }
     }
 
     private static string GetTypeArgumentList(INamedTypeSymbol type)

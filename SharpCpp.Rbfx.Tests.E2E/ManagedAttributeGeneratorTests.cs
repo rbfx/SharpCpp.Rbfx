@@ -437,8 +437,8 @@ public sealed class ManagedAttributeGeneratorTests
         var result = Run(Header + """
             public abstract partial class Base<T> : Component
             {
-                [SerializeField] private T _value;
-                [SerializeField] protected float Gain { get; set; } = 2;
+                [SerializeField] private int _value;
+                [SerializeField] protected float Gain = 2;
                 protected Base(Context context) : base(context) { }
             }
 
@@ -461,11 +461,72 @@ public sealed class ManagedAttributeGeneratorTests
 
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
         AssertNoErrors(result);
-        Assert.Contains("private static extern ref T __Field1<T>(global::GeneratorTest.Base<T> owner);", result.Registry);
+        Assert.Contains("private static extern ref int __Field1<T0>(global::GeneratorTest.Base<T0> owner);", result.Registry);
         Assert.Contains("static o => __Field1<int>(((global::GeneratorTest.Base<int>)o))", result.Registration("GeneratorTest.D"));
-        Assert.Contains("private static extern float __Get2<T>(global::GeneratorTest.Base<T> owner);", result.Registry);
+        Assert.Contains("private static extern ref float __Field2<T0>(global::GeneratorTest.Base<T0> owner);", result.Registry);
         Assert.Contains("private static extern ref int __Field0(global::GeneratorTest.Holder.Nested owner);", result.Registry);
         Assert.Contains("(global::GeneratorTest.Holder.Nested owner);", result.Registry);
+    }
+
+    [Fact]
+    public void Private_field_with_a_type_parameter_type_is_an_error()
+    {
+        var result = Run(Header + """
+            public abstract partial class Base<T> : Component
+            {
+                [SerializeField] private T _value;
+                protected Base(Context context) : base(context) { }
+            }
+
+            public partial class D : Base<int>
+            {
+                public D(Context context) : base(context) { }
+            }
+            """);
+
+        var error = AssertMemberError(result, "_value");
+        Assert.Contains("uses a type parameter", error.GetMessage());
+    }
+
+    [Theory]
+    [InlineData("private")]
+    [InlineData("protected")]
+    public void Private_or_protected_property_of_a_generic_type_is_an_error(string access)
+    {
+        var result = Run(Header + "public abstract partial class Base<T> : Component\n{\n    [SerializeField] " + access +
+            " float Gain { get; set; } = 1;\n    protected Base(Context context) : base(context) { }\n}\n" +
+            "public partial class D : Base<int>\n{\n    public D(Context context) : base(context) { }\n}\n");
+
+        var error = AssertMemberError(result, "Gain");
+        Assert.Contains("generic type 'Base'", error.GetMessage());
+        Assert.Contains("Use a field", error.GetMessage());
+    }
+
+    [Fact]
+    public void Nested_generic_types_with_the_same_parameter_name_get_positional_accessor_parameters()
+    {
+        var result = Run(Header + """
+            public class Outer<T>
+            {
+                public abstract class Inner<T> : Component
+                {
+                    [SerializeField] private int Value;
+                    [SerializeField] private float Gain = 1;
+                    protected Inner(Context context) : base(context) { }
+                }
+            }
+
+            public partial class D : Outer<int>.Inner<string>
+            {
+                public D(Context context) : base(context) { }
+            }
+            """);
+
+        AssertNoErrors(result);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "CS0692");
+        Assert.Contains("private static extern ref int __Field0<T0, T1>(global::GeneratorTest.Outer<T0>.Inner<T1> owner);", result.Registry);
+        Assert.Contains("private static extern ref float __Field1<T0, T1>(global::GeneratorTest.Outer<T0>.Inner<T1> owner);", result.Registry);
+        Assert.Contains("__Field0<int, string>(", result.Registration("GeneratorTest.D"));
     }
 
     [Theory]

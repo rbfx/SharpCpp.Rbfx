@@ -34,7 +34,8 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         messageFormat: "Type '{0}' is not in the managed type registry because it or a containing type is private, protected or private protected, and the registry is the only way to register a type. Make it internal or public.",
         category: "SharpCpp.Rbfx.SourceGenerator",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        customTags: new[] { WellKnownDiagnosticTags.NotConfigurable });
 
     internal const string RegistryAttributeMetadataName = "Urho3D.Plugins.ManagedTypeRegistryAttribute";
     internal const string RegistryNamespace = "SharpCpp.Rbfx.Generated";

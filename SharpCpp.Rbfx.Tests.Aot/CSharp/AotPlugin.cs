@@ -64,7 +64,38 @@ public partial class AotPlugin : ManagedPlugin
             Log.Error($"AotApp: attribute mismatch (engine {read.Float}, managed {managed}, default {defaultValue.Float})");
         }
 
+        CheckPrivateAttributes(component);
         CreateHeadComponent();
+    }
+
+    // The private property and the private field of a generic base type go through UnsafeAccessor in the AOT build.
+    private void CheckPrivateAttributes(Component spinnerComponent)
+    {
+        using var gainName = new Ea.String("Hidden Gain");
+        using (var value = new Variant(7.5f))
+        {
+            spinnerComponent.SetAttribute(gainName, value);
+        }
+
+        using var gainRead = spinnerComponent.GetAttribute(gainName);
+        var genericComponent = _scene!.CreateChild("Generic")!.CreateComponent(AotGenericSpinner.GetTypeStatic());
+        using var countName = new Ea.String("Generic Count");
+        using (var value = new Variant(9))
+        {
+            genericComponent.SetAttribute(countName, value);
+        }
+
+        using var countRead = genericComponent.GetAttribute(countName);
+        var gain = spinnerComponent is AotSpinner spinner ? spinner.Gain : float.NaN;
+        var count = genericComponent is AotGenericSpinner generic ? generic.GenericCount : -1;
+        if (gainRead.Float == 7.5f && gain == 7.5f && countRead.Int == 9 && count == 9)
+        {
+            Log.Info("AotApp: private attributes 7.5 9");
+        }
+        else
+        {
+            Log.Error($"AotApp: private attribute mismatch (gain {gainRead.Float}/{gain}, count {countRead.Int}/{count})");
+        }
     }
 
     // The component type AotHeadSpinner lives in the head assembly (HEAD_SOURCES). The plugin does not reference the

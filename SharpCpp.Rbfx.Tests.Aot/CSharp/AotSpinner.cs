@@ -16,10 +16,16 @@ public partial class AotSpinner : LogicComponent
     [SerializeField]
     public float Speed = 1.0f;
 
+    /// <summary>A private auto-property: the registry reaches it with get_ and set_ accessors.</summary>
+    [SerializeField(Name = "Hidden Gain")]
+    private float HiddenGain { get; set; } = 0.5f;
+
     public AotSpinner(Context context)
         : base(context)
     {
     }
+
+    public float Gain => HiddenGain;
 
     public override void Update(float timeStep)
     {
@@ -29,5 +35,27 @@ public partial class AotSpinner : LogicComponent
             _updateLogged = true;
             Log.Info("AotApp: override called");
         }
+    }
+}
+
+/// <summary>A generic base type with a private field: the registry uses the generic form of UnsafeAccessor.</summary>
+public abstract partial class AotGenericBase<T> : LogicComponent
+{
+    [SerializeField(Name = "Generic Count")]
+    private int _genericCount = 3;
+
+    protected AotGenericBase(Context context)
+        : base(context)
+    {
+    }
+
+    public int GenericCount => _genericCount;
+}
+
+public partial class AotGenericSpinner : AotGenericBase<int>
+{
+    public AotGenericSpinner(Context context)
+        : base(context)
+    {
     }
 }

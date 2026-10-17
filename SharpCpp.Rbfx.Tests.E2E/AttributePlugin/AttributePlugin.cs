@@ -62,6 +62,10 @@ public partial class AttributeComponent : Component
     [SerializeField(Name = "Secret Value")]
     private int _secret = 42;
 
+    // A private auto-property: the registry reaches it through get_ and set_ accessors.
+    [SerializeField(Name = "Hidden Gain")]
+    private float HiddenGain { get; set; } = 1.5f;
+
     [SerializeField, NonSerialized]
     public int Skipped = 5;
 
@@ -76,6 +80,42 @@ public partial class AttributeComponent : Component
     public bool Flag { get; set; } = true;
 
     public int Secret => _secret;
+
+    public float Gain => HiddenGain;
+}
+
+// Private members of a generic base type use the generic form of UnsafeAccessor.
+#pragma warning disable CS8618, CS0649
+public abstract partial class AttributeGenericBase<T> : Component
+{
+    [SerializeField(Name = "Generic Count")]
+    private int _genericCount = 3;
+
+    [SerializeField(Name = "Generic Gain")]
+    private float _genericGain = 0.25f;
+
+    // A type parameter field is not described: the runtime does not find a private field of that type through UnsafeAccessor.
+    private T _item;
+
+    protected AttributeGenericBase(Context context)
+        : base(context)
+    {
+    }
+
+    public int GenericCount => _genericCount;
+
+    public float GenericGainValue => _genericGain;
+
+    public T Item => _item;
+}
+#pragma warning restore CS8618, CS0649
+
+public partial class AttributeGenericComponent : AttributeGenericBase<int>
+{
+    public AttributeGenericComponent(Context context)
+        : base(context)
+    {
+    }
 }
 
 // The derived type copies the attributes of AttributeComponent from its reflection.

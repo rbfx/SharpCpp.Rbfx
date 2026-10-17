@@ -19,6 +19,7 @@ public sealed class ManagedAttributePluginTests
 
     private static readonly StringHash ComponentType = new("AttributeComponent");
     private static readonly StringHash DerivedType = new("DerivedAttributeComponent");
+    private static readonly StringHash GenericType = new("AttributeGenericComponent");
 
     private static string PluginPath =>
         Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll");
@@ -47,11 +48,13 @@ public sealed class ManagedAttributePluginTests
         Assert.Equal(1, ReadAttribute(component, "Mood", static v => v.Int));
         Assert.Equal(42, ReadAttribute(component, "Secret Value", static v => v.Int));
         Assert.True(ReadAttribute(component, "Flag", static v => v.Bool));
+        Assert.Equal(1.5f, ReadAttribute(component, "Hidden Gain", static v => v.Float));
 
         // The engine default values come from the generated descriptors.
         Assert.Equal(2.5f, ReadDefault(component, "Speed", static v => v.Float));
         Assert.Equal("hello", ReadDefault(component, "Label", ReadString));
         Assert.Equal(42, ReadDefault(component, "Secret Value", static v => v.Int));
+        Assert.Equal(1.5f, ReadDefault(component, "Hidden Gain", static v => v.Float));
 
         // Unmarked and NonSerialized members are not attributes. The private field is not exposed by its own name.
         Assert.Equal(VariantType.VarNone, ReadAttribute(component, "Skipped", static v => v.Type));
@@ -81,6 +84,7 @@ public sealed class ManagedAttributePluginTests
         Assert.True(WriteAttribute(component, "Mood", new Variant(2)));
         Assert.True(WriteAttribute(component, "Secret Value", new Variant(11)));
         Assert.True(WriteAttribute(component, "Flag", new Variant(false)));
+        Assert.True(WriteAttribute(component, "Hidden Gain", new Variant(6.5f)));
 
         Assert.Equal(9.5f, GetMember<float>(component, "Speed"));
         Assert.Equal(-3, GetMember<int>(component, "Count"));
@@ -89,10 +93,34 @@ public sealed class ManagedAttributePluginTests
         Assert.Equal("Angry", GetMember<object>(component, "Mood").ToString());
         Assert.Equal(11, GetMember<int>(component, "Secret"));
         Assert.False(GetMember<bool>(component, "Flag"));
+        Assert.Equal(6.5f, GetMember<float>(component, "Gain"));
+        Assert.Equal(6.5f, ReadAttribute(component, "Hidden Gain", static v => v.Float));
 
         // The getter reads the managed member back through the engine.
         Assert.Equal(11, ReadAttribute(component, "Secret Value", static v => v.Int));
         Assert.Equal("world", ReadAttribute(component, "Label", ReadString));
+
+        host.Node.RemoveAllComponents();
+    }
+
+    [Fact]
+    public void Private_members_of_a_generic_base_type_are_attributes()
+    {
+        using var host = PluginHost.Load();
+        var component = host.Node.CreateComponent(GenericType);
+        Assert.False(component.IsInvalid);
+        Assert.Equal("AttributeGenericComponent", ((object)component).GetType().Name);
+
+        Assert.Equal(3, ReadAttribute(component, "Generic Count", static v => v.Int));
+        Assert.Equal(0.25f, ReadAttribute(component, "Generic Gain", static v => v.Float));
+        Assert.Equal(3, ReadDefault(component, "Generic Count", static v => v.Int));
+
+        Assert.True(WriteAttribute(component, "Generic Count", new Variant(8)));
+        Assert.True(WriteAttribute(component, "Generic Gain", new Variant(2.75f)));
+        Assert.Equal(8, GetMember<int>(component, "GenericCount"));
+        Assert.Equal(2.75f, GetMember<float>(component, "GenericGainValue"));
+        Assert.Equal(8, ReadAttribute(component, "Generic Count", static v => v.Int));
+        Assert.Equal(2.75f, ReadAttribute(component, "Generic Gain", static v => v.Float));
 
         host.Node.RemoveAllComponents();
     }
@@ -156,8 +184,8 @@ public sealed class ManagedAttributePluginTests
         try
         {
             // AttributeComponent has 7 attributes. The derived type shares them and adds one.
-            Assert.Equal(before + 8, LiveAccessors);
-            Assert.Equal(new[] { "Load(2)" }, host.Events.TakeLast(1));
+            Assert.Equal(before + 11, LiveAccessors);
+            Assert.Equal(new[] { "Load(3)" }, host.Events.TakeLast(1));
 
             var component = host.Node.CreateComponent(ComponentType);
             Assert.False(component.IsInvalid);
@@ -184,7 +212,7 @@ public sealed class ManagedAttributePluginTests
         var host = PluginHost.Load();
         try
         {
-            Assert.Equal(before + 8, LiveAccessors);
+            Assert.Equal(before + 11, LiveAccessors);
 
             host.Unload();
             Assert.False(host.Context.IsReflected(ComponentType));
@@ -193,7 +221,7 @@ public sealed class ManagedAttributePluginTests
             host.LoadAgain();
             Assert.True(host.Context.IsReflected(ComponentType));
             Assert.True(host.Context.IsReflected(DerivedType));
-            Assert.Equal(before + 8, LiveAccessors);
+            Assert.Equal(before + 11, LiveAccessors);
 
             var component = host.Node.CreateComponent(ComponentType);
             Assert.False(component.IsInvalid);

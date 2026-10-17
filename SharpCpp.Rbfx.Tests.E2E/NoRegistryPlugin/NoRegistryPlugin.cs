@@ -10,7 +10,7 @@ using SharpCpp.Rbfx.Bindings.Interop;
 namespace SharpCpp.Rbfx.Tests.E2E.NoRegistryPlugin;
 
 // The project does not use the source generator, so the assembly has no managed type registry.
-// ManagedPlugin logs a warning and scans the assembly. The RTTI members below are what the generator writes.
+// The registry is the only path, so the plugin manager refuses to register this plugin. The RTTI members below are what the generator writes.
 public class NoRegistryPluginEntry : ManagedPlugin
 {
     public NoRegistryPluginEntry(Context context)

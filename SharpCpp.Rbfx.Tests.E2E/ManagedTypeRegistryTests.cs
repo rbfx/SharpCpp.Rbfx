@@ -39,7 +39,7 @@ public sealed class ManagedTypeRegistryTests
             Assert.True(registry.GetType().IsSealed);
             Assert.Same(assembly, registry.GetType().Assembly);
 
-            // The list has exactly the types of the scan path (ManagedPlugin.ShouldRegister), with each base type first.
+            // The list has exactly the types that ManagedPlugin.ShouldRegister accepts, with each base type first.
             var scanned = assembly.GetTypes().Where(ShouldRegister).OrderBy(static t => t.FullName, StringComparer.Ordinal).ToArray();
             var listed = registry.Registrations.Select(static item => item.Type).ToList();
             Assert.NotEmpty(scanned);
@@ -53,7 +53,7 @@ public sealed class ManagedTypeRegistryTests
                 }
             }
 
-            // ManagedPlugin uses the registry, and registers the same types as the scan path.
+            // ManagedPlugin registers the types of the registry.
             manager.SetPluginsLoaded(new Ea.Vector<Ea.String>(new Ea.String[] { PluginName }));
             manager.Commit();
             Assert.True(plugin.IsLoaded);
@@ -84,24 +84,6 @@ public sealed class ManagedTypeRegistryTests
 
         first.Unregister();
         Assert.All(fixture.ExtraTypes, hash => Assert.False(fixture.Context.IsReflected(hash)));
-    }
-
-    [Fact]
-    public void Added_registry_uses_descriptors_and_scans_only_types_without_them()
-    {
-        using var fixture = new AddedRegistryFixture();
-        var undescribed = fixture.ExtraRegistrations.Count(static item => item.Attributes is null);
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        var plugin = new RegistryTestPlugin(fixture.Context);
-        plugin.Register();
-        try
-        {
-            Assert.Equal(scans + undescribed, ManagedAttributeRegistrar.ReflectionScanCount);
-        }
-        finally
-        {
-            plugin.Unregister();
-        }
     }
 
     [Fact]
@@ -137,7 +119,7 @@ public sealed class ManagedTypeRegistryTests
     }
 
     [Fact]
-    public void GetManagedTypes_override_wins_over_the_registry_of_the_assembly()
+    public void Allow_list_limits_the_types_of_the_registry_of_the_assembly()
     {
         using var context = new Context();
         var plugin = new RegistryTestPlugin(context) { Types = new[] { typeof(RegistryTestComponent) } };
@@ -197,7 +179,7 @@ public sealed class ManagedTypeRegistryTests
     }
 }
 
-// Registers nothing from the test assembly, unless Types has types. Register and Unregister call the protected methods.
+// Registers nothing from the test registry, unless Types has types or UseDefaultTypes is true. Register and Unregister call the protected methods.
 internal sealed partial class RegistryTestPlugin : ManagedPlugin
 {
     public RegistryTestPlugin(Context context)
@@ -207,21 +189,34 @@ internal sealed partial class RegistryTestPlugin : ManagedPlugin
 
     public Type[] Types { get; init; } = Array.Empty<Type>();
 
-    // True: the plugin keeps the default of GetManagedTypes, so it registers the registry of its assembly.
+    // True: the plugin registers every type of the registry. Else only the types in Types.
     public bool UseDefaultTypes { get; init; }
 
     // A type for which this returns false is not registered. Null keeps the default rule.
     public Func<Type, bool>? Filter { get; init; }
 
     protected override bool ShouldRegister(
-        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type) =>
-        Filter?.Invoke(type) ?? base.ShouldRegister(type);
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(ManagedTypeRegistration.TypeMembers)] Type type) =>
+        (!_restrict || UseDefaultTypes || type.Assembly != typeof(RegistryTestPlugin).Assembly || Array.IndexOf(Types, type) >= 0) &&
+        (Filter?.Invoke(type) ?? base.ShouldRegister(type));
 
-    public void Register() => RegisterManagedTypes();
+    // True during Register: the types of the test assembly are then limited to Types, unless UseDefaultTypes is true.
+    private bool _restrict;
+
+    public void Register()
+    {
+        _restrict = true;
+        try
+        {
+            RegisterManagedTypes();
+        }
+        finally
+        {
+            _restrict = false;
+        }
+    }
 
     public void Unregister() => UnregisterManagedTypes();
-
-    protected override IEnumerable<Type> GetManagedTypes() => UseDefaultTypes ? base.GetManagedTypes() : Types;
 }
 
 internal sealed partial class RegistryTestComponent : Component

@@ -131,61 +131,10 @@ internal static class VariantConverters
     }
 }
 
-/// <summary>Binds one field or property of <typeparamref name="TOwner"/> to an engine attribute.</summary>
+/// <summary>Binds the getter and the setter of one member of <typeparamref name="TOwner"/> to an engine attribute.</summary>
 internal sealed class ManagedAttributeBinding<TOwner, TValue> : ManagedAttributeBinding
     where TOwner : global::Urho3D.Scene.Serializable
 {
-    /// <summary>
-    /// Creates a typed getter and setter for the field or property. It compiles them when the runtime supports dynamic code,
-    /// else it uses reflection.
-    /// </summary>
-    public static ManagedAttributeBinding<TOwner, TValue> Create(System.Reflection.MemberInfo member, VariantConverter<TValue> converter)
-    {
-        if (member is not (System.Reflection.FieldInfo or System.Reflection.PropertyInfo))
-        {
-            throw new ArgumentException($"The member '{member.Name}' is not a field or a property.", nameof(member));
-        }
-
-        Func<TOwner, TValue> getter;
-        Action<TOwner, TValue> setter;
-        if (System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
-        {
-            var owner = System.Linq.Expressions.Expression.Parameter(typeof(TOwner), "owner");
-            var value = System.Linq.Expressions.Expression.Parameter(typeof(TValue), "value");
-            System.Linq.Expressions.Expression instance = member.DeclaringType == typeof(TOwner)
-                ? owner
-                : System.Linq.Expressions.Expression.Convert(owner, member.DeclaringType!);
-            System.Linq.Expressions.MemberExpression access = member switch
-            {
-                System.Reflection.FieldInfo field => System.Linq.Expressions.Expression.Field(instance, field),
-                _ => System.Linq.Expressions.Expression.Property(instance, (System.Reflection.PropertyInfo)member),
-            };
-
-            System.Linq.Expressions.Expression read = access.Type == typeof(TValue)
-                ? access
-                : System.Linq.Expressions.Expression.Convert(access, typeof(TValue));
-            System.Linq.Expressions.Expression write = access.Type == typeof(TValue)
-                ? value
-                : System.Linq.Expressions.Expression.Convert(value, access.Type);
-            getter = System.Linq.Expressions.Expression.Lambda<Func<TOwner, TValue>>(read, owner).Compile();
-            setter = System.Linq.Expressions.Expression.Lambda<Action<TOwner, TValue>>(
-                System.Linq.Expressions.Expression.Assign(access, write), owner, value).Compile();
-        }
-        else if (member is System.Reflection.FieldInfo field)
-        {
-            getter = owner => (TValue)field.GetValue(owner)!;
-            setter = (owner, value) => field.SetValue(owner, value);
-        }
-        else
-        {
-            var property = (System.Reflection.PropertyInfo)member;
-            getter = owner => (TValue)property.GetValue(owner)!;
-            setter = (owner, value) => property.SetValue(owner, value);
-        }
-
-        return new ManagedAttributeBinding<TOwner, TValue>(getter, setter, converter);
-    }
-
     private readonly Func<TOwner, TValue> _getter;
     private readonly Action<TOwner, TValue> _setter;
     private readonly VariantConverter<TValue> _converter;
@@ -199,8 +148,6 @@ internal sealed class ManagedAttributeBinding<TOwner, TValue> : ManagedAttribute
 
     /// <summary>Returns a new owning variant with the member value of the instance.</summary>
     public Variant Read(TOwner owner) => _converter.ToVariant(_getter(owner));
-
-    public override Variant? ReadValue(global::Urho3D.Scene.Serializable owner) => owner is TOwner typed ? Read(typed) : null;
 
     public override void Get(nint serializable, nint dest)
     {

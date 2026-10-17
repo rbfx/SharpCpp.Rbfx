@@ -8,10 +8,9 @@ using Urho3D.Scene;
 namespace Urho3D.Plugins;
 
 /// <summary>
-/// One engine attribute of a managed type, as the reflection scan of <see cref="ManagedPlugin"/> finds it from a
-/// <see cref="SerializeFieldAttribute"/> member. The source generator emits descriptors into the
-/// <see cref="ManagedTypeRegistryAttribute"/>, so that a runtime without dynamic code needs no reflection to find the member
-/// or to read and write its value. The getter and the setter are plain delegates.
+/// One engine attribute of a managed type: a <see cref="SerializeFieldAttribute"/> member. The source generator emits descriptors
+/// into the <see cref="ManagedTypeRegistryAttribute"/>, so that the runtime needs no reflection to find the member
+/// or to read and write its value. The getter, the setter and the default are plain delegates.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class ManagedAttributeDescriptor

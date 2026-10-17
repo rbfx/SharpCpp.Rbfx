@@ -210,7 +210,6 @@ public sealed class ManagedAttributePluginTests
     public void Accessor_wrapper_and_attribute_info_balance_references()
     {
         var before = LiveAccessors;
-        var field = typeof(AccessorProbe).GetField("Value")!;
         var bindingsAssembly = typeof(ManagedPlugin).Assembly;
         var tryGet = bindingsAssembly.GetType("SharpCpp.Rbfx.Bindings.Interop.VariantConverters", throwOnError: true)!
             .GetMethod("TryGet", BindingFlags.Public | BindingFlags.Static)!;
@@ -218,8 +217,8 @@ public sealed class ManagedAttributePluginTests
         Assert.True((bool)tryGet.Invoke(null, arguments)!);
         var binding = bindingsAssembly.GetType("SharpCpp.Rbfx.Bindings.Interop.ManagedAttributeBinding`2", throwOnError: true)!
             .MakeGenericType(typeof(AccessorProbe), typeof(int))
-            .GetMethod("Create", BindingFlags.Public | BindingFlags.Static)!
-            .Invoke(null, [field, arguments[1]])!;
+            .GetConstructors()[0]
+            .Invoke([(Func<AccessorProbe, int>)(static owner => owner.Value), (Action<AccessorProbe, int>)(static (owner, value) => owner.Value = value), arguments[1]])!;
 
         using var context = new Context();
         using var probe = new AccessorProbe(context);

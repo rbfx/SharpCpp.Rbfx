@@ -1,12 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 using SharpCpp.Rbfx.Bindings.Interop;
 
 using Urho3D.Core;
 using Urho3D.Math;
-using Urho3D.Scene;
 
 using TypeInfo = Urho3D.Core.TypeInfo;
 
@@ -17,8 +15,9 @@ namespace Urho3D.Plugins;
 /// a factory for each type and an engine attribute for each <see cref="Urho3D.Scene.SerializeFieldAttribute"/> member.
 /// On unload it removes the reflections of these types in reverse order.
 /// The source generator (SharpCpp.Rbfx.SourceGenerator) writes a <see cref="ManagedTypeRegistryAttribute"/> into the plugin assembly.
-/// On every runtime the plugin registers the types and the attributes from this registry, with no assembly scan.
-/// An assembly without a registry (the generator did not run) logs a warning and uses the reflection scan, which is not AOT safe.
+/// The registry is the only source of the types and the attributes. There is no assembly scan and no reflection on members.
+/// An assembly without a registry (the generator is not in the plugin project) logs an error and registers no type.
+/// The plugin manager extensions refuse to register such a plugin and throw an exception with the same message.
 /// A type is registered when it is a concrete <see cref="Object"/> with a public constructor that takes a
 /// <see cref="Context"/>, and when it is partial, so that the source generator implements
 /// <see cref="IManagedObjectFactory{T}"/>. Override <see cref="Load"/> and <see cref="Unload"/> to add more work,
@@ -34,9 +33,6 @@ public abstract partial class ManagedPlugin : Plugin
     {
     }
 
-    /// <summary>Has no effect. The generated registry is always preferred, also on a JIT runtime. A later step removes it.</summary>
-    internal static bool ForceRegistry { get; set; }
-
     /// <summary>
     /// The hashes of the type names that this plugin registered from its own assembly, in registration order.
     /// The types of the added registries are shared between the plugins and are not in the list.
@@ -46,6 +42,11 @@ public abstract partial class ManagedPlugin : Plugin
     /// <summary>The reflection category of the registered types. The default is the simple name of the plugin assembly.</summary>
     protected virtual string FactoryCategory => ((object)this).GetType().Assembly.GetName().Name ?? string.Empty;
 
+    /// <summary>Returns the message of the error for an assembly without a registry.</summary>
+    internal static string NoRegistryMessage(Assembly assembly) =>
+        $"The plugin assembly {assembly.GetName().Name} has no managed type registry. The registry is the only way to register managed types. " +
+        "Reference SharpCpp.Rbfx.SourceGenerator as an analyzer in the project of the plugin.";
+
     /// <summary>Registers the managed types. A type that fails to register is logged and skipped.</summary>
     protected override void Load() => RegisterManagedTypes();
 
@@ -53,50 +54,19 @@ public abstract partial class ManagedPlugin : Plugin
     protected override void Unload() => UnregisterManagedTypes();
 
     /// <summary>
-    /// Returns the candidate types. The default value lets the plugin use the generated registry of its assembly (or, without a registry,
-    /// the types of the assembly). An override is an explicit list that wins: the plugin registers only these types.
-    /// A listed type that is in the registry uses the registry. Other listed types use reflection, and need dynamic code.
+    /// Returns true to register the type of the registry. The default accepts every factory type that is not a plugin.
+    /// A type that this method rejects is not registered, and its derived types of the registry are not registered either.
     /// </summary>
-    protected virtual IEnumerable<Type> GetManagedTypes() => new AssemblyTypes(((object)this).GetType().Assembly);
-
-    // The marker of the default list. RegisterManagedTypes tests the type of the list, so that it needs no reflection to find an override.
-    private sealed class AssemblyTypes : IEnumerable<Type>
-    {
-        private readonly Assembly _assembly;
-
-        public AssemblyTypes(Assembly assembly) => _assembly = assembly;
-
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The plugin assembly is a trimmer root, so GetTypes returns all of its types.")]
-        public IEnumerator<Type> GetEnumerator()
-        {
-            try
-            {
-                return ((IEnumerable<Type>)_assembly.GetTypes()).GetEnumerator();
-            }
-            catch (ReflectionTypeLoadException exception)
-            {
-                return exception.Types.OfType<Type>().GetEnumerator();
-            }
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-
-    /// <summary>Returns true to register the type. The default accepts every factory type that is not a plugin.</summary>
-    protected virtual bool ShouldRegister([DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type) =>
+    protected virtual bool ShouldRegister([DynamicallyAccessedMembers(ManagedTypeRegistration.TypeMembers)] Type type) =>
         ManagedObjectFactory.IsFactoryType(type) && !typeof(Plugin).IsAssignableFrom(type);
 
     /// <summary>
     /// Registers the factories and the attributes. A second call does nothing until the types are unregistered.
-    /// The plugin reads the generated <see cref="ManagedTypeRegistryAttribute"/> of its assembly on every runtime. A
-    /// <see cref="GetManagedTypes"/> override wins: only the listed types are registered, from the registry when it has them.
-    /// An assembly without a registry logs one warning, and a JIT runtime then scans the assembly with <see cref="GetManagedTypes"/>.
-    /// A runtime without dynamic code (NativeAOT) and without a registry registers no type.
+    /// The plugin reads the generated <see cref="ManagedTypeRegistryAttribute"/> of its assembly on every runtime.
+    /// An assembly without a registry logs an error, and registers no type: a native plugin load cannot fail with an exception.
     /// Then the types of the registries in <see cref="ManagedTypeRegistries"/> are added. The first plugin that claims a registry
     /// registers its types, and the last plugin that claims it removes them.
     /// </summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
     protected void RegisterManagedTypes()
     {
         if (_registeredTypes.Count > 0)
@@ -111,26 +81,13 @@ public abstract partial class ManagedPlugin : Plugin
         var assembly = ((object)this).GetType().Assembly;
 
         var registry = ManagedTypeRegistries.Find(assembly);
-        var candidates = GetManagedTypes();
-        if (registry is not null && candidates is AssemblyTypes)
+        if (registry is null)
         {
-            RegisterFromRegistry(context, registry, category);
+            ManagedAttributeAccessor.LogError(NoRegistryMessage(assembly));
+            return;
         }
-        else if (registry is null && !RuntimeFeature.IsDynamicCodeSupported)
-        {
-            ManagedAttributeAccessor.LogWarning(
-                $"The plugin assembly {assembly.GetName().Name} has no managed type registry, and the scan needs dynamic code. Its managed types are not registered.");
-        }
-        else
-        {
-            if (registry is null)
-            {
-                ManagedAttributeAccessor.LogWarning(
-                    $"The assembly {assembly.GetName().Name} has no managed type registry; the source generator did not run; reflection scan is used and is not AOT safe.");
-            }
 
-            RegisterListed(context, candidates, registry, category);
-        }
+        RegisterFromRegistry(context, registry, category);
 
         foreach (var extra in ManagedTypeRegistries.Snapshot())
         {
@@ -151,58 +108,18 @@ public abstract partial class ManagedPlugin : Plugin
         }
     }
 
-    // The explicit list of a GetManagedTypes override, or the scan of an assembly without a registry.
-    // A listed type that is in the registry uses the registry. The others use reflection.
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
-    private void RegisterListed(Context context, IEnumerable<Type> candidates, ManagedTypeRegistryAttribute? registry, string category)
-    {
-        var selected = candidates.Where(candidate => ShouldRegister(candidate)).ToHashSet();
-        var covered = new HashSet<Type>();
-        if (registry is not null)
-        {
-            covered.UnionWith(registry.Registrations.Select(static item => item.Type));
-            RegisterFromRegistry(context, registry, category, _registeredTypes, selected);
-        }
-
-        // A base type registers before its derived types, so that the derived types can copy its attributes.
-        foreach (var type in selected.Where(type => !covered.Contains(type)).OrderBy(GetDepth).ThenBy(static t => t.FullName, StringComparer.Ordinal))
-        {
-            if (!RuntimeFeature.IsDynamicCodeSupported)
-            {
-                ManagedAttributeAccessor.LogWarning($"The type {type.FullName} is not in the managed type registry, and the reflection scan needs dynamic code. It is not registered.");
-                continue;
-            }
-
-            TypeInfo typeInfo;
-            try
-            {
-                typeInfo = context.RegisterFactory(type, category);
-            }
-            catch (Exception exception)
-            {
-                LogRegistrationFailure(type, exception);
-                continue;
-            }
-
-            RegisterAttributes(context, type, typeInfo);
-        }
-    }
-
     internal void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category) =>
         RegisterFromRegistry(context, registry, category, _registeredTypes);
 
-    // Only: when it is not null, the registry types that are not in it are not registered.
-    private void RegisterFromRegistry(
-        Context context, ManagedTypeRegistryAttribute registry, string category, List<StringHash> registered, HashSet<Type>? only = null)
+    private void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category, List<StringHash> registered)
     {
-        // The generated list is in base-before-derived order. The sort keeps the order of the scan path for any list.
+        // The generated list is in base-before-derived order. The sort keeps this order for any list.
         var registrations = registry.Registrations;
         var listed = new HashSet<Type>(registrations.Select(static item => item.Type));
         var skipped = new HashSet<Type>();
         foreach (var item in registrations)
         {
-            if (!ShouldRegister(item.Type) || (only is not null && !only.Contains(item.Type)))
+            if (!ShouldRegister(item.Type))
             {
                 skipped.Add(item.Type);
             }
@@ -212,6 +129,16 @@ public abstract partial class ManagedPlugin : Plugin
             .ThenBy(static item => item.Type.FullName, StringComparer.Ordinal);
         foreach (var item in items)
         {
+            // The generated attributes of a type leave out the attributes of its nearest listed base type. When that base type is not
+            // registered, the list of the type is incomplete, so the type is an error and is not registered.
+            if (GetSkippedListedBase(item.Type, listed, skipped) is { } skippedBase)
+            {
+                ManagedAttributeAccessor.LogError(
+                    $"Cannot register the managed type {item.Type.FullName}: its base type {skippedBase.FullName} of the registry is not registered.");
+                skipped.Add(item.Type);
+                continue;
+            }
+
             TypeInfo typeInfo;
             try
             {
@@ -224,35 +151,24 @@ public abstract partial class ManagedPlugin : Plugin
                 continue;
             }
 
-            // The generated list of a type leaves out the members of its nearest listed base type. When that base type is not
-            // registered, the list is incomplete, and the reflection scan finds the members.
-            var complete = item.Attributes is not null && !HasSkippedListedBase(item.Type, listed, skipped);
-            RegisterAttributes(context, item.Type, typeInfo, registered, complete ? item.Attributes : null);
+            RegisterAttributes(context, item.Type, typeInfo, registered, item.Attributes);
         }
     }
 
-    private static bool HasSkippedListedBase(Type type, HashSet<Type> listed, HashSet<Type> skipped)
+    private static Type? GetSkippedListedBase(Type type, HashSet<Type> listed, HashSet<Type> skipped)
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
             if (listed.Contains(current))
             {
-                return skipped.Contains(current);
+                return skipped.Contains(current) ? current : null;
             }
         }
 
-        return false;
+        return null;
     }
 
-    private void RegisterAttributes(Context context, [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type, TypeInfo typeInfo)
-        => RegisterAttributes(context, type, typeInfo, _registeredTypes);
-
-    private static void RegisterAttributes(
-        Context context,
-        [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type,
-        TypeInfo typeInfo,
-        List<StringHash> registered,
-        ManagedAttributeDescriptor[]? descriptors = null)
+    private static void RegisterAttributes(Context context, Type type, TypeInfo typeInfo, List<StringHash> registered, ManagedAttributeDescriptor[] descriptors)
     {
         try
         {

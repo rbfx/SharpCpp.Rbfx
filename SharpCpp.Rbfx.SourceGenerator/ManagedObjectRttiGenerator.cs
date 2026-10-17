@@ -134,7 +134,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
 
     // Emits the ManagedTypeRegistryAttribute of the assembly: one AOT safe registration for each concrete managed type.
     // The rules are the rules of ManagedPlugin.ShouldRegister (ManagedObjectFactory.IsFactoryType, not a Plugin),
-    // so the list gives the same types as the assembly scan. ShouldRegister filters the list again at run time.
+    // so the list has the types that the default ShouldRegister accepts. ShouldRegister filters the list again at run time.
     private static void EmitTypeRegistry(
         SourceProductionContext context,
         Compilation compilation,

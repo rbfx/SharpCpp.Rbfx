@@ -12,22 +12,29 @@ namespace Urho3D.Plugins;
 /// <summary>
 /// One managed object type of a <see cref="ManagedTypeRegistryAttribute"/>. <see cref="Register"/> registers the factory
 /// of the type in a context with a category and returns the type info. It is a direct generic call, so it is AOT safe.
-/// <see cref="Attributes"/> is the complete list of the engine attributes of the type. When it is null, the plugin finds the
-/// <see cref="Urho3D.Scene.SerializeFieldAttribute"/> members by reflection (the fallback of a type that the generator cannot describe).
+/// <see cref="Attributes"/> is the complete list of the engine attributes of the type, without the attributes of its nearest listed base type.
 /// A descriptor has the default value of its member: the generator reads it from the declaration initializer, so the plugin makes no
 /// temporary instance.
 /// </summary>
 public readonly record struct ManagedTypeRegistration(
-    [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)]
-    [property: DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)]
+    [DynamicallyAccessedMembers(ManagedTypeRegistration.TypeMembers)]
+    [property: DynamicallyAccessedMembers(ManagedTypeRegistration.TypeMembers)]
     Type Type,
     Func<Context, string, TypeInfo> Register,
-    ManagedAttributeDescriptor[]? Attributes = null);
+    ManagedAttributeDescriptor[] Attributes)
+{
+    /// <summary>
+    /// The members of a registered type that the trimmer and the AOT compiler keep. The overrides and the constructor are called from
+    /// the engine, and nothing in managed code calls them. A type of a head assembly is not a trimmer root, so the type needs this annotation.
+    /// </summary>
+    internal const DynamicallyAccessedMemberTypes TypeMembers =
+        DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.Interfaces;
+}
 
 /// <summary>
 /// The list of the managed object types of an assembly. The source generator (SharpCpp.Rbfx.SourceGenerator) derives a
 /// sealed attribute for each assembly that has managed object types, and applies it to the assembly.
-/// <see cref="ManagedPlugin"/> uses this list instead of an assembly scan, so the registration needs no dynamic code.
+/// <see cref="ManagedPlugin"/> uses this list as the only source of the managed types, so the registration needs no dynamic code.
 /// </summary>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false, Inherited = false)]
 public abstract class ManagedTypeRegistryAttribute : Attribute

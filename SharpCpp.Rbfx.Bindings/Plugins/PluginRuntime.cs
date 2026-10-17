@@ -124,6 +124,11 @@ public static class PluginRuntime
     internal static Plugin Create(Assembly assembly, global::Urho3D.Core.Context context)
     {
         var type = FindPluginType(assembly);
+        if (typeof(ManagedPlugin).IsAssignableFrom(type) && ManagedTypeRegistries.Find(assembly) is null)
+        {
+            throw new InvalidOperationException(ManagedPlugin.NoRegistryMessage(assembly));
+        }
+
         return (Plugin)Activator.CreateInstance(type, context)!;
     }
 

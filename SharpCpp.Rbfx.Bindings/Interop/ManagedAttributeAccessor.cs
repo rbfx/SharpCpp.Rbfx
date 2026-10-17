@@ -17,8 +17,6 @@ internal abstract class ManagedAttributeBinding
     /// <summary>Reads the native variant into the attribute of the native serializable.</summary>
     public abstract void Set(nint serializable, nint src);
 
-    /// <summary>Returns a new owning variant with the member value of the instance, or null for another type.</summary>
-    public abstract global::Urho3D.Core.Variant? ReadValue(global::Urho3D.Scene.Serializable owner);
 }
 
 /// <summary>
@@ -150,17 +148,31 @@ internal sealed partial class ManagedAttributeAccessor : global::Urho3D.Core.Att
         GC.KeepAlive(src);
     }
 
-    /// <summary>Receives the warnings of the calling thread, before they go to the engine log. Tests only.</summary>
+    /// <summary>Receives the warnings and the errors of the calling thread, before they go to the engine log. Tests only.</summary>
     [ThreadStatic]
-    internal static Action<string>? WarningObserver;
+    internal static Action<string>? MessageObserver;
 
     /// <summary>Writes a warning to the engine log. Exceptions are ignored.</summary>
     internal static void LogWarning(string message)
     {
-        WarningObserver?.Invoke(message);
+        MessageObserver?.Invoke(message);
         try
         {
             __PInvoke.LogWarning(message);
+        }
+        catch
+        {
+            // Logging must not fail the caller.
+        }
+    }
+
+    /// <summary>Writes an error to the engine log. Exceptions are ignored.</summary>
+    internal static void LogError(string message)
+    {
+        MessageObserver?.Invoke(message);
+        try
+        {
+            global::Urho3D.IO.Log.Error(message);
         }
         catch
         {

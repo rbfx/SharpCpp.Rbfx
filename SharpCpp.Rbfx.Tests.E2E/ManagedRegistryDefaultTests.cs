@@ -13,21 +13,17 @@ using Xunit;
 namespace SharpCpp.Rbfx.Tests.E2E;
 
 // ManagedPlugin uses the generated registry of its assembly on every runtime, also on the JIT runtime of the tests.
-// The reflection scan is the fallback of an assembly without a registry. A GetManagedTypes override wins.
+// The registry is the only path. An assembly without a registry fails to register.
 public sealed class ManagedRegistryDefaultTests
 {
-    private const string NoRegistryWarning = "has no managed type registry; the source generator did not run; reflection scan is used and is not AOT safe";
-
     private static string PluginPath(string name) =>
         Path.Combine(AppContext.BaseDirectory, "plugins", name, $"SharpCpp.Rbfx.Tests.E2E.{name}.dll");
 
     [Fact]
-    public void JIT_plugin_with_a_registry_registers_types_and_attributes_without_reflection()
+    public void JIT_plugin_with_a_registry_registers_types_and_attributes()
     {
-        var warnings = new List<string>();
-        ManagedAttributeAccessor.WarningObserver = warnings.Add;
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
+        var messages = new List<string>();
+        ManagedAttributeAccessor.MessageObserver = messages.Add;
         using var host = new PluginHost("RegistryPlugin");
         try
         {
@@ -36,8 +32,6 @@ public sealed class ManagedRegistryDefaultTests
             Assert.Equal(2, plugin.RegisteredTypes.Count);
             Assert.True(host.Context.IsReflected(new StringHash("RegistryFixtureComponent")));
             Assert.True(host.Context.IsReflected(new StringHash("RegistryFixtureDerivedComponent")));
-            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
 
             // The attributes are registered and have the defaults of the declarations.
             var derived = host.Create("RegistryFixtureDerivedComponent");
@@ -46,66 +40,59 @@ public sealed class ManagedRegistryDefaultTests
             Assert.Equal("registry", ReadAttribute(derived, "Label", ReadString));
             Assert.Equal(0.25, ReadAttribute(derived, "Extra", static v => v.Double));
             Assert.Equal(11, ReadDefault(derived, "Count", static v => v.Int));
-            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
-            Assert.DoesNotContain(warnings, static message => message.Contains(NoRegistryWarning, StringComparison.Ordinal));
+            Assert.Empty(messages);
         }
         finally
         {
-            ManagedAttributeAccessor.WarningObserver = null;
+            ManagedAttributeAccessor.MessageObserver = null;
         }
     }
 
     [Fact]
-    public void Plugin_without_a_registry_logs_one_warning_and_uses_the_reflection_scan()
+    public void Plugin_without_a_registry_fails_to_register_with_a_clear_message()
     {
-        var warnings = new List<string>();
-        ManagedAttributeAccessor.WarningObserver = warnings.Add;
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        using var host = new PluginHost("NoRegistryPlugin");
+        var context = new Context();
+        var engine = new Engine(context);
+        var manager = new PluginManager(context);
+        context.RegisterSubsystem(manager);
         try
         {
-            var plugin = host.Load();
-            Assert.Null(ManagedTypeRegistries.Find(((object)plugin).GetType().Assembly));
-
-            var warning = Assert.Single(warnings, static message => message.Contains(NoRegistryWarning, StringComparison.Ordinal));
-            Assert.Contains("SharpCpp.Rbfx.Tests.E2E.NoRegistryPlugin", warning, StringComparison.Ordinal);
-
-            // The scan still registers the type and its attributes.
-            Assert.Equal(new[] { new StringHash("NoRegistryComponent") }, plugin.RegisteredTypes);
-            Assert.Equal(scans + 1, ManagedAttributeRegistrar.ReflectionScanCount);
-            var component = host.Create("NoRegistryComponent");
-            Assert.Equal(4.5f, ReadAttribute(component, "Speed", static v => v.Float));
+            var exception = Assert.Throws<InvalidOperationException>(() => manager.RegisterManagedPlugin(PluginPath("NoRegistryPlugin")));
+            Assert.Contains("no managed type registry", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("SharpCpp.Rbfx.Tests.E2E.NoRegistryPlugin", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("SharpCpp.Rbfx.SourceGenerator", exception.Message, StringComparison.Ordinal);
+            Assert.False(context.IsReflected(new StringHash("NoRegistryComponent")));
         }
         finally
         {
-            ManagedAttributeAccessor.WarningObserver = null;
+            context.RemoveSubsystem(PluginManager.GetTypeStatic());
+            manager.Dispose();
+            engine.Dispose();
+            context.Dispose();
         }
     }
 
     [Fact]
-    public void GetManagedTypes_override_wins_and_registers_the_listed_types_from_the_registry()
+    public void ShouldRegister_filter_limits_the_registered_types_of_the_registry()
     {
-        var warnings = new List<string>();
-        ManagedAttributeAccessor.WarningObserver = warnings.Add;
+        var messages = new List<string>();
+        ManagedAttributeAccessor.MessageObserver = messages.Add;
         using var context = new Context();
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
         var plugin = new RegistryTestPlugin(context) { Types = new[] { typeof(DescriptorProbeComponent) } };
         try
         {
-            // The registry of the test assembly lists many more types. The override lists one.
+            // The registry of the test assembly lists many more types. The filter accepts one.
             Assert.True(ManagedTypeRegistries.Find(typeof(RegistryTestPlugin).Assembly)!.Registrations.Count > 1);
             plugin.Register();
             Assert.Equal(new[] { new StringHash(nameof(DescriptorProbeComponent)) }, plugin.RegisteredTypes);
             Assert.True(context.IsReflected(new StringHash(nameof(DescriptorProbeComponent))));
             Assert.False(context.IsReflected(new StringHash(nameof(RegistryTestComponent))));
-            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.DoesNotContain(warnings, static message => message.Contains(NoRegistryWarning, StringComparison.Ordinal));
+            Assert.Empty(messages);
         }
         finally
         {
             plugin.Unregister();
-            ManagedAttributeAccessor.WarningObserver = null;
+            ManagedAttributeAccessor.MessageObserver = null;
         }
     }
 

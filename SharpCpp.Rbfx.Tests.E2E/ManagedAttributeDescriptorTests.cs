@@ -9,7 +9,7 @@ using Xunit;
 
 namespace SharpCpp.Rbfx.Tests.E2E;
 
-// Tests the attribute descriptors of a ManagedTypeRegistration against the reflection scan of ManagedPlugin.
+// Tests the attribute descriptors of a ManagedTypeRegistration, the only source of the attributes of ManagedPlugin.
 public sealed class ManagedAttributeDescriptorTests
 {
     [Fact]
@@ -73,35 +73,11 @@ public sealed class ManagedAttributeDescriptorTests
             Assert.Equal(7.5f, ReadAttribute(probe, "Fast Speed", static v => v.Float));
             Assert.Equal(2, ReadAttribute(probe, "Mood", static v => v.Int));
 
-            // The reflection scan would find Speed under its own name and Hidden. The descriptors list neither.
+            // The descriptors list neither Speed under its own name nor Hidden.
             Assert.Equal(VariantType.VarNone, ReadAttribute(probe, "Speed", static v => v.Type));
             Assert.Equal(VariantType.VarNone, ReadAttribute(probe, "Hidden", static v => v.Type));
             Assert.False(WriteAttribute(probe, "Hidden", new Variant(5)));
             Assert.Equal(3, probe.Hidden);
-        }
-        finally
-        {
-            plugin.Unregister();
-        }
-    }
-
-    [Fact]
-    public void Registration_without_descriptors_uses_the_reflection_scan()
-    {
-        using var context = new Context();
-        var registry = new TestRegistry(
-            new ManagedTypeRegistration(
-                typeof(DescriptorProbeComponent),
-                static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<DescriptorProbeComponent>(ctx, category)));
-        Assert.Null(registry.Registrations[0].Attributes);
-        var plugin = new RegistryTestPlugin(context);
-        plugin.RegisterFromRegistry(context, registry, "E2E");
-        try
-        {
-            using var probe = new DescriptorProbeComponent(context);
-            Assert.Equal(2.5f, ReadAttribute(probe, "Speed", static v => v.Float));
-            Assert.Equal(3, ReadAttribute(probe, "Hidden", static v => v.Int));
-            Assert.Equal(1, ReadAttribute(probe, "Mood", static v => v.Int));
         }
         finally
         {
@@ -140,14 +116,10 @@ public sealed class ManagedAttributeDescriptorTests
             .Single(static item => item.Type == typeof(DescriptorProbeComponent));
         Assert.NotNull(generated.Attributes);
 
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
         var plugin = new RegistryTestPlugin(context);
         plugin.RegisterFromRegistry(context, new TestRegistry(generated), "E2E");
         try
         {
-            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
             using var probe = new DescriptorProbeComponent(context);
             Assert.Equal(2.5f, ReadDefault(probe, "Speed", static v => v.Float));
             Assert.Equal(3, ReadDefault(probe, "Hidden", static v => v.Int));
@@ -184,14 +156,12 @@ public sealed class ManagedAttributeDescriptorTests
                 typeof(GuardedDefaultsComponent),
                 static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<GuardedDefaultsComponent>(ctx, category),
                 descriptors));
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
         GuardedDefaultsComponent.Blocked = true;
         var plugin = new RegistryTestPlugin(context);
         plugin.RegisterFromRegistry(context, registry, "E2E");
         try
         {
             Assert.Equal(1, defaultCalls);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
             using var probe = GuardedDefaultsComponent.CreateAllowed(context);
             Assert.Equal(8.5f, ReadDefault(probe, "Speed", static v => v.Float));
             Assert.Equal(4.5f, ReadAttribute(probe, "Speed", static v => v.Float));
@@ -209,15 +179,11 @@ public sealed class ManagedAttributeDescriptorTests
         using var context = new Context();
         var generated = ManagedTypeRegistries.Find(typeof(GuardedDefaultsComponent).Assembly)!.Registrations
             .Single(static item => item.Type == typeof(GuardedDefaultsComponent));
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
         GuardedDefaultsComponent.Blocked = true;
         var plugin = new RegistryTestPlugin(context);
         plugin.RegisterFromRegistry(context, new TestRegistry(generated), "E2E");
         try
         {
-            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
             using var probe = GuardedDefaultsComponent.CreateAllowed(context);
             Assert.Equal(4.5f, ReadDefault(probe, "Speed", static v => v.Float));
         }
@@ -247,45 +213,41 @@ public sealed class ManagedAttributeDescriptorTests
     }
 
     [Fact]
-    public void Derived_type_uses_the_reflection_scan_when_its_listed_base_type_is_not_registered()
+    public void Derived_type_is_an_error_when_its_listed_base_type_is_not_registered()
     {
         using var context = new Context();
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
+        var errors = new List<string>();
+        ManagedAttributeAccessor.MessageObserver = errors.Add;
         var plugin = new RegistryTestPlugin(context) { Filter = static type => type != typeof(DescriptorBaseComponent) };
         plugin.RegisterFromRegistry(context, BaseDerivedRegistry(), "E2E");
         try
         {
-            // The generated list has no base members, because the generator expects the base type to be registered.
-            Assert.Equal(scans + 1, ManagedAttributeRegistrar.ReflectionScanCount);
+            // The generated list has no base members, so the derived type is incomplete without its base type.
             Assert.False(context.IsReflected(new StringHash(nameof(DescriptorBaseComponent))));
-            using var derived = new DescriptorDerivedComponent(context);
-            Assert.Equal(11, ReadAttribute(derived, "BaseValue", static v => v.Int));
-            Assert.Equal(22, ReadAttribute(derived, "OwnValue", static v => v.Int));
+            Assert.False(context.IsReflected(new StringHash(nameof(DescriptorDerivedComponent))));
+            Assert.Contains(errors, static message => message.Contains(nameof(DescriptorDerivedComponent), StringComparison.Ordinal) &&
+                                                      message.Contains(nameof(DescriptorBaseComponent), StringComparison.Ordinal));
         }
         finally
         {
+            ManagedAttributeAccessor.MessageObserver = null;
             plugin.Unregister();
         }
     }
 
     [Fact]
-    public void Registry_of_a_fully_described_assembly_needs_no_member_scan_and_no_Activator()
+    public void Registry_of_the_test_assembly_describes_every_type()
     {
         // The generator describes every type of the test assembly.
         var registrations = ManagedTypeRegistries.Find(typeof(DescriptorProbeComponent).Assembly)!.Registrations;
         Assert.NotEmpty(registrations);
-        Assert.All(registrations, static item => Assert.NotNull(item.Attributes));
 
         using var context = new Context();
-        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
-        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
         var plugin = new RegistryTestPlugin(context) { UseDefaultTypes = true };
         try
         {
             plugin.Register();
             Assert.NotEmpty(plugin.RegisteredTypes);
-            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
-            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
         }
         finally
         {
@@ -345,7 +307,7 @@ internal enum DescriptorMood
     Angry,
 }
 
-// A reflection scan finds Speed, Mood and Hidden. The tests give descriptors for some of them only.
+// The probe type has the members Speed, Mood and Hidden. The tests give descriptors for some of them only.
 internal sealed partial class DescriptorProbeComponent : Component
 {
     [SerializeField]

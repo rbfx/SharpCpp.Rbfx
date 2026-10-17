@@ -1,9 +1,12 @@
+using System.Reflection;
+
 using SharpCpp.Rbfx.Bindings.Interop;
 
 using Urho3D.Core;
 using Urho3D.Engine;
 using Urho3D.Math;
 using Urho3D.Plugins;
+using Urho3D.Scene;
 
 using Xunit;
 
@@ -20,6 +23,8 @@ public sealed class ManagedTypeRegistryTests
     [Fact]
     public void Generated_registry_registers_the_same_types_as_the_assembly_scan()
     {
+        // A JIT runtime scans the assembly. The test makes ManagedPlugin read the registry on the JIT runtime too.
+        ManagedPlugin.ForceRegistry = true;
         var context = new Context();
         var engine = new Engine(context);
         var manager = new PluginManager(context);
@@ -62,11 +67,68 @@ public sealed class ManagedTypeRegistryTests
         }
         finally
         {
+            ManagedPlugin.ForceRegistry = false;
             context.RemoveSubsystem(PluginManager.GetTypeStatic());
             manager.Dispose();
             engine.Dispose();
             context.Dispose();
         }
+    }
+
+    [Fact]
+    public void Added_registry_registers_on_load_and_unregisters_on_the_last_unload()
+    {
+        using var fixture = new AddedRegistryFixture();
+        var first = new RegistryTestPlugin(fixture.Context);
+        first.Register();
+        Assert.All(fixture.ExtraTypes, hash => Assert.True(fixture.Context.IsReflected(hash)));
+        Assert.Empty(first.RegisteredTypes);
+
+        first.Unregister();
+        Assert.All(fixture.ExtraTypes, hash => Assert.False(fixture.Context.IsReflected(hash)));
+    }
+
+    [Fact]
+    public void Added_registry_stays_registered_while_another_plugin_is_loaded()
+    {
+        using var fixture = new AddedRegistryFixture();
+        var first = new RegistryTestPlugin(fixture.Context);
+        var second = new RegistryTestPlugin(fixture.Context);
+        first.Register();
+        second.Register();
+        Assert.All(fixture.ExtraTypes, hash => Assert.True(fixture.Context.IsReflected(hash)));
+
+        first.Unregister();
+        Assert.All(fixture.ExtraTypes, hash => Assert.True(fixture.Context.IsReflected(hash)));
+
+        second.Unregister();
+        Assert.All(fixture.ExtraTypes, hash => Assert.False(fixture.Context.IsReflected(hash)));
+    }
+
+    [Fact]
+    public void Added_registry_registers_again_after_a_reload()
+    {
+        using var fixture = new AddedRegistryFixture();
+        var plugin = new RegistryTestPlugin(fixture.Context);
+        plugin.Register();
+        plugin.Unregister();
+        Assert.All(fixture.ExtraTypes, hash => Assert.False(fixture.Context.IsReflected(hash)));
+
+        plugin.Register();
+        Assert.All(fixture.ExtraTypes, hash => Assert.True(fixture.Context.IsReflected(hash)));
+        plugin.Unregister();
+        Assert.All(fixture.ExtraTypes, hash => Assert.False(fixture.Context.IsReflected(hash)));
+    }
+
+    [Fact]
+    public void Scan_path_calls_the_GetManagedTypes_hook_on_a_JIT_runtime()
+    {
+        using var context = new Context();
+        var plugin = new RegistryTestPlugin(context) { Types = new[] { typeof(RegistryTestComponent) } };
+        plugin.Register();
+        Assert.Equal(new[] { new StringHash(nameof(RegistryTestComponent)) }, plugin.RegisteredTypes);
+        plugin.Unregister();
+        Assert.Empty(plugin.RegisteredTypes);
     }
 
     [Fact]
@@ -78,4 +140,66 @@ public sealed class ManagedTypeRegistryTests
 
     private static bool ShouldRegister(Type type) =>
         ManagedObjectFactory.IsFactoryType(type) && !typeof(Plugin).IsAssignableFrom(type);
+
+    // The registry of the attribute plugin assembly is the added registry. The plugins that claim it are in the test assembly,
+    // and they register nothing from their own assembly. This is a different assembly, so the claim applies.
+    private sealed class AddedRegistryFixture : IDisposable
+    {
+        private readonly Engine _engine;
+        private readonly PluginManager _manager;
+        private readonly Assembly _extraAssembly;
+
+        public AddedRegistryFixture()
+        {
+            Context = new Context();
+            _engine = new Engine(Context);
+            _manager = new PluginManager(Context);
+            Context.RegisterSubsystem(_manager);
+
+            var plugin = (ManagedPlugin)_manager.RegisterManagedPlugin(PluginPath);
+            _extraAssembly = ((object)plugin).GetType().Assembly;
+            var registry = ManagedTypeRegistries.Find(_extraAssembly)!;
+            ExtraTypes = registry.Registrations.Select(static item => new StringHash(item.Type.Name)).ToArray();
+            Assert.NotEmpty(ExtraTypes);
+            Assert.True(ManagedTypeRegistries.Add(registry));
+        }
+
+        public Context Context { get; }
+
+        public StringHash[] ExtraTypes { get; }
+
+        public void Dispose()
+        {
+            ManagedTypeRegistries.Remove(_extraAssembly);
+            Context.RemoveSubsystem(PluginManager.GetTypeStatic());
+            _manager.Dispose();
+            _engine.Dispose();
+            Context.Dispose();
+        }
+    }
+}
+
+// Registers nothing from the test assembly, unless Types has types. Register and Unregister call the protected methods.
+internal sealed partial class RegistryTestPlugin : ManagedPlugin
+{
+    public RegistryTestPlugin(Context context)
+        : base(context)
+    {
+    }
+
+    public Type[] Types { get; init; } = Array.Empty<Type>();
+
+    public void Register() => RegisterManagedTypes();
+
+    public void Unregister() => UnregisterManagedTypes();
+
+    protected override IEnumerable<Type> GetManagedTypes() => Types;
+}
+
+internal sealed partial class RegistryTestComponent : Component
+{
+    public RegistryTestComponent(Context context)
+        : base(context)
+    {
+    }
 }

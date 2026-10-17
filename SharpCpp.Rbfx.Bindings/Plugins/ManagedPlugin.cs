@@ -30,7 +30,13 @@ public abstract partial class ManagedPlugin : Plugin
     {
     }
 
-    /// <summary>The hashes of the type names that this plugin registered, in registration order.</summary>
+    /// <summary>Makes <see cref="RegisterManagedTypes"/> read the generated registry on a JIT runtime too. Tests only.</summary>
+    internal static bool ForceRegistry { get; set; }
+
+    /// <summary>
+    /// The hashes of the type names that this plugin registered from its own assembly, in registration order.
+    /// The types of the added registries are shared between the plugins and are not in the list.
+    /// </summary>
     public IReadOnlyList<StringHash> RegisteredTypes => _registeredTypes;
 
     /// <summary>The reflection category of the registered types. The default is the simple name of the plugin assembly.</summary>
@@ -62,9 +68,10 @@ public abstract partial class ManagedPlugin : Plugin
 
     /// <summary>
     /// Registers the factories and the attributes. A second call does nothing until the types are unregistered.
-    /// When the plugin assembly has a generated <see cref="ManagedTypeRegistryAttribute"/>, its list gives the candidate
-    /// types and the registration needs no dynamic code. Without it, <see cref="GetManagedTypes"/> scans the assembly (JIT only).
-    /// Then the types of the registries in <see cref="ManagedTypeRegistries"/> that no other plugin registered are added.
+    /// A JIT runtime scans the assembly with <see cref="GetManagedTypes"/>. A runtime without dynamic code (NativeAOT) reads the
+    /// generated <see cref="ManagedTypeRegistryAttribute"/> of the plugin assembly, and registers the listed types.
+    /// Then the types of the registries in <see cref="ManagedTypeRegistries"/> are added. The first plugin that claims a registry
+    /// registers its types, and the last plugin that claims it removes them.
     /// </summary>
     [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
     [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The plugin assembly is a trimmer root, so all of its types keep their members.")]
@@ -81,7 +88,7 @@ public abstract partial class ManagedPlugin : Plugin
         var category = FactoryCategory;
         var assembly = ((object)this).GetType().Assembly;
 
-        if (ManagedTypeRegistries.Find(assembly) is { } registry)
+        if ((ForceRegistry || !RuntimeFeature.IsDynamicCodeSupported) && ManagedTypeRegistries.Find(assembly) is { } registry)
         {
             RegisterFromRegistry(context, registry, category);
         }
@@ -114,17 +121,25 @@ public abstract partial class ManagedPlugin : Plugin
         foreach (var extra in ManagedTypeRegistries.Snapshot())
         {
             var extraAssembly = extra.GetType().Assembly;
-            if (extraAssembly == assembly || !ManagedTypeRegistries.TryClaim(extraAssembly))
+            if (extraAssembly == assembly || _claimedRegistries.Contains(extraAssembly))
             {
                 continue;
             }
 
             _claimedRegistries.Add(extraAssembly);
-            RegisterFromRegistry(context, extra, extraAssembly.GetName().Name ?? string.Empty);
+            if (ManagedTypeRegistries.Claim(extraAssembly))
+            {
+                var types = new List<StringHash>();
+                RegisterFromRegistry(context, extra, extraAssembly.GetName().Name ?? string.Empty, types);
+                ManagedTypeRegistries.SetTypes(extraAssembly, types);
+            }
         }
     }
 
-    private void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category)
+    private void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category) =>
+        RegisterFromRegistry(context, registry, category, _registeredTypes);
+
+    private void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category, List<StringHash> registered)
     {
         // The generated list is in base-before-derived order. The sort keeps the order of the scan path for any list.
         var items = registry.Registrations.Where(item => ShouldRegister(item.Type)).OrderBy(static item => GetDepth(item.Type))
@@ -142,15 +157,19 @@ public abstract partial class ManagedPlugin : Plugin
                 continue;
             }
 
-            RegisterAttributes(context, item.Type, typeInfo);
+            RegisterAttributes(context, item.Type, typeInfo, registered);
         }
     }
 
     private void RegisterAttributes(Context context, [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type, TypeInfo typeInfo)
+        => RegisterAttributes(context, type, typeInfo, _registeredTypes);
+
+    private static void RegisterAttributes(
+        Context context, [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type, TypeInfo typeInfo, List<StringHash> registered)
     {
         try
         {
-            _registeredTypes.Add(typeInfo.GetType());
+            registered.Add(typeInfo.GetType());
             var reflection = context.GetReflection(typeInfo.GetType());
             ManagedAttributeRegistrar.Register(context, reflection, typeInfo, type);
         }
@@ -167,26 +186,34 @@ public abstract partial class ManagedPlugin : Plugin
     protected void UnregisterManagedTypes()
     {
         var context = GetContext();
-        for (var i = _registeredTypes.Count - 1; i >= 0; i--)
+        RemoveReflections(context, _registeredTypes);
+        _registeredTypes.Clear();
+
+        // The last plugin that claims an added registry removes its types.
+        foreach (var assembly in _claimedRegistries)
+        {
+            if (ManagedTypeRegistries.Release(assembly) is { } types)
+            {
+                RemoveReflections(context, types);
+            }
+        }
+
+        _claimedRegistries.Clear();
+    }
+
+    private static void RemoveReflections(Context context, List<StringHash> types)
+    {
+        for (var i = types.Count - 1; i >= 0; i--)
         {
             try
             {
-                context.RemoveReflection(_registeredTypes[i]);
+                context.RemoveReflection(types[i]);
             }
             catch (Exception exception)
             {
                 ManagedAttributeAccessor.LogWarning($"Cannot remove a managed type reflection: {exception.GetBaseException().Message}");
             }
         }
-
-        _registeredTypes.Clear();
-
-        foreach (var assembly in _claimedRegistries)
-        {
-            ManagedTypeRegistries.Release(assembly);
-        }
-
-        _claimedRegistries.Clear();
     }
 
     private static int GetDepth(Type type)

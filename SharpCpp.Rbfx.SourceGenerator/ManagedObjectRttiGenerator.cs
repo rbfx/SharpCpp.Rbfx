@@ -27,6 +27,14 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor RegistryAccessibilityDiagnostic = new(
+        id: "RBFXSG003",
+        title: "Managed rbfx object types must be visible to the type registry",
+        messageFormat: "Type '{0}' is not in the managed type registry because it or a containing type is private, protected or private protected. It is not registered on AOT hosts. Make it internal or public.",
+        category: "SharpCpp.Rbfx.SourceGenerator",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     internal const string RegistryAttributeMetadataName = "Urho3D.Plugins.ManagedTypeRegistryAttribute";
     internal const string RegistryNamespace = "SharpCpp.Rbfx.Generated";
     internal const string RegistryClassName = "GeneratedManagedTypeRegistryAttribute";
@@ -127,9 +135,14 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         var types = new List<INamedTypeSymbol>();
         foreach (var typeSymbol in factoryTypes)
         {
-            if (IsRegistryType(typeSymbol, objectSymbol, pluginSymbol))
+            switch (ClassifyRegistryType(typeSymbol, objectSymbol, pluginSymbol))
             {
-                types.Add(typeSymbol);
+                case RegistryTypeKind.Included:
+                    types.Add(typeSymbol);
+                    break;
+                case RegistryTypeKind.Inaccessible:
+                    context.ReportDiagnostic(Diagnostic.Create(RegistryAccessibilityDiagnostic, GetLocation(typeSymbol), typeSymbol.ToDisplayString()));
+                    break;
             }
         }
 
@@ -179,26 +192,41 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static bool IsRegistryType(INamedTypeSymbol typeSymbol, INamedTypeSymbol objectSymbol, INamedTypeSymbol? pluginSymbol)
+    private enum RegistryTypeKind
+    {
+        Included,
+        Excluded,
+        Inaccessible,
+    }
+
+    private static RegistryTypeKind ClassifyRegistryType(INamedTypeSymbol typeSymbol, INamedTypeSymbol objectSymbol, INamedTypeSymbol? pluginSymbol)
     {
         if (typeSymbol.TypeKind != TypeKind.Class || typeSymbol.IsAbstract || typeSymbol.IsFileLocal ||
             !DerivesFrom(typeSymbol, objectSymbol) ||
             (pluginSymbol is not null && DerivesFromOrIs(typeSymbol, pluginSymbol)))
         {
-            return false;
+            return RegistryTypeKind.Excluded;
         }
 
-        // Generic types are not registered. The generated class must see the type, so private nested types are left out.
+        // Generic types are not registered.
         for (var current = typeSymbol; current is not null; current = current.ContainingType)
         {
-            if (current.TypeParameters.Length > 0 ||
-                current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            if (current.TypeParameters.Length > 0)
             {
-                return false;
+                return RegistryTypeKind.Excluded;
             }
         }
 
-        return true;
+        // The generated class must see the type, so private and protected nested types are left out.
+        for (var current = typeSymbol; current is not null; current = current.ContainingType)
+        {
+            if (current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return RegistryTypeKind.Inaccessible;
+            }
+        }
+
+        return RegistryTypeKind.Included;
     }
 
     private static bool ImplementsFactoryForItself(INamedTypeSymbol typeSymbol, INamedTypeSymbol objectFactorySymbol)

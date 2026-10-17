@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Urho3D.Core;
+using Urho3D.Math;
 
 using TypeInfo = Urho3D.Core.TypeInfo;
 
@@ -33,13 +34,13 @@ public abstract class ManagedTypeRegistryAttribute : Attribute
 /// The managed type registries of other assemblies, for example the application assembly of a head.
 /// On load, a <see cref="ManagedPlugin"/> registers the types of its own assembly, then the types of each added registry
 /// that no other loaded plugin registered. The category of these types is the simple name of their assembly.
-/// The plugin that registers a registry removes its types on unload, and then the next plugin can register it.
+/// The first plugin that claims a registry registers its types. The last plugin that claims it removes them on unload.
 /// </summary>
 public static class ManagedTypeRegistries
 {
     private static readonly object Sync = new();
     private static readonly List<ManagedTypeRegistryAttribute> Registries = new();
-    private static readonly HashSet<Assembly> Claimed = new();
+    private static readonly Dictionary<Assembly, ClaimState> Claims = new();
 
     /// <summary>Returns the generated registry of the assembly, or null when the assembly has none.</summary>
     public static ManagedTypeRegistryAttribute? Find(Assembly assembly)
@@ -83,20 +84,64 @@ public static class ManagedTypeRegistries
         }
     }
 
-    /// <summary>Returns true when no other plugin registers the types of the assembly. The caller must call <see cref="Release"/>.</summary>
-    internal static bool TryClaim(Assembly assembly)
+    /// <summary>
+    /// Counts a claim of the registry of the assembly. Returns true for the first claim: the caller registers the types and gives
+    /// them to <see cref="SetTypes"/>. The caller must call <see cref="Release"/>.
+    /// </summary>
+    internal static bool Claim(Assembly assembly)
     {
         lock (Sync)
         {
-            return Claimed.Add(assembly);
+            if (Claims.TryGetValue(assembly, out var claim))
+            {
+                claim.Count++;
+                return false;
+            }
+
+            Claims.Add(assembly, new ClaimState { Count = 1 });
+            return true;
         }
     }
 
-    internal static void Release(Assembly assembly)
+    /// <summary>Stores the registered types of a claimed registry, so that the last plugin can remove them.</summary>
+    internal static void SetTypes(Assembly assembly, List<StringHash> types)
     {
         lock (Sync)
         {
-            Claimed.Remove(assembly);
+            if (Claims.TryGetValue(assembly, out var claim))
+            {
+                claim.Types = types;
+            }
         }
+    }
+
+    /// <summary>Removes a claim. Returns the registered types after the last claim, and null while other plugins still claim the registry.</summary>
+    internal static List<StringHash>? Release(Assembly assembly)
+    {
+        lock (Sync)
+        {
+            if (!Claims.TryGetValue(assembly, out var claim) || --claim.Count > 0)
+            {
+                return null;
+            }
+
+            Claims.Remove(assembly);
+            return claim.Types;
+        }
+    }
+
+    /// <summary>Removes an added registry. Tests only.</summary>
+    internal static void Remove(Assembly assembly)
+    {
+        lock (Sync)
+        {
+            Registries.RemoveAll(item => item.GetType().Assembly == assembly);
+        }
+    }
+
+    private sealed class ClaimState
+    {
+        public int Count;
+        public List<StringHash> Types = new();
     }
 }

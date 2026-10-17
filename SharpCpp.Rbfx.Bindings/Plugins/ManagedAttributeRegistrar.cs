@@ -43,6 +43,8 @@ internal static class ManagedAttributeRegistrar
     /// managed base types that have no reflection. A temporary instance gives the default values.
     /// When <paramref name="descriptors"/> is not null, it is the complete list of the attributes of the type (the generated registry).
     /// The type is not scanned for members then. When it is null, the members come from reflection.
+    /// A descriptor with a default value (<see cref="ManagedAttributeDescriptor.HasDefault"/>) needs no instance. When all descriptors have
+    /// one, no temporary instance is made. Else the instance gives the default values of the other descriptors.
     /// With descriptors, <paramref name="createDefaults"/> makes the temporary instance without <see cref="Activator"/>. When it is null, <see cref="Activator"/> makes it.
     /// </summary>
     public static void Register(
@@ -74,22 +76,25 @@ internal static class ManagedAttributeRegistrar
         }
 
         Serializable? defaults = null;
-        try
+        if (descriptors is null || !Array.TrueForAll(descriptors, static descriptor => descriptor.HasDefault))
         {
-            if (descriptors is not null && createDefaults is not null)
+            try
             {
-                defaults = createDefaults(context);
+                if (descriptors is not null && createDefaults is not null)
+                {
+                    defaults = createDefaults(context);
+                }
+                else
+                {
+                    Interlocked.Increment(ref _activatorCreateCount);
+                    defaults = (Serializable)Activator.CreateInstance(type, context)!;
+                }
             }
-            else
+            catch (Exception exception)
             {
-                Interlocked.Increment(ref _activatorCreateCount);
-                defaults = (Serializable)Activator.CreateInstance(type, context)!;
+                ManagedAttributeAccessor.LogWarning(
+                    $"Cannot create a temporary {type.FullName} for attribute default values. The variant defaults are used: {exception.GetBaseException().Message}");
             }
-        }
-        catch (Exception exception)
-        {
-            ManagedAttributeAccessor.LogWarning(
-                $"Cannot create a temporary {type.FullName} for attribute default values. The variant defaults are used: {exception.GetBaseException().Message}");
         }
 
         try
@@ -101,7 +106,8 @@ internal static class ManagedAttributeRegistrar
                     try
                     {
                         AddAttribute(
-                            reflection, type, descriptor.MemberName, descriptor.ValueType, descriptor.Name, descriptor.Mode, descriptor.CreateBinding, defaults);
+                            reflection, type, descriptor.MemberName, descriptor.ValueType, descriptor.Name, descriptor.Mode, descriptor.CreateBinding, defaults,
+                            descriptor.CreateDefault);
                     }
                     catch (Exception exception)
                     {
@@ -221,7 +227,8 @@ internal static class ManagedAttributeRegistrar
             attribute.Name ?? member.Name,
             attribute.Mode,
             converter => CreateBindingFor(type, valueType, member, converter),
-            defaults);
+            defaults,
+            createDefault: null);
     }
 
     private static void AddAttribute(
@@ -232,7 +239,8 @@ internal static class ManagedAttributeRegistrar
         string name,
         AttributeMode mode,
         Func<object, ManagedAttributeBinding> createBinding,
-        Serializable? defaults)
+        Serializable? defaults,
+        Func<object, Variant?>? createDefault)
     {
         if (!VariantConverters.TryGet(valueType, out var converter, out var variantType, out var enumNames))
         {
@@ -242,7 +250,7 @@ internal static class ManagedAttributeRegistrar
         }
 
         var binding = createBinding(converter);
-        using var defaultValue = (defaults is not null ? binding.ReadValue(defaults) : null) ?? new Variant(variantType);
+        using var defaultValue = createDefault?.Invoke(converter) ?? (defaults is not null ? binding.ReadValue(defaults) : null) ?? new Variant(variantType);
         using var accessor = ManagedAttributeAccessor.Create(binding);
         if (!accessor.AddTo(reflection, variantType, name, enumNames, defaultValue, mode))
         {

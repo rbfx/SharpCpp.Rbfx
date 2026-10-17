@@ -20,6 +20,7 @@ public partial class AotPlugin : ManagedPlugin
 {
     private const int UpdateCount = 3;
     private const float SpeedValue = 2.5f;
+    private const float AotSpinnerDefaultSpeed = 1.0f;
     private const float HeadSpeedValue = 4.5f;
     private int _updates;
     private Scene? _scene;
@@ -50,15 +51,17 @@ public partial class AotPlugin : ManagedPlugin
             component.SetAttribute(name, value);
         }
 
+        // The engine default is the initializer of the field (Speed = 1.0f), which the generated registry holds.
         using var read = component.GetAttribute(name);
+        using var defaultValue = component.GetAttributeDefault(name);
         var managed = component is AotSpinner spinner ? spinner.Speed : float.NaN;
-        if (read.Float == SpeedValue && managed == SpeedValue)
+        if (read.Float == SpeedValue && managed == SpeedValue && defaultValue.Float == AotSpinnerDefaultSpeed)
         {
             Log.Info($"AotApp: attribute {read.Float}");
         }
         else
         {
-            Log.Error($"AotApp: attribute mismatch (engine {read.Float}, managed {managed})");
+            Log.Error($"AotApp: attribute mismatch (engine {read.Float}, managed {managed}, default {defaultValue.Float})");
         }
 
         CreateHeadComponent();

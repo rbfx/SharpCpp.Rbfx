@@ -225,7 +225,10 @@ public sealed class ManagedAttributeDescriptorTests
         var generated = ManagedTypeRegistries.Find(typeof(DescriptorProbeComponent).Assembly)!.Registrations
             .Single(static item => item.Type == typeof(DescriptorProbeComponent));
         Assert.NotNull(generated.Attributes);
-        Assert.NotNull(generated.CreateDefaults);
+
+        // Every member has a default from its initializer, so the registration has no factory of a temporary instance.
+        Assert.All(generated.Attributes!, static descriptor => Assert.True(descriptor.HasDefault));
+        Assert.Null(generated.CreateDefaults);
 
         var scans = ManagedAttributeRegistrar.ReflectionScanCount;
         var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
@@ -239,6 +242,132 @@ public sealed class ManagedAttributeDescriptorTests
             Assert.Equal(2.5f, ReadDefault(probe, "Speed", static v => v.Float));
             Assert.Equal(3, ReadDefault(probe, "Hidden", static v => v.Int));
             Assert.Equal(1, ReadDefault(probe, "Mood", static v => v.Int));
+        }
+        finally
+        {
+            plugin.Unregister();
+        }
+    }
+
+    [Fact]
+    public void Descriptor_default_replaces_the_temporary_instance()
+    {
+        using var context = new Context();
+        var defaultCalls = 0;
+        var descriptors = new[]
+        {
+            ManagedAttributeDescriptor.Create<float>(
+                "Speed",
+                nameof(GuardedDefaultsComponent.Speed),
+                typeof(float),
+                AttributeMode.AmDefault,
+                static o => ((GuardedDefaultsComponent)o).Speed,
+                static (o, v) => ((GuardedDefaultsComponent)o).Speed = v,
+                () =>
+                {
+                    defaultCalls++;
+                    return 8.5f;
+                }),
+        };
+        Assert.True(descriptors[0].HasDefault);
+        var factoryCalls = 0;
+        var registry = new TestRegistry(
+            new ManagedTypeRegistration(
+                typeof(GuardedDefaultsComponent),
+                static (ctx, category) => ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<GuardedDefaultsComponent>(ctx, category),
+                descriptors,
+                ctx =>
+                {
+                    factoryCalls++;
+                    return GuardedDefaultsComponent.CreateAllowed(ctx);
+                }));
+        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
+        GuardedDefaultsComponent.Blocked = true;
+        var plugin = new RegistryTestPlugin(context);
+        plugin.RegisterFromRegistry(context, registry, "E2E");
+        try
+        {
+            Assert.Equal(0, factoryCalls);
+            Assert.Equal(1, defaultCalls);
+            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
+            using var probe = GuardedDefaultsComponent.CreateAllowed(context);
+            Assert.Equal(8.5f, ReadDefault(probe, "Speed", static v => v.Float));
+            Assert.Equal(4.5f, ReadAttribute(probe, "Speed", static v => v.Float));
+        }
+        finally
+        {
+            plugin.Unregister();
+            GuardedDefaultsComponent.Blocked = false;
+        }
+    }
+
+    [Fact]
+    public void Generated_defaults_of_a_type_with_a_throwing_constructor_need_no_instance_and_no_factory()
+    {
+        using var context = new Context();
+        var generated = ManagedTypeRegistries.Find(typeof(GuardedDefaultsComponent).Assembly)!.Registrations
+            .Single(static item => item.Type == typeof(GuardedDefaultsComponent));
+        Assert.Null(generated.CreateDefaults);
+
+        // A factory that throws would show a call: the registrar would log a warning and use the variant default 0.
+        var factoryCalls = 0;
+        var registration = generated with
+        {
+            CreateDefaults = ctx =>
+            {
+                factoryCalls++;
+                throw new InvalidOperationException("The factory must not be called.");
+            },
+        };
+        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
+        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
+        GuardedDefaultsComponent.Blocked = true;
+        var plugin = new RegistryTestPlugin(context);
+        plugin.RegisterFromRegistry(context, new TestRegistry(registration), "E2E");
+        try
+        {
+            Assert.Equal(0, factoryCalls);
+            Assert.Equal(scans, ManagedAttributeRegistrar.ReflectionScanCount);
+            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
+            using var probe = GuardedDefaultsComponent.CreateAllowed(context);
+            Assert.Equal(4.5f, ReadDefault(probe, "Speed", static v => v.Float));
+        }
+        finally
+        {
+            plugin.Unregister();
+            GuardedDefaultsComponent.Blocked = false;
+        }
+    }
+
+    [Fact]
+    public void Member_without_a_declaration_default_reads_the_temporary_instance_and_the_others_use_their_default()
+    {
+        using var context = new Context();
+        var generated = ManagedTypeRegistries.Find(typeof(ConstructorDefaultsComponent).Assembly)!.Registrations
+            .Single(static item => item.Type == typeof(ConstructorDefaultsComponent));
+        Assert.NotNull(generated.CreateDefaults);
+        Assert.True(generated.Attributes!.Single(static d => d.MemberName == "Speed").HasDefault);
+        Assert.False(generated.Attributes!.Single(static d => d.MemberName == "Scale").HasDefault);
+
+        var factoryCalls = 0;
+        var registration = generated with
+        {
+            CreateDefaults = ctx =>
+            {
+                factoryCalls++;
+                return generated.CreateDefaults!(ctx);
+            },
+        };
+        var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
+        var plugin = new RegistryTestPlugin(context);
+        plugin.RegisterFromRegistry(context, new TestRegistry(registration), "E2E");
+        try
+        {
+            Assert.Equal(1, factoryCalls);
+            Assert.Equal(creations, ManagedAttributeRegistrar.ActivatorCreateCount);
+            using var probe = new ConstructorDefaultsComponent(context);
+            Assert.Equal(2.5f, ReadDefault(probe, "Speed", static v => v.Float));
+            Assert.Equal(6f, ReadDefault(probe, "Scale", static v => v.Float));
         }
         finally
         {
@@ -289,11 +418,14 @@ public sealed class ManagedAttributeDescriptorTests
     [Fact]
     public void Force_registry_of_a_fully_described_assembly_needs_no_member_scan_and_no_Activator()
     {
-        // The generator describes every type of the test assembly. A type with attributes has a factory of the temporary instance.
+        // The generator describes every type of the test assembly. A type has a factory of the temporary instance only when a member has no default.
         var registrations = ManagedTypeRegistries.Find(typeof(DescriptorProbeComponent).Assembly)!.Registrations;
         Assert.NotEmpty(registrations);
         Assert.All(registrations, static item => Assert.NotNull(item.Attributes));
-        Assert.All(registrations, static item => Assert.True(item.Attributes!.Length == 0 || item.CreateDefaults is not null, item.Type.FullName));
+        Assert.All(
+            registrations,
+            static item => Assert.True(
+                item.Attributes!.Any(static descriptor => !descriptor.HasDefault) == (item.CreateDefaults is not null), item.Type.FullName));
 
         ManagedPlugin.ForceRegistry = true;
         using var context = new Context();
@@ -415,6 +547,22 @@ internal sealed partial class GuardedDefaultsComponent : Component
         {
             Blocked = blocked;
         }
+    }
+}
+
+// A constructor assigns Scale, so the generator reads no default for it. Speed has a default from its initializer.
+internal sealed partial class ConstructorDefaultsComponent : Component
+{
+    [SerializeField]
+    public float Speed = 2.5f;
+
+    [SerializeField]
+    public float Scale;
+
+    public ConstructorDefaultsComponent(Context context)
+        : base(context)
+    {
+        Scale = 6;
     }
 }
 

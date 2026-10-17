@@ -14,6 +14,8 @@ namespace Urho3D.Plugins;
 /// of the type in a context with a category and returns the type info. It is a direct generic call, so it is AOT safe.
 /// <see cref="Attributes"/> is the complete list of the engine attributes of the type. When it is null, the plugin finds the
 /// <see cref="Urho3D.Scene.SerializeFieldAttribute"/> members by reflection (the fallback of a type that the generator cannot describe).
+/// A descriptor has the default value of its member when the generator reads it from the declaration initializer. When every descriptor
+/// has one, the plugin makes no temporary instance. Else <see cref="CreateDefaults"/> (or <see cref="Activator"/>) makes it.
 /// </summary>
 public readonly record struct ManagedTypeRegistration(
     [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)]

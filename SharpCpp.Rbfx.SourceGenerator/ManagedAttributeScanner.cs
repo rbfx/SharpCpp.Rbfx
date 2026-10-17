@@ -11,7 +11,7 @@ namespace SharpCpp.Rbfx.SourceGenerator;
 /// <summary>One engine attribute of a managed type: the data for one ManagedAttributeDescriptor.Create call.</summary>
 internal sealed class AttributeEntry
 {
-    public AttributeEntry(string name, string memberName, string memberIdentifier, string declaringType, string valueType, string bindingType, string mode, ValueKind kind)
+    public AttributeEntry(string name, string memberName, string memberIdentifier, string declaringType, string valueType, string bindingType, string mode, ValueKind kind, string? defaultExpression = null)
     {
         Name = name;
         MemberName = memberName;
@@ -21,6 +21,7 @@ internal sealed class AttributeEntry
         BindingType = bindingType;
         Mode = mode;
         Kind = kind;
+        DefaultExpression = defaultExpression;
     }
 
     public string Name { get; }
@@ -38,6 +39,9 @@ internal sealed class AttributeEntry
     public string Mode { get; }
 
     public ValueKind Kind { get; }
+
+    /// <summary>The body of the default delegate, from the declaration of the member. It is null when the default is not emittable.</summary>
+    public string? DefaultExpression { get; }
 }
 
 internal enum ValueKind
@@ -67,19 +71,25 @@ internal sealed class ManagedAttributeScanner
     private readonly INamedTypeSymbol? _nonSerialized;
     private readonly IAssemblySymbol _bindingsAssembly;
     private readonly IAssemblySymbol _assembly;
+    private readonly AttributeDefaultResolver _defaults;
+
+    // The constructors of the type that Scan works on. The scanner runs in one thread.
+    private List<(SemanticModel Model, SyntaxNode Node)> _constructors = new();
 
     private ManagedAttributeScanner(
         INamedTypeSymbol serializeField,
         INamedTypeSymbol serializable,
         INamedTypeSymbol? nonSerialized,
         IAssemblySymbol bindingsAssembly,
-        IAssemblySymbol assembly)
+        IAssemblySymbol assembly,
+        AttributeDefaultResolver defaults)
     {
         _serializeField = serializeField;
         _serializable = serializable;
         _nonSerialized = nonSerialized;
         _bindingsAssembly = bindingsAssembly;
         _assembly = assembly;
+        _defaults = defaults;
     }
 
     /// <summary>Returns null when the bindings have no SerializeFieldAttribute, so that no type gets a list.</summary>
@@ -97,7 +107,8 @@ internal sealed class ManagedAttributeScanner
             serializable,
             compilation.GetTypeByMetadataName("System.NonSerializedAttribute"),
             bindingsAssembly,
-            compilation.Assembly);
+            compilation.Assembly,
+            new AttributeDefaultResolver(compilation));
     }
 
     /// <summary>
@@ -122,6 +133,7 @@ internal sealed class ManagedAttributeScanner
 
         // Base members first, as in the engine order of attributes.
         chain.Reverse();
+        _constructors = _defaults.CollectConstructors(chain);
         var entries = new List<AttributeEntry>();
         var describable = true;
         foreach (var current in chain)
@@ -277,7 +289,8 @@ internal sealed class ManagedAttributeScanner
             display,
             kind == ValueKind.Enum ? "object" : display,
             mode,
-            kind));
+            kind,
+            _defaults.TryGetDefault(member, valueType, kind, _constructors)));
         return true;
     }
 
@@ -345,7 +358,7 @@ internal sealed class ManagedAttributeScanner
     }
 
     // Generated code that uses a member marked Obsolete(error: true) fails with CS0619, and the pragma of the generated code covers only CS0618.
-    private static string? GetObsoleteError(ISymbol member, INamedTypeSymbol declaring)
+    internal static string? GetObsoleteError(ISymbol member, INamedTypeSymbol declaring)
     {
         if (IsObsoleteError(member))
         {
@@ -363,7 +376,7 @@ internal sealed class ManagedAttributeScanner
         return null;
     }
 
-    private static bool IsObsoleteError(ISymbol symbol)
+    internal static bool IsObsoleteError(ISymbol symbol)
     {
         foreach (var attribute in symbol.GetAttributes())
         {

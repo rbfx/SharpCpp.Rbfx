@@ -17,15 +17,22 @@ namespace Urho3D.Plugins;
 public sealed class ManagedAttributeDescriptor
 {
     private readonly Func<object, ManagedAttributeBinding> _createBinding;
+    private readonly Func<object, Variant>? _createDefault;
 
     private ManagedAttributeDescriptor(
-        string name, string memberName, Type valueType, AttributeMode mode, Func<object, ManagedAttributeBinding> createBinding)
+        string name,
+        string memberName,
+        Type valueType,
+        AttributeMode mode,
+        Func<object, ManagedAttributeBinding> createBinding,
+        Func<object, Variant>? createDefault)
     {
         Name = name;
         MemberName = memberName;
         ValueType = valueType;
         Mode = mode;
         _createBinding = createBinding;
+        _createDefault = createDefault;
     }
 
     /// <summary>The attribute name in the engine: <see cref="SerializeFieldAttribute.Name"/>, or the member name when it is null.</summary>
@@ -41,6 +48,11 @@ public sealed class ManagedAttributeDescriptor
     public AttributeMode Mode { get; }
 
     /// <summary>
+    /// True when the descriptor has its own default value. The registrar then needs no temporary instance for this attribute.
+    /// </summary>
+    public bool HasDefault => _createDefault is not null;
+
+    /// <summary>
     /// Creates a descriptor. <typeparamref name="TValue"/> is the value type of the binding: the member type, or
     /// <see cref="object"/> for an enum. The delegates take the owner as a <see cref="Serializable"/>, and cast it to the declaring type.
     /// </summary>
@@ -50,13 +62,18 @@ public sealed class ManagedAttributeDescriptor
     /// <param name="mode">The attribute mode.</param>
     /// <param name="getter">Reads the member of the owner.</param>
     /// <param name="setter">Writes the member of the owner.</param>
+    /// <param name="getDefault">
+    /// Returns the default value of the member: the value of its declaration initializer. When it is null, the default value comes
+    /// from a temporary instance of the owner.
+    /// </param>
     public static ManagedAttributeDescriptor Create<TValue>(
         string name,
         string memberName,
         Type valueType,
         AttributeMode mode,
         Func<Serializable, TValue> getter,
-        Action<Serializable, TValue> setter)
+        Action<Serializable, TValue> setter,
+        Func<TValue>? getDefault = null)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(memberName);
@@ -68,9 +85,13 @@ public sealed class ManagedAttributeDescriptor
             memberName,
             valueType,
             mode,
-            converter => new ManagedAttributeBinding<Serializable, TValue>(getter, setter, (VariantConverter<TValue>)converter));
+            converter => new ManagedAttributeBinding<Serializable, TValue>(getter, setter, (VariantConverter<TValue>)converter),
+            getDefault is null ? null : converter => ((VariantConverter<TValue>)converter).ToVariant(getDefault()));
     }
 
     /// <summary>Creates the binding with the variant converter of <see cref="ValueType"/>.</summary>
     internal ManagedAttributeBinding CreateBinding(object converter) => _createBinding(converter);
+
+    /// <summary>Returns a new owning variant with the default value, or null when the descriptor has no default value.</summary>
+    internal Variant? CreateDefault(object converter) => _createDefault?.Invoke(converter);
 }

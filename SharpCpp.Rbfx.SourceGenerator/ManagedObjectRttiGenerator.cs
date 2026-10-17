@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 
 using Microsoft.CodeAnalysis;
@@ -171,14 +172,16 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             }
         }
 
-        // A described type with a public (Context) constructor gets a factory for the temporary instance of the default values.
+        // A described type with a public (Context) constructor gets a factory for the temporary instance of the default values,
+        // when a member has no emittable default. A later step turns that case into an error.
         var defaultFactories = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         var contextSymbol = compilation.GetTypeByMetadataName("Urho3D.Core.Context");
         if (contextSymbol is not null)
         {
             foreach (var pair in attributes)
             {
-                if (pair.Value.Count > 0 && HasContextConstructor(pair.Key, contextSymbol))
+                // A type whose members all have a default from the declaration needs no temporary instance.
+                if (pair.Value.Any(static entry => entry.DefaultExpression is null) && HasContextConstructor(pair.Key, contextSymbol))
                 {
                     defaultFactories.Add(pair.Key);
                 }
@@ -258,8 +261,13 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             var write = entry.Kind == ValueKind.Enum ? "(" + entry.ValueType + ")v" : "v";
             builder.Append("                ").Append(DescriptorType).Append(".Create<").Append(entry.BindingType).Append(">(")
                 .Append(entry.Name).Append(", ").Append(entry.MemberName).Append(", typeof(").Append(entry.ValueType).Append("), ")
-                .Append(entry.Mode).Append(", static o => ").Append(read).Append(", static (o, v) => ").Append(access).Append(" = ").Append(write)
-                .AppendLine("),");
+                .Append(entry.Mode).Append(", static o => ").Append(read).Append(", static (o, v) => ").Append(access).Append(" = ").Append(write);
+            if (entry.DefaultExpression is not null)
+            {
+                builder.Append(", static () => ").Append(entry.DefaultExpression);
+            }
+
+            builder.AppendLine("),");
         }
 
         builder.Append("            }");

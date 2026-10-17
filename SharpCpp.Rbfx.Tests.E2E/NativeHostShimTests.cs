@@ -84,6 +84,16 @@ public sealed unsafe class NativeHostShimTests
     }
 
     [Fact]
+    public void Bootstrap_attach_has_no_operating_system_guard_and_is_safe_to_call_twice()
+    {
+        var first = NativeHostBootstrap.Attach();
+        var second = NativeHostBootstrap.Attach();
+
+        Assert.Equal(NativeHostShim.IsAttached, first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
     public void Load_managed_plugin_accepts_a_loaded_assembly()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll");

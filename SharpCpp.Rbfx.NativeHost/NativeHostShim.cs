@@ -58,6 +58,20 @@ internal static unsafe partial class NativeHostShim
             return;
         }
 
+        AttachCore();
+    }
+
+    /// <summary>
+    /// Builds the managed function table and gives it to the native library. It has no check of the operating system.
+    /// <see cref="NativeHostBootstrap"/> calls it for NativeAOT desktop heads. A second call after a success does nothing.
+    /// </summary>
+    internal static void AttachCore()
+    {
+        if (IsAttached)
+        {
+            return;
+        }
+
         try
         {
             ScriptRuntime.EnsureInstalled();

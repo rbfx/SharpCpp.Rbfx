@@ -136,6 +136,7 @@ public static class ManagedTypeRegistries
         lock (Sync)
         {
             Registries.RemoveAll(item => item.GetType().Assembly == assembly);
+            Claims.Remove(assembly);
         }
     }
 

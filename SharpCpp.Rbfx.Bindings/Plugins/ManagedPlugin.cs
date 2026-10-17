@@ -129,9 +129,10 @@ public abstract partial class ManagedPlugin : Plugin
             _claimedRegistries.Add(extraAssembly);
             if (ManagedTypeRegistries.Claim(extraAssembly))
             {
+                // The claim gets the list first, so that Release returns every type registered before a failure.
                 var types = new List<StringHash>();
-                RegisterFromRegistry(context, extra, extraAssembly.GetName().Name ?? string.Empty, types);
                 ManagedTypeRegistries.SetTypes(extraAssembly, types);
+                RegisterFromRegistry(context, extra, extraAssembly.GetName().Name ?? string.Empty, types);
             }
         }
     }

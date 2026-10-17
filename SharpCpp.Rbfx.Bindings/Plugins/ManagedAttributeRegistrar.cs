@@ -32,17 +32,20 @@ internal static class ManagedAttributeRegistrar
     /// <summary>
     /// Copies the attributes of the nearest reflected base type, then adds the marked members of the type and of its
     /// managed base types that have no reflection. A temporary instance gives the default values.
+    /// When <paramref name="descriptors"/> is not null, it is the complete list of the attributes of the type (the generated registry).
+    /// The type is not scanned for members then. When it is null, the members come from reflection.
     /// </summary>
     public static void Register(
         Context context,
         ObjectReflection reflection,
         TypeInfo typeInfo,
-        [DynamicallyAccessedMembers(ManagedTypeMembers)] Type type)
+        [DynamicallyAccessedMembers(ManagedTypeMembers)] Type type,
+        ManagedAttributeDescriptor[]? descriptors = null)
     {
         CopyBaseAttributes(context, reflection, typeInfo);
 
-        var members = CollectMembers(context, type);
-        if (members.Count == 0)
+        var members = descriptors is null ? CollectMembers(context, type) : null;
+        if ((members?.Count ?? descriptors!.Length) == 0)
         {
             return;
         }
@@ -66,15 +69,33 @@ internal static class ManagedAttributeRegistrar
 
         try
         {
-            foreach (var (member, attribute) in members)
+            if (descriptors is not null)
             {
-                try
+                foreach (var descriptor in descriptors)
                 {
-                    AddAttribute(reflection, type, member, attribute, defaults);
+                    try
+                    {
+                        AddAttribute(
+                            reflection, type, descriptor.MemberName, descriptor.ValueType, descriptor.Name, descriptor.Mode, descriptor.CreateBinding, defaults);
+                    }
+                    catch (Exception exception)
+                    {
+                        ManagedAttributeAccessor.LogWarning($"Cannot register the attribute {type.FullName}.{descriptor.MemberName}: {exception.GetBaseException().Message}");
+                    }
                 }
-                catch (Exception exception)
+            }
+            else
+            {
+                foreach (var (member, attribute) in members!)
                 {
-                    ManagedAttributeAccessor.LogWarning($"Cannot register the attribute {type.FullName}.{member.Name}: {exception.GetBaseException().Message}");
+                    try
+                    {
+                        AddAttribute(reflection, type, member, attribute, defaults);
+                    }
+                    catch (Exception exception)
+                    {
+                        ManagedAttributeAccessor.LogWarning($"Cannot register the attribute {type.FullName}.{member.Name}: {exception.GetBaseException().Message}");
+                    }
                 }
             }
         }
@@ -167,18 +188,38 @@ internal static class ManagedAttributeRegistrar
     private static void AddAttribute(ObjectReflection reflection, Type type, MemberInfo member, SerializeFieldAttribute attribute, Serializable? defaults)
     {
         var valueType = member is FieldInfo field ? field.FieldType : ((PropertyInfo)member).PropertyType;
+        AddAttribute(
+            reflection,
+            type,
+            member.Name,
+            valueType,
+            attribute.Name ?? member.Name,
+            attribute.Mode,
+            converter => CreateBindingFor(type, valueType, member, converter),
+            defaults);
+    }
+
+    private static void AddAttribute(
+        ObjectReflection reflection,
+        Type type,
+        string memberName,
+        Type valueType,
+        string name,
+        AttributeMode mode,
+        Func<object, ManagedAttributeBinding> createBinding,
+        Serializable? defaults)
+    {
         if (!VariantConverters.TryGet(valueType, out var converter, out var variantType, out var enumNames))
         {
             ManagedAttributeAccessor.LogWarning(
-                $"The attribute {type.FullName}.{member.Name} has the unsupported type {valueType.FullName}. It is skipped.");
+                $"The attribute {type.FullName}.{memberName} has the unsupported type {valueType.FullName}. It is skipped.");
             return;
         }
 
-        var binding = CreateBindingFor(type, valueType, member, converter);
-        var name = attribute.Name ?? member.Name;
+        var binding = createBinding(converter);
         using var defaultValue = (defaults is not null ? binding.ReadValue(defaults) : null) ?? new Variant(variantType);
         using var accessor = ManagedAttributeAccessor.Create(binding);
-        if (!accessor.AddTo(reflection, variantType, name, enumNames, defaultValue, attribute.Mode))
+        if (!accessor.AddTo(reflection, variantType, name, enumNames, defaultValue, mode))
         {
             ManagedAttributeAccessor.LogWarning($"The reflection of {type.FullName} did not accept the attribute '{name}'.");
         }

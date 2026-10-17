@@ -137,7 +137,7 @@ public abstract partial class ManagedPlugin : Plugin
         }
     }
 
-    private void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category) =>
+    internal void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category) =>
         RegisterFromRegistry(context, registry, category, _registeredTypes);
 
     private void RegisterFromRegistry(Context context, ManagedTypeRegistryAttribute registry, string category, List<StringHash> registered)
@@ -158,7 +158,7 @@ public abstract partial class ManagedPlugin : Plugin
                 continue;
             }
 
-            RegisterAttributes(context, item.Type, typeInfo, registered);
+            RegisterAttributes(context, item.Type, typeInfo, registered, item.Attributes);
         }
     }
 
@@ -166,13 +166,17 @@ public abstract partial class ManagedPlugin : Plugin
         => RegisterAttributes(context, type, typeInfo, _registeredTypes);
 
     private static void RegisterAttributes(
-        Context context, [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type, TypeInfo typeInfo, List<StringHash> registered)
+        Context context,
+        [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type,
+        TypeInfo typeInfo,
+        List<StringHash> registered,
+        ManagedAttributeDescriptor[]? descriptors = null)
     {
         try
         {
             registered.Add(typeInfo.GetType());
             var reflection = context.GetReflection(typeInfo.GetType());
-            ManagedAttributeRegistrar.Register(context, reflection, typeInfo, type);
+            ManagedAttributeRegistrar.Register(context, reflection, typeInfo, type, descriptors);
         }
         catch (Exception exception)
         {

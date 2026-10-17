@@ -11,12 +11,15 @@ namespace Urho3D.Plugins;
 /// <summary>
 /// One managed object type of a <see cref="ManagedTypeRegistryAttribute"/>. <see cref="Register"/> registers the factory
 /// of the type in a context with a category and returns the type info. It is a direct generic call, so it is AOT safe.
+/// <see cref="Attributes"/> is the complete list of the engine attributes of the type. When it is null, the plugin finds the
+/// <see cref="Urho3D.Scene.SerializeFieldAttribute"/> members by reflection (the fallback of a type that the generator cannot describe).
 /// </summary>
 public readonly record struct ManagedTypeRegistration(
     [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)]
     [property: DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)]
     Type Type,
-    Func<Context, string, TypeInfo> Register);
+    Func<Context, string, TypeInfo> Register,
+    ManagedAttributeDescriptor[]? Attributes = null);
 
 /// <summary>
 /// The list of the managed object types of an assembly. The source generator (SharpCpp.Rbfx.SourceGenerator) derives a

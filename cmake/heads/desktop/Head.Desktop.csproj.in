@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The NativeAOT desktop head of the application @RBFX_HEAD_NAME@. rbfx_csharp_package_application (RbfxCSharpApplication.cmake)
+       generates this file into the build tree in shim mode. Do not edit it: CMake writes it again on each configure.
+       The head is a shared library next to the executable. The native launcher keeps main and loads the head
+       (DotNetHost::Initialize, headLibraryPath). There is no hostfxr and no runtimeconfig. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>@RBFX_HEAD_RID@</RuntimeIdentifier>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AssemblyName>@RBFX_HEAD_PLUGIN_NAME@.Head</AssemblyName>
+    <RootNamespace>Rbfx.Head</RootNamespace>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NuGetAudit>false</NuGetAudit>
+    <OutputPath>bin/$(Configuration)/</OutputPath>
+    <PublishDir>publish/$(Configuration)/</PublishDir>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/Program.cs" />
+
+    <!-- The managed plugin of the application. -->
+    <ProjectReference Include="@RBFX_HEAD_PLUGIN@" />
+
+    <!-- The native host: attaches the managed function table to the host library (SharpCpp.Rbfx.Host). Only heads
+         reference it. SDK mode: the assembly of the SDK. Source mode: the project of the source tree. -->
+    <Reference Include="SharpCpp.Rbfx.NativeHost" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.NativeHost.dll</HintPath>
+    </Reference>
+    <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'" />
+
+    <!-- Only native code calls the managed entry points of these assemblies (UnmanagedCallersOnly methods,
+         the native host and the plugin class). The trimmer must keep them. -->
+    <TrimmerRootAssembly Include="@RBFX_HEAD_PLUGIN_NAME@" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Rbfx.Bindings" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Rbfx.NativeHost" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
+    <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
+@RBFX_HEAD_USERCODE_ROOTS@  </ItemGroup>
+</Project>

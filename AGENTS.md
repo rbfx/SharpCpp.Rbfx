@@ -91,6 +91,7 @@ Emscripten a .NET head from the templates in `cmake/heads/<platform>/`. It must 
   `<build>/heads/<name>/<name>.Head.csproj` (`net10.0-ios`, `ios-arm64`) and the deferred `NativeItems.props` (`NativeReference` items).
   `Program.cs` attaches the native host and calls `rbfx_application_start`. That function calls `SDL_UIKitRunApp` with the `SDL_main` of `URHO3D_DEFINE_APPLICATION_MAIN`.
 - Only the application library, the wrapper, the host library and the libraries of the wrapper targets have `ForceLoad`. The engine archive has the `main` of SDL. A force load of it gives a second `main`.
+- Desktop in shim mode (`_rbfx_csharp_add_desktop_shim_application`): `dotnet publish` of the NativeAOT head `<build>/heads/<name>/<name>.Head.csproj` (`cmake/heads/desktop/`), copied next to the executable as `<plugin>.Head<suffix>` (no `lib` prefix). `_rbfx_csharp_add_desktop_native_copy` makes `<name>.Native` for both desktop modes. Test: `eng/run-aot-test.sh --rid linux-x64` (`SharpCpp.Rbfx.Tests.Aot/`).
 - The heads write their own native items. They do not import `eng/SharpCpp.Rbfx.NativeItems.targets`. Keep the iOS frameworks and the flags `-lc++ -liconv` in `_rbfx_csharp_write_ios_native_items` the same as for the wrapper in that file.
 - `_rbfx_csharp_collect_native_link_items` walks the link closure for the wasm and the iOS heads.
 - Verification of the iOS head on Linux: configure a project that calls the function with fake imported static targets, a toolchain with

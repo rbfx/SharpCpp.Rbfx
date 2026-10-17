@@ -446,6 +446,18 @@ Generated files of an iOS application `MyApp`:
 | `libMyApp.a` | The application library: `SOURCES` and `cmake/heads/ios/RbfxIosMain.cpp`. |
 | `MyApp.app` | The app bundle, after the target `MyApp.CSharp`. |
 
+#### Desktop shim head (NativeAOT)
+
+With `-DRBFX_HOST_MODE=shim` on Linux, Windows or macOS, `rbfx_csharp_package_application` publishes a NativeAOT head instead of the plugin build.
+The native launcher keeps `main`. There is no hostfxr and no `runtimeconfig.json`.
+
+- The head project is `<build>/heads/MyApp/MyApp.Head.csproj`, from `cmake/heads/desktop/Head.Desktop.csproj.in` and `Program.cs`.
+- `dotnet publish` compiles the head, the plugin and the bindings into one shared library. The target `MyApp.Head` copies it next to the executable as `<plugin>.Head.so`, `.dylib` or `.dll` (no `lib` prefix).
+- `StartDotNetPlugin` gives that path to `DotNetHost::Initialize`. The host loads the library and calls the export `sharpcpp_rbfx_head_attach`, which calls `NativeHostBootstrap.Attach()`.
+- `Program.cs` has the partial hooks `OnManagedStartup` (before the attach) and `OnManagedShutdown` (in `sharpcpp_rbfx_head_detach`).
+- The head finds `SharpCpp.Rbfx.Host` and `SharpCpp.Rbfx.Native` in the folder of the executable with the default NativeAOT probing.
+- `eng/run-aot-test.sh --rid linux-x64` builds and runs the test project `SharpCpp.Rbfx.Tests.Aot` headless.
+
 ### DotNetHost modes
 
 `Urho3D::DotNetHost` has the same public API in two modes. The cache variable `RBFX_HOST_MODE` selects the mode.

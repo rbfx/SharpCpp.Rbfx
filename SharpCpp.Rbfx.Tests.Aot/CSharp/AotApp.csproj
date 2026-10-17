@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The C# plugin of the NativeAOT head test. CMake passes SharpCppRbfxPluginProps (rbfx_csharp_add_plugin). -->
+  <Import Project="$(SharpCppRbfxPluginProps)" />
+
+  <PropertyGroup>
+    <AssemblyName>AotApp</AssemblyName>
+    <RootNamespace>AotApp</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+</Project>

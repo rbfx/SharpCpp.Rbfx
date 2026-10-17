@@ -53,6 +53,11 @@
 #   The target <launcher>.CSharp is part of the default build and builds the plugin and the wrapper.
 #   Build it (or the target "all") to get a complete application.
 #
+# Desktop in shim mode (RBFX_HOST_MODE=shim, or SharpCppRbfx_HOST_MODE of the installed SDK):
+# - Publishes the NativeAOT head <build>/heads/<launcher>/<launcher>.Head.csproj (templates in cmake/heads/desktop) and
+#   copies the shared library <plugin>.Head<suffix> to the folder of the executable (the target <launcher>.Head). The head
+#   has the plugin and the bindings in it. The target <launcher>.Native copies the native libraries as in hostfxr mode.
+#
 # On Android the head packs each shared or module target of the native plugins, in the given order, and then each shared
 # library of the wrapper targets. The packing is before lib<launcher>.so and without duplicates.
 #
@@ -206,7 +211,17 @@ function(rbfx_csharp_package_application launcher)
   elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     _rbfx_csharp_add_ios_application(${launcher})
   else()
-    _rbfx_csharp_add_desktop_application(${launcher})
+    # The installed SDK gives SharpCppRbfx_HOST_MODE. The source tree gives the cache variable RBFX_HOST_MODE.
+    if(DEFINED RBFX_HOST_MODE)
+      set(host_mode "${RBFX_HOST_MODE}")
+    else()
+      set(host_mode "${SharpCppRbfx_HOST_MODE}")
+    endif()
+    if(host_mode STREQUAL "shim")
+      _rbfx_csharp_add_desktop_shim_application(${launcher})
+    else()
+      _rbfx_csharp_add_desktop_application(${launcher})
+    endif()
   endif()
 
   if(ANDROID OR EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -229,8 +244,8 @@ function(rbfx_csharp_package_application launcher)
       SHARPCPP_RBFX_PACKAGED_DATA "${arg_DATA}")
 endfunction()
 
-# The desktop part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name, plugin_project and
-# plugin_properties of the caller.
+# The desktop part of rbfx_csharp_package_application (hostfxr mode). It reads the variables arg_*, plugin_name,
+# plugin_project and plugin_properties of the caller.
 function(_rbfx_csharp_add_desktop_application name)
   # The plugin is built with dotnet next to the executable.
   rbfx_csharp_add_plugin_build(
@@ -242,6 +257,17 @@ function(_rbfx_csharp_add_desktop_application name)
     add_dependencies(${name}.Plugin ${arg_WRAPPERS})
   endif()
 
+  _rbfx_csharp_add_desktop_native_copy(${name})
+
+  # The desktop application is the executable in its folder, so there is no separate output.
+  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "")
+  add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Plugin ${name}.Native)
+endfunction()
+
+# The target <name>.Native of a desktop application. It copies the native wrapper of the C# bindings, the host library
+# (Windows), and the shared libraries of the wrapper targets and of the native plugins to the folder of the executable.
+# It reads the variables arg_WRAPPERS, arg_PLUGINS and host_mode of the caller.
+function(_rbfx_csharp_add_desktop_native_copy name)
   # The C# bindings load the native wrapper from the folder of the executable. The folder must exist
   # before the copy.
   set(copy_commands
@@ -253,9 +279,13 @@ function(_rbfx_csharp_add_desktop_application name)
     if(host_type STREQUAL "SHARED_LIBRARY")
       list(APPEND copy_commands
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-          "$<TARGET_FILE:SharpCpp::RbfxHost>" "$<TARGET_FILE_DIR:${name}>"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-          "$<TARGET_FILE_DIR:SharpCpp::RbfxHost>/nethost.dll" "$<TARGET_FILE_DIR:${name}>")
+          "$<TARGET_FILE:SharpCpp::RbfxHost>" "$<TARGET_FILE_DIR:${name}>")
+      # Only the hostfxr host library needs nethost. host_mode is a variable of rbfx_csharp_package_application.
+      if(NOT host_mode STREQUAL "shim")
+        list(APPEND copy_commands
+          COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE_DIR:SharpCpp::RbfxHost>/nethost.dll" "$<TARGET_FILE_DIR:${name}>")
+      endif()
     endif()
   endif()
   # The shared libraries of the wrapper targets and the shared or module libraries of the native plugin targets also go
@@ -280,10 +310,105 @@ function(_rbfx_csharp_add_desktop_application name)
   if(NOT SharpCppRbfx_IS_SDK)
     add_dependencies(${name}.Native SharpCpp::RbfxNative SharpCpp::RbfxHost)
   endif()
+endfunction()
+
+# The desktop part of rbfx_csharp_package_application in shim mode. It reads the variables arg_*, plugin_name,
+# plugin_project and plugin_properties of the caller.
+#
+# The native launcher keeps main. The head is a NativeAOT shared library <plugin_name>.Head<suffix> next to the
+# executable. It has the plugin and the bindings in it. StartDotNetPlugin (Urho3D/CSharp/DotNetPlugin.h) gives its path
+# to DotNetHost::Initialize, which loads it and calls sharpcpp_rbfx_head_attach. There is no hostfxr and no runtimeconfig.
+function(_rbfx_csharp_add_desktop_shim_application name)
+  # The RID of the head. NativeAOT does not cross-compile to another operating system.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(rid_os linux)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(rid_os osx)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(rid_os win)
+  else()
+    message(FATAL_ERROR "rbfx_csharp_package_application(${name}): the desktop shim head does not support '${CMAKE_SYSTEM_NAME}'.")
+  endif()
+  set(processor "${CMAKE_SYSTEM_PROCESSOR}")
+  if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES architecture_count)
+    if(NOT architecture_count EQUAL 1)
+      message(FATAL_ERROR "rbfx_csharp_package_application(${name}): the desktop shim head needs one architecture in CMAKE_OSX_ARCHITECTURES.")
+    endif()
+    set(processor "${CMAKE_OSX_ARCHITECTURES}")
+  endif()
+  string(TOLOWER "${processor}" processor)
+  if(processor MATCHES "^(x86_64|amd64|x64)$")
+    set(rid_arch x64)
+  elseif(processor MATCHES "^(aarch64|arm64)$")
+    set(rid_arch arm64)
+  else()
+    message(FATAL_ERROR "rbfx_csharp_package_application(${name}): the desktop shim head does not support the processor '${processor}'.")
+  endif()
+  set(rid "${rid_os}-${rid_arch}")
+
+  set(template_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/heads/desktop")
+  set(head_dir "${CMAKE_BINARY_DIR}/heads/${name}")
+
+  # The head project.
+  set(RBFX_HEAD_NAME "${name}")
+  set(RBFX_HEAD_RID "${rid}")
+  set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
+  set(RBFX_HEAD_PLUGIN "${plugin_project}")
+  set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
+  _rbfx_csharp_wrapper_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_WRAPPER_TARGETS})
+  set(head_project "${head_dir}/${name}.Head.csproj")
+  configure_file("${template_dir}/Head.Desktop.csproj.in" "${head_project}" @ONLY)
+  # Empty files stop MSBuild from importing the files of a parent folder (a build folder in a repository).
+  foreach(build_file Directory.Build.props Directory.Build.targets)
+    file(CONFIGURE OUTPUT "${head_dir}/${build_file}" CONTENT "<Project />\n" @ONLY NEWLINE_STYLE UNIX)
+  endforeach()
+
+  _rbfx_csharp_add_desktop_native_copy(${name})
+
+  # The head build. dotnet publish compiles the head, the plugin and the bindings into one native library. NativeAOT
+  # gives it the assembly name and the suffix of the platform, without the prefix lib.
+  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
+  set(head_file "${plugin_name}.Head${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  set(published_head "${head_dir}/publish/$<CONFIG>/${head_file}")
+  set(dotnet_arguments
+    publish "${head_project}"
+    ${configuration_arguments}
+    --nologo
+    -p:RbfxNativeBuildDriver=cmake
+    "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
+    -p:UseSharedCompilation=false
+    -nodeReuse:false)
+  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES plugin_properties)
+    list(APPEND dotnet_arguments "-p:${property}")
+  endforeach()
+  if(RBFX_CSHARP_BUILD_MANAGED)
+    add_custom_target(
+      ${name}.Head
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${published_head}" "$<TARGET_FILE_DIR:${name}>/${head_file}"
+      WORKING_DIRECTORY "${head_dir}"
+      COMMENT "Publishing the NativeAOT desktop head of ${name} with dotnet"
+      VERBATIM)
+  else()
+    add_custom_target(${name}.Head)
+  endif()
+  add_dependencies(${name}.Head ${name})
+  if(arg_WRAPPERS)
+    add_dependencies(${name}.Head ${arg_WRAPPERS})
+  endif()
+  foreach(dependency IN ITEMS sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
+    if(TARGET ${dependency})
+      add_dependencies(${name}.Head ${dependency})
+    endif()
+  endforeach()
+  if(NOT SharpCppRbfx_IS_SDK)
+    add_dependencies(${name}.Head SharpCpp::RbfxNative SharpCpp::RbfxHost)
+  endif()
 
   # The desktop application is the executable in its folder, so there is no separate output.
   set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "")
-  add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Plugin ${name}.Native)
+  add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head ${name}.Native)
 endfunction()
 
 

@@ -34,6 +34,10 @@ public partial class AotPlugin : ManagedPlugin
     {
         base.Load();
         Log.Info("AotApp: loaded");
+
+        // The engine can reload the plugin, and the counters are static.
+        AotSpinner.OverrideCalls = 0;
+        AotPlainSpinner.HidingCalls = 0;
         SubscribeToEvent(CoreEvents.Update, OnUpdate);
 
         if (RegisteredTypes.Contains(AotSpinner.GetTypeStatic()))
@@ -65,6 +69,7 @@ public partial class AotPlugin : ManagedPlugin
         }
 
         CheckPrivateAttributes(component);
+        _scene.CreateChild("Plain")!.CreateComponent(AotPlainSpinner.GetTypeStatic());
         CreateHeadComponent();
     }
 
@@ -146,6 +151,7 @@ public partial class AotPlugin : ManagedPlugin
         Log.Info($"AotApp: update {_updates}");
         if (_updates == UpdateCount)
         {
+            Log.Info($"AotApp: native virtual override called {AotSpinner.OverrideCalls} and not called {AotPlainSpinner.HidingCalls}");
             GetSubsystem<Engine>()?.Exit();
         }
     }

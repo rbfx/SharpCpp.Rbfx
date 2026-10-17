@@ -12,6 +12,9 @@ public partial class AotSpinner : LogicComponent
 {
     private bool _updateLogged;
 
+    /// <summary>The number of instances that native code called through the <see cref="Update"/> override.</summary>
+    public static int OverrideCalls;
+
     /// <summary>The engine attribute "Speed".</summary>
     [SerializeField]
     public float Speed = 1.0f;
@@ -33,8 +36,29 @@ public partial class AotSpinner : LogicComponent
         if (!_updateLogged)
         {
             _updateLogged = true;
+            System.Threading.Interlocked.Increment(ref OverrideCalls);
             Log.Info("AotApp: override called");
         }
+    }
+}
+
+/// <summary>
+/// A component without an override of a native virtual method. Its <c>Update</c> hides the virtual method and does not
+/// override it, so the generated <c>IsManagedOverride</c> is false and native code never calls it.
+/// </summary>
+public partial class AotPlainSpinner : LogicComponent
+{
+    /// <summary>The number of calls of the hiding <c>Update</c> method.</summary>
+    public static int HidingCalls;
+
+    public AotPlainSpinner(Context context)
+        : base(context)
+    {
+    }
+
+    public new void Update(float timeStep)
+    {
+        System.Threading.Interlocked.Increment(ref HidingCalls);
     }
 }
 

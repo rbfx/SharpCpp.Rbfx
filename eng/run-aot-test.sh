@@ -3,6 +3,7 @@
 # The native launcher starts the engine headless and loads the head. The C# plugin in the head logs
 # "AotApp: update 1..3" and stops the engine. The plugin also registers a managed component through the generated
 # type registry, writes and reads its float attribute through the engine, and logs the call of a virtual override.
+# A second component without an override must not get a native call: the last update logs the counts of both.
 # The head assembly (HEAD_SOURCES) has a second component: the hook OnManagedStartup registers it, the plugin creates it by
 # its type name, and the log shows its attribute and its override.
 # The test passes when the exit code is 0 and the log has all the lines in EXPECTED_LINES.
@@ -117,6 +118,7 @@ EXPECTED_LINES=(
   "AotApp: attribute 2.5"
   "AotApp: private attributes 7.5 9"
   "AotApp: override called"
+  "AotApp: native virtual override called 1 and not called 0"
   "AotApp: head component registered"
   "AotApp: head override called"
   "AotApp: update 3"

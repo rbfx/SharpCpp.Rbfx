@@ -53,7 +53,9 @@
 # Desktop (Linux, Windows, macOS):
 # - Builds the plugin project with dotnet into the folder of the executable
 #   (rbfx_csharp_add_plugin_build, the target <launcher>.Plugin) and copies the native wrapper of the C# bindings to the
-#   same folder (the target <launcher>.Native). On Windows it also copies the host library and nethost.dll.
+#   same folder (the target <launcher>.Native). On Windows it also copies the host library and nethost.dll, the DLLs that
+#   the launcher needs at load time (the engine library Urho3D.dll) and the DLLs next to the native wrapper (the run-time
+#   files of the engine, for example the C++ runtime). Windows has no run-time path.
 #   The function also copies each shared library of the wrapper targets and the shared and module libraries of the
 #   native plugins to the folder of the executable. On macOS the executable is a plain executable, because the .NET
 #   runtime cannot be hosted inside an application bundle.
@@ -319,6 +321,32 @@ function(_rbfx_csharp_add_desktop_native_copy name)
       endif()
     endif()
   endif()
+  if(WIN32)
+    # Windows has no run-time path: the loader finds Urho3D.dll and its dependencies only in the folder of the
+    # executable. The step copies the DLLs of the link closure of the launcher (TARGET_RUNTIME_DLLS: the engine library
+    # and the shared host library) and every DLL next to the native wrapper. The build or the install of the wrapper
+    # puts the run-time files of the engine there (CopyRbfxRuntimeDependencies.cmake.in). The script is a file of the
+    # build folder, because it needs a glob at build time. The list uses '|' as separator, so no ';' goes into
+    # the command line.
+    set(copy_dlls_script "${CMAKE_CURRENT_BINARY_DIR}/${name}.CopyRuntimeDlls.cmake")
+    file(CONFIGURE OUTPUT "${copy_dlls_script}" NEWLINE_STYLE UNIX @ONLY CONTENT [[
+string(REPLACE "|" ";" dll_files "${dll_files}")
+file(GLOB wrapper_dll_files "${wrapper_directory}/*.dll")
+file(MAKE_DIRECTORY "${destination_directory}")
+foreach(dll_file IN LISTS dll_files wrapper_dll_files)
+  if(EXISTS "${dll_file}")
+    get_filename_component(dll_name "${dll_file}" NAME)
+    file(COPY_FILE "${dll_file}" "${destination_directory}/${dll_name}" ONLY_IF_DIFFERENT)
+  endif()
+endforeach()
+]])
+    list(APPEND copy_commands
+      COMMAND "${CMAKE_COMMAND}"
+        "-Ddll_files=$<JOIN:$<TARGET_RUNTIME_DLLS:${name}>,|>"
+        "-Dwrapper_directory=$<TARGET_FILE_DIR:SharpCpp::RbfxNative>"
+        "-Ddestination_directory=$<TARGET_FILE_DIR:${name}>"
+        -P "${copy_dlls_script}")
+  endif()
   # The shared libraries of the wrapper targets and the shared or module libraries of the native plugin targets also go
   # to the folder of the executable.
   set(wrapper_libraries)
@@ -340,6 +368,10 @@ function(_rbfx_csharp_add_desktop_native_copy name)
   add_dependencies(${name}.Native ${name} ${wrapper_libraries})
   if(NOT SharpCppRbfx_IS_SDK)
     add_dependencies(${name}.Native SharpCpp::RbfxNative SharpCpp::RbfxHost)
+  endif()
+  if(WIN32 AND TARGET sharpcpp-rbfx-runtime)
+    # The target puts the run-time files of the engine next to the native wrapper. The step above copies them.
+    add_dependencies(${name}.Native sharpcpp-rbfx-runtime)
   endif()
 endfunction()
 

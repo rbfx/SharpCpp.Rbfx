@@ -416,7 +416,7 @@ public sealed class ManagedAttributeDescriptorTests
     }
 
     [Fact]
-    public void Force_registry_of_a_fully_described_assembly_needs_no_member_scan_and_no_Activator()
+    public void Registry_of_a_fully_described_assembly_needs_no_member_scan_and_no_Activator()
     {
         // The generator describes every type of the test assembly. A type has a factory of the temporary instance only when a member has no default.
         var registrations = ManagedTypeRegistries.Find(typeof(DescriptorProbeComponent).Assembly)!.Registrations;
@@ -427,11 +427,10 @@ public sealed class ManagedAttributeDescriptorTests
             static item => Assert.True(
                 item.Attributes!.Any(static descriptor => !descriptor.HasDefault) == (item.CreateDefaults is not null), item.Type.FullName));
 
-        ManagedPlugin.ForceRegistry = true;
         using var context = new Context();
         var scans = ManagedAttributeRegistrar.ReflectionScanCount;
         var creations = ManagedAttributeRegistrar.ActivatorCreateCount;
-        var plugin = new RegistryTestPlugin(context);
+        var plugin = new RegistryTestPlugin(context) { UseDefaultTypes = true };
         try
         {
             plugin.Register();
@@ -442,7 +441,6 @@ public sealed class ManagedAttributeDescriptorTests
         finally
         {
             plugin.Unregister();
-            ManagedPlugin.ForceRegistry = false;
         }
     }
 

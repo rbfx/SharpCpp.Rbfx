@@ -114,7 +114,22 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             context.AddSource(GetHintName(candidate), SourceText.From(Render(candidate), Encoding.UTF8));
         }
 
-        EmitTypeRegistry(context, compilation, objectSymbol, factoryTypes);
+        // An assembly with a ManagedPlugin has a registry even without managed object types, so that the plugin finds it.
+        var managedPluginSymbol = compilation.GetTypeByMetadataName("Urho3D.Plugins.ManagedPlugin");
+        var hasManagedPlugin = false;
+        if (managedPluginSymbol is not null)
+        {
+            foreach (var symbol in uniqueSymbols)
+            {
+                if (symbol.TypeKind == TypeKind.Class && !symbol.IsAbstract && DerivesFrom(symbol, managedPluginSymbol))
+                {
+                    hasManagedPlugin = true;
+                    break;
+                }
+            }
+        }
+
+        EmitTypeRegistry(context, compilation, objectSymbol, factoryTypes, hasManagedPlugin);
     }
 
     // Emits the ManagedTypeRegistryAttribute of the assembly: one AOT safe registration for each concrete managed type.
@@ -124,7 +139,8 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         SourceProductionContext context,
         Compilation compilation,
         INamedTypeSymbol objectSymbol,
-        HashSet<INamedTypeSymbol> factoryTypes)
+        HashSet<INamedTypeSymbol> factoryTypes,
+        bool hasManagedPlugin)
     {
         var registrySymbol = compilation.GetTypeByMetadataName(RegistryAttributeMetadataName);
         if (registrySymbol is null || SymbolEqualityComparer.Default.Equals(registrySymbol.ContainingAssembly, compilation.Assembly))
@@ -147,7 +163,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             }
         }
 
-        if (types.Count == 0)
+        if (types.Count == 0 && !hasManagedPlugin)
         {
             return;
         }

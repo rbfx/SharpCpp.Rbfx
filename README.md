@@ -461,10 +461,11 @@ The native launcher keeps `main`. There is no hostfxr and no `runtimeconfig.json
 
 Managed type registration needs no reflection scan in the head:
 
-- `SharpCpp.Rbfx.SourceGenerator` adds a sealed `ManagedTypeRegistryAttribute` to each assembly with managed object types.
+- `SharpCpp.Rbfx.SourceGenerator` adds a sealed `ManagedTypeRegistryAttribute` to each assembly with managed object types, and to each assembly with a `ManagedPlugin` (the list can be empty).
 - The attribute lists each concrete managed type with a direct generic call to its factory registration.
-- A JIT runtime (hostfxr, editor) scans the plugin assembly with `GetManagedTypes`. A NativeAOT runtime uses the registry. In both cases the `[SerializeField]` attributes follow.
-- Without the attribute, a NativeAOT runtime registers no type of the plugin assembly and logs a warning.
+- `ManagedPlugin` uses the registry of its assembly on every runtime (JIT with hostfxr or the editor, and NativeAOT), so both behave the same.
+- A `GetManagedTypes` override is an explicit list and wins: the plugin registers only the listed types that `ShouldRegister` accepts. A listed type that is in the registry uses the registry. Another listed type needs reflection, so it is not registered on NativeAOT.
+- Without the attribute (the generator did not run), the plugin logs one warning per load: the assembly has no managed type registry, the reflection scan is used and is not AOT safe. A JIT runtime then scans the assembly, and a NativeAOT runtime registers no type. A later step turns this case into an error.
 - The generator warns RBFXSG003 for a factory type that the registry omits because it or a containing type is private or protected. The type is not registered on AOT hosts.
 - The registry also lists the `[SerializeField]` members of each type as attribute descriptors (getter and setter delegates). The registry path then finds and reads the members without reflection.
 - The generator warns RBFXSG004 for a `[SerializeField]` member that it cannot list: a private, protected, readonly or init-only member, a property without a public getter and setter, or an unsupported value type. That type has no list and reads its attributes by reflection.

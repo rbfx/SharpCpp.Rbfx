@@ -26,6 +26,25 @@ public sealed class ManagedAttributeGeneratorTests
         """;
 
     [Fact]
+    public void Assembly_with_a_ManagedPlugin_and_no_managed_types_gets_an_empty_registry()
+    {
+        var result = Run("""
+            using Urho3D.Core;
+            using Urho3D.Plugins;
+
+            namespace GeneratorTest;
+
+            public partial class EmptyPlugin : ManagedPlugin
+            {
+                public EmptyPlugin(Context context) : base(context) { }
+            }
+            """);
+
+        AssertNoErrors(result);
+        Assert.DoesNotContain("new(typeof(", result.Registry, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Public_members_become_descriptors_in_base_first_order()
     {
         var result = Run(Header + """

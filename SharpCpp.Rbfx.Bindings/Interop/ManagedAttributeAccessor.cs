@@ -150,9 +150,14 @@ internal sealed partial class ManagedAttributeAccessor : global::Urho3D.Core.Att
         GC.KeepAlive(src);
     }
 
+    /// <summary>Receives the warnings of the calling thread, before they go to the engine log. Tests only.</summary>
+    [ThreadStatic]
+    internal static Action<string>? WarningObserver;
+
     /// <summary>Writes a warning to the engine log. Exceptions are ignored.</summary>
     internal static void LogWarning(string message)
     {
+        WarningObserver?.Invoke(message);
         try
         {
             __PInvoke.LogWarning(message);

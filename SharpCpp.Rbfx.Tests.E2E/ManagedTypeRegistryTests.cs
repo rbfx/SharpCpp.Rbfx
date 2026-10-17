@@ -21,10 +21,9 @@ public sealed class ManagedTypeRegistryTests
         Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll");
 
     [Fact]
-    public void Generated_registry_registers_the_same_types_as_the_assembly_scan()
+    public void Generated_registry_lists_the_same_types_as_the_assembly_scan()
     {
-        // A JIT runtime scans the assembly. The test makes ManagedPlugin read the registry on the JIT runtime too.
-        ManagedPlugin.ForceRegistry = true;
+        // ManagedPlugin reads the registry on the JIT runtime too.
         var context = new Context();
         var engine = new Engine(context);
         var manager = new PluginManager(context);
@@ -67,7 +66,6 @@ public sealed class ManagedTypeRegistryTests
         }
         finally
         {
-            ManagedPlugin.ForceRegistry = false;
             context.RemoveSubsystem(PluginManager.GetTypeStatic());
             manager.Dispose();
             engine.Dispose();
@@ -139,7 +137,7 @@ public sealed class ManagedTypeRegistryTests
     }
 
     [Fact]
-    public void Scan_path_calls_the_GetManagedTypes_hook_on_a_JIT_runtime()
+    public void GetManagedTypes_override_wins_over_the_registry_of_the_assembly()
     {
         using var context = new Context();
         var plugin = new RegistryTestPlugin(context) { Types = new[] { typeof(RegistryTestComponent) } };
@@ -209,6 +207,9 @@ internal sealed partial class RegistryTestPlugin : ManagedPlugin
 
     public Type[] Types { get; init; } = Array.Empty<Type>();
 
+    // True: the plugin keeps the default of GetManagedTypes, so it registers the registry of its assembly.
+    public bool UseDefaultTypes { get; init; }
+
     // A type for which this returns false is not registered. Null keeps the default rule.
     public Func<Type, bool>? Filter { get; init; }
 
@@ -220,7 +221,7 @@ internal sealed partial class RegistryTestPlugin : ManagedPlugin
 
     public void Unregister() => UnregisterManagedTypes();
 
-    protected override IEnumerable<Type> GetManagedTypes() => Types;
+    protected override IEnumerable<Type> GetManagedTypes() => UseDefaultTypes ? base.GetManagedTypes() : Types;
 }
 
 internal sealed partial class RegistryTestComponent : Component

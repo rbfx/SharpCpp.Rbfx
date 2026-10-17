@@ -17,14 +17,18 @@
     <WasmEnableExceptionHandling>true</WasmEnableExceptionHandling>
     <!-- The native application is linked into dotnet.native.wasm. -->
     <WasmBuildNative>true</WasmBuildNative>
-    <!-- Mono AOT compilation (RunAOTCompilation) of the NativeHost assembly crashes the compiler (sgen assertion)
-         with the .NET 10.0.12 wasm SDK, also when the head is trimmed. It is disabled until that is solved. -->
     <PublishTrimmed>true</PublishTrimmed>
     <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
     <OutputPath>bin/$(Configuration)/</OutputPath>
     <PublishDir>bin/publish/</PublishDir>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!-- Mono AOT compilation. Explicit Cdecl calling-convention metadata crashed the AOT compiler (sgen assertion) with the
+       .NET 10.0.12 wasm SDK. The managed code uses the default convention. Release only. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RunAOTCompilation>true</RunAOTCompilation>
   </PropertyGroup>
 
   <!-- The WebAssembly build tests the configurations Debug and Release only (BrowserWasmApp.targets). Each other configuration of

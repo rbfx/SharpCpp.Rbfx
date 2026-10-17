@@ -46,6 +46,75 @@ public sealed class TrimRootsGeneratorTests
     }
 
     [Fact]
+    public void The_first_visible_plugin_class_gets_the_assembly_attribute()
+    {
+        var roots = Run("""
+            using Urho3D.Core;
+            using Urho3D.Plugins;
+
+            namespace Sample;
+
+            public abstract class AbstractPlugin : Plugin
+            {
+                protected AbstractPlugin(Context context) : base(context) { }
+            }
+
+            public class Outer
+            {
+                private class HiddenPlugin : Plugin
+                {
+                    public HiddenPlugin(Context context) : base(context) { }
+                }
+            }
+
+            public class FirstPlugin : Plugin
+            {
+                public FirstPlugin(Context context) : base(context) { }
+            }
+
+            public class SecondPlugin : Plugin
+            {
+                public SecondPlugin(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.Contains("[assembly: global::Urho3D.Plugins.GeneratedPluginType(typeof(global::Sample.FirstPlugin))]", roots.Source);
+        Assert.Equal(1, Count(roots.Source, "GeneratedPluginType("));
+    }
+
+    [Fact]
+    public void An_assembly_without_a_visible_plugin_class_gets_no_assembly_attribute()
+    {
+        var roots = Run("""
+            using Urho3D.Core;
+            using Urho3D.Plugins;
+
+            namespace Sample;
+
+            public class Outer
+            {
+                private class HiddenPlugin : Plugin
+                {
+                    public HiddenPlugin(Context context) : base(context) { }
+                }
+            }
+            """);
+
+        Assert.DoesNotContain("GeneratedPluginType", roots.Source);
+    }
+
+    private static int Count(string text, string value)
+    {
+        var count = 0;
+        for (var index = text.IndexOf(value, StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    [Fact]
     public void Entry_points_without_an_address_of_use_are_roots()
     {
         var roots = Run("""

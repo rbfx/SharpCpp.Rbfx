@@ -73,14 +73,13 @@ public static class PluginRuntime
     }
 
     /// <summary>
-    /// Returns the plugin class of the assembly: the type of <see cref="PluginModuleAttribute"/>, else the first
-    /// concrete <see cref="Plugin"/> subclass with a public constructor that takes a context.
+    /// Returns the plugin class of the assembly: the type of <see cref="PluginModuleAttribute"/>, else the type of the
+    /// <see cref="GeneratedPluginTypeAttribute"/> that the source generator emits for the first concrete <see cref="Plugin"/>
+    /// subclass with a public constructor that takes a context. The method does not scan the types of the assembly.
     /// </summary>
-    // The scan runs on a plugin assembly. The trimmer and the AOT compiler keep each concrete Plugin class with its public
-    // constructors: the generated trimmer roots (SharpCpp.Rbfx.Generated.TrimRoots) of the plugin assembly have a
-    // DynamicDependency for it. Thus Assembly.GetTypes sees the plugin class.
+    // The attribute constructors annotate the type argument with PublicConstructors, so the trimmer and the AOT compiler
+    // keep the constructors of the plugin class (the generated trimmer roots keep them too).
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The generated trimmer roots keep each Plugin class of the assembly, so GetTypes returns it.")]
     public static Type FindPluginType(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
@@ -95,25 +94,14 @@ public static class PluginRuntime
             return KeepPublicConstructors(module.PluginType);
         }
 
-        Type?[] types;
-        try
+        if (assembly.GetCustomAttribute<GeneratedPluginTypeAttribute>() is { } generated && IsPluginType(KeepPublicConstructors(generated.PluginType)))
         {
-            types = assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException exception)
-        {
-            types = exception.Types;
+            return KeepPublicConstructors(generated.PluginType);
         }
 
-        foreach (var type in types)
-        {
-            if (type is not null && IsPluginType(KeepPublicConstructors(type)))
-            {
-                return KeepPublicConstructors(type);
-            }
-        }
-
-        throw new InvalidOperationException($"The assembly '{assembly.GetName().Name}' has no concrete Plugin with a public constructor that takes a Context.");
+        throw new InvalidOperationException(
+            $"The assembly '{assembly.GetName().Name}' has no concrete Plugin with a public constructor that takes a Context. " +
+            "The assembly must reference SharpCpp.Rbfx.SourceGenerator, or name the plugin class with PluginModuleAttribute.");
     }
 
     /// <summary>Returns the plugin name: the name of <see cref="PluginModuleAttribute"/>, else the simple name of the assembly.</summary>

@@ -254,7 +254,8 @@ public sealed class ManagedAttributePluginTests
         Assert.Equal(before + 1, LiveAccessors);
         Assert.Equal(1, accessor.Refs());
 
-        var probeType = context.RegisterFactory(typeof(AccessorProbe), "E2E");
+        context.RegisterFactory<AccessorProbe>("E2E");
+        var probeType = AccessorProbe.GetTypeInfoStatic();
         var reflection = context.GetReflection(probeType.GetType());
         using (var defaultValue = new Variant(0))
         {

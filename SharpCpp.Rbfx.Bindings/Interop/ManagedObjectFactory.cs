@@ -52,40 +52,6 @@ public static partial class ManagedObjectFactory
         GC.KeepAlive(typeInfo);
     }
 
-    /// <summary>
-    /// Registers a factory for <paramref name="type"/> in the context and returns the type info of the type.
-    /// The type must derive from <see cref="global::Urho3D.Core.Object"/> and implement <see cref="IManagedObjectFactory{T}"/> for itself.
-    /// This overload is for types that are found at run time, for example by an assembly scan.
-    /// It needs dynamic code. AOT code must call <c>RegisterFactory&lt;T&gt;</c> or use the generated managed type registry.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Creates a generic method instantiation for a type that is known at run time.")]
-    public static global::Urho3D.Core.TypeInfo RegisterFactory(
-        this global::Urho3D.Core.Context context,
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type,
-        string category = "")
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(type);
-        if (!IsFactoryType(type))
-        {
-            throw new ArgumentException(
-                $"The type '{type}' must be a concrete Object that implements IManagedObjectFactory<{type.Name}>.", nameof(type));
-        }
-
-        var register = typeof(ManagedObjectFactory)
-            .GetMethod(nameof(RegisterFactoryAndGetTypeInfo), System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!
-            .MakeGenericMethod(type);
-        try
-        {
-            return (global::Urho3D.Core.TypeInfo)register.Invoke(null, [context, category])!;
-        }
-        catch (System.Reflection.TargetInvocationException exception) when (exception.InnerException is not null)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-            throw;
-        }
-    }
-
     /// <summary>Returns true when the type is a concrete Object that implements <see cref="IManagedObjectFactory{T}"/> for itself.</summary>
     public static bool IsFactoryType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
     {

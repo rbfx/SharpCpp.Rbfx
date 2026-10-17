@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Builds and runs the NativeAOT desktop head test (SharpCpp.Rbfx.Tests.Aot) in shim mode.
 # The native launcher starts the engine headless and loads the head. The C# plugin in the head logs
-# "AotApp: update 1..3" and stops the engine. The test passes when the exit code is 0 and the log has "AotApp: update 3".
+# "AotApp: update 1..3" and stops the engine. The plugin also registers a managed component through the generated
+# type registry, writes and reads its float attribute through the engine, and logs the call of a virtual override.
+# The test passes when the exit code is 0 and the log has all the lines in EXPECTED_LINES.
 
 set -euo pipefail
 
@@ -85,8 +87,16 @@ if [[ $STATUS -ne 0 ]]; then
   echo "FAIL: the exit code is $STATUS (124 or 137 is the timeout)." >&2
   exit 1
 fi
-if ! grep -q "AotApp: update 3" "$LOG"; then
-  echo "FAIL: the log has no 'AotApp: update 3'." >&2
-  exit 1
-fi
-echo "PASS: the NativeAOT head ran three updates and the engine stopped with exit code 0."
+EXPECTED_LINES=(
+  "AotApp: component registered"
+  "AotApp: attribute 2.5"
+  "AotApp: override called"
+  "AotApp: update 3"
+)
+for line in "${EXPECTED_LINES[@]}"; do
+  if ! grep -qF "$line" "$LOG"; then
+    echo "FAIL: the log has no '$line'." >&2
+    exit 1
+  fi
+done
+echo "PASS: the NativeAOT head registered the managed component, read its attribute, called the override, ran three updates and stopped with exit code 0."

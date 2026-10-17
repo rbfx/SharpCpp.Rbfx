@@ -56,7 +56,7 @@ public static partial class ManagedObjectFactory
     /// Registers a factory for <paramref name="type"/> in the context and returns the type info of the type.
     /// The type must derive from <see cref="global::Urho3D.Core.Object"/> and implement <see cref="IManagedObjectFactory{T}"/> for itself.
     /// This overload is for types that are found at run time, for example by an assembly scan.
-    /// It needs dynamic code. AOT code must call <c>RegisterFactory&lt;T&gt;</c>. See rbfx/SharpCpp.Rbfx#1.
+    /// It needs dynamic code. AOT code must call <c>RegisterFactory&lt;T&gt;</c> or use the generated managed type registry.
     /// </summary>
     [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Creates a generic method instantiation for a type that is known at run time.")]
     public static global::Urho3D.Core.TypeInfo RegisterFactory(
@@ -73,7 +73,7 @@ public static partial class ManagedObjectFactory
         }
 
         var register = typeof(ManagedObjectFactory)
-            .GetMethod(nameof(RegisterFactoryAndGetTypeInfo), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .GetMethod(nameof(RegisterFactoryAndGetTypeInfo), System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!
             .MakeGenericMethod(type);
         try
         {
@@ -95,7 +95,12 @@ public static partial class ManagedObjectFactory
             Array.Exists(type.GetInterfaces(), i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IManagedObjectFactory<>) && i.GenericTypeArguments[0] == type);
     }
 
-    private static global::Urho3D.Core.TypeInfo RegisterFactoryAndGetTypeInfo<T>(global::Urho3D.Core.Context context, string category)
+    /// <summary>
+    /// Registers a factory for <typeparamref name="T"/> and returns its type info. The generated managed type registry
+    /// (<see cref="global::Urho3D.Plugins.ManagedTypeRegistryAttribute"/>) calls it. Application code calls <c>RegisterFactory&lt;T&gt;</c>.
+    /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public static global::Urho3D.Core.TypeInfo RegisterFactoryAndGetTypeInfo<T>(global::Urho3D.Core.Context context, string category)
         where T : global::Urho3D.Core.Object, IManagedObjectFactory<T>
     {
         context.RegisterFactory<T>(category);

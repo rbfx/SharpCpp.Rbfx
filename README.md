@@ -458,6 +458,15 @@ The native launcher keeps `main`. There is no hostfxr and no `runtimeconfig.json
 - The head finds `SharpCpp.Rbfx.Host` and `SharpCpp.Rbfx.Native` in the folder of the executable with the default NativeAOT probing.
 - `eng/run-aot-test.sh --rid linux-x64` builds and runs the test project `SharpCpp.Rbfx.Tests.Aot` headless.
 
+Managed type registration needs no reflection scan in the head:
+
+- `SharpCpp.Rbfx.SourceGenerator` adds a sealed `ManagedTypeRegistryAttribute` to each assembly with managed object types.
+- The attribute lists each concrete managed type with a direct generic call to its factory registration.
+- `ManagedPlugin` reads the attribute of its assembly and registers the listed types, base types first. The `[SerializeField]` attributes follow.
+- Without the attribute, `ManagedPlugin` scans the assembly. The scan needs dynamic code, so it runs only on a JIT runtime.
+- Call `ManagedTypeRegistries.Add(typeof(MyType).Assembly)` in `OnManagedStartup` to register the types of another assembly, for example the head assembly.
+- The next plugin that loads registers these types with the assembly name as category, and removes them on unload.
+
 ### DotNetHost modes
 
 `Urho3D::DotNetHost` has the same public API in two modes. The cache variable `RBFX_HOST_MODE` selects the mode.

@@ -128,5 +128,7 @@ binding metadata from the runtime package (`runtimes/<rid>/metadata/SharpCpp.Rbf
 folder (`eng/SharpCpp.Rbfx.Build.targets`, target `RbfxSetProjectReferenceProperties`) and passes it through the native project to `-DRBFX_ENGINE_METADATA_FILE`.
 Restore the consumer first. Unset means source build.
 
+Managed types and attributes: the generated registry (`SharpCpp.Rbfx.SourceGenerator`) is the only path. There is no reflection scan and no `GetManagedTypes`. Each plugin and head project must reference the generator. A plugin without a registry fails to register with an `InvalidOperationException`, and `Load` logs an error. The generator reports RBFXSG003 and RBFXSG004 as errors for what it cannot describe. Private and protected `[SerializeField]` members use `[UnsafeAccessor]` accessors in the registry file. Keep the `DynamicallyAccessedMembers` annotations on registered types, because head assemblies are not trimmer roots.
+
 Coherent local commits after validation are authorized; publishing requires explicit
 task authorization.

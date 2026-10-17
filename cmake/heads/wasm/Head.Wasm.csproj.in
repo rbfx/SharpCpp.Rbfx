@@ -17,8 +17,8 @@
     <WasmEnableExceptionHandling>true</WasmEnableExceptionHandling>
     <!-- The native application is linked into dotnet.native.wasm. -->
     <WasmBuildNative>true</WasmBuildNative>
-    <!-- The head must be AOT compatible. Debug stays interpreted. AOT needs the wasm-tools workload. -->
-    <RunAOTCompilation Condition="'$(RunAOTCompilation)' == '' and '$(Configuration)' != 'Debug'">true</RunAOTCompilation>
+    <!-- Mono AOT compilation (RunAOTCompilation) of the NativeHost assembly crashes the compiler (sgen assertion)
+         with the .NET 10.0.12 wasm SDK. It is disabled until that is solved. The head is trimmed, not AOT compiled. -->
     <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
     <OutputPath>bin/$(Configuration)/</OutputPath>
     <PublishDir>bin/publish/</PublishDir>

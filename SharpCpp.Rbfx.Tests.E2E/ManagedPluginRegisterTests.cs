@@ -85,7 +85,7 @@ public sealed unsafe class ManagedPluginRegisterTests
             var bytes = Encoding.UTF8.GetBytes(path + '\0');
             fixed (byte* pathBytes = bytes)
             {
-                delegate* unmanaged[Cdecl]<nint, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, int> entry =
+                delegate* unmanaged<nint, byte*, delegate* unmanaged<nint, byte*, int, void>, nint, int> entry =
                     &NativeHostEntryPoints.RegisterPlugin;
                 var result = entry(manager, pathBytes, &WriteError, GCHandle.ToIntPtr(handle));
                 return (result, text.ToString());
@@ -97,7 +97,7 @@ public sealed unsafe class ManagedPluginRegisterTests
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void WriteError(nint state, byte* message, int length)
     {
         var text = (StringBuilder)GCHandle.FromIntPtr(state).Target!;

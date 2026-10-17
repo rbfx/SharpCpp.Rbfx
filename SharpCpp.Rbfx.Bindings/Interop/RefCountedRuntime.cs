@@ -6,7 +6,6 @@ namespace Urho3D.Interop;
 internal static partial class RefCountedRuntime
 {
     [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_refcounted_take_expired_script_object")]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial nint TakeExpiredScriptObjectHandle();
 
     [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_refcounted_get_script_object")]

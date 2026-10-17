@@ -31,17 +31,15 @@ internal static unsafe partial class NativeHostShim
     {
         public int Version;
         public int Size;
-        public delegate* unmanaged[Cdecl]<byte*, byte*, byte*, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, nint> GetFunctionPointer;
-        public delegate* unmanaged[Cdecl]<nint, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, int> LoadPlugin;
+        public delegate* unmanaged<byte*, byte*, byte*, byte*, delegate* unmanaged<nint, byte*, int, void>, nint, nint> GetFunctionPointer;
+        public delegate* unmanaged<nint, byte*, delegate* unmanaged<nint, byte*, int, void>, nint, int> LoadPlugin;
     }
 
     // The shim code is in the host library (SharpCpp.Rbfx.Host), not in the wrapper library.
     [LibraryImport(HostLibraryName, EntryPoint = "sharpcpp_rbfx_attach_managed_host")]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     private static partial int AttachManagedHost(ManagedHost* host);
 
     [LibraryImport(HostLibraryName, EntryPoint = "sharpcpp_rbfx_detach_managed_host")]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial void DetachManagedHost();
 
     /// <summary>True after the native library accepted the table.</summary>
@@ -135,13 +133,13 @@ internal static unsafe partial class NativeHostShim
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static nint ResolveEntry(
         byte* assemblyPath,
         byte* typeName,
         byte* methodName,
         byte* delegateTypeName,
-        delegate* unmanaged[Cdecl]<nint, byte*, int, void> writeError,
+        delegate* unmanaged<nint, byte*, int, void> writeError,
         nint state)
     {
         try
@@ -166,11 +164,11 @@ internal static unsafe partial class NativeHostShim
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static int LoadPluginEntry(
         nint pluginManager,
         byte* assemblyPath,
-        delegate* unmanaged[Cdecl]<nint, byte*, int, void> writeError,
+        delegate* unmanaged<nint, byte*, int, void> writeError,
         nint state)
     {
         try
@@ -245,7 +243,7 @@ internal static unsafe partial class NativeHostShim
         return $"{root.GetType().Name}: {root.Message}";
     }
 
-    private static void WriteError(delegate* unmanaged[Cdecl]<nint, byte*, int, void> writeError, nint state, string message)
+    private static void WriteError(delegate* unmanaged<nint, byte*, int, void> writeError, nint state, string message)
     {
         if (writeError == null)
         {

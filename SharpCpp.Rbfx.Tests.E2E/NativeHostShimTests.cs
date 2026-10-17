@@ -20,7 +20,7 @@ public sealed unsafe class NativeHostShimTests
 
         Assert.NotEqual(0, pointer);
         Assert.Equal(string.Empty, error);
-        Assert.Equal(7, ((delegate* unmanaged[Cdecl]<int, int, int>)pointer)(3, 4));
+        Assert.Equal(7, ((delegate* unmanaged<int, int, int>)pointer)(3, 4));
 
         // An empty delegateTypeName is the same as none. The assembly name is the file stem, so a bare name works.
         var again = NativeHostShim.Resolve("SharpCpp.Rbfx.Tests.E2E", ExportsTypeName + ", SharpCpp.Rbfx.Tests.E2E", nameof(ShimExports.Add), string.Empty, out error);
@@ -124,7 +124,7 @@ public sealed unsafe class NativeHostShimTests
 
     private static class ShimExports
     {
-        [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+        [UnmanagedCallersOnly]
         internal static int Add(int left, int right) => left + right;
 
         internal static int Plain(int value) => value;

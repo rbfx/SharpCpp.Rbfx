@@ -396,8 +396,8 @@ public sealed unsafe class ManagedPluginLoadFailureTests
             var bytes = Encoding.UTF8.GetBytes(path + '\0');
             fixed (byte* pathBytes = bytes)
             {
-                delegate* unmanaged[Cdecl]<nint, byte*, int, void> callback = useCallback ? &WriteError : null;
-                delegate* unmanaged[Cdecl]<nint, byte*, delegate* unmanaged[Cdecl]<nint, byte*, int, void>, nint, int> entry =
+                delegate* unmanaged<nint, byte*, int, void> callback = useCallback ? &WriteError : null;
+                delegate* unmanaged<nint, byte*, delegate* unmanaged<nint, byte*, int, void>, nint, int> entry =
                     &NativeHostEntryPoints.LoadPlugin;
                 var result = entry(manager, pathBytes, callback, GCHandle.ToIntPtr(handle));
                 return (result, text.ToString());
@@ -409,7 +409,7 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void WriteError(nint state, byte* message, int length)
     {
         var text = (StringBuilder)GCHandle.FromIntPtr(state).Target!;

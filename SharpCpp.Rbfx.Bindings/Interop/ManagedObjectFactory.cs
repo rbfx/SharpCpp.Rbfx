@@ -42,7 +42,7 @@ public static partial class ManagedObjectFactory
         {
             if (!_callbackInstalled)
             {
-                __PInvoke.SetManagedFactoryCallback((nint)(delegate* unmanaged[Cdecl]<nint, nint, nint>)&CreateFromNative);
+                __PInvoke.SetManagedFactoryCallback((nint)(delegate* unmanaged<nint, nint, nint>)&CreateFromNative);
                 _callbackInstalled = true;
             }
         }
@@ -110,7 +110,7 @@ public static partial class ManagedObjectFactory
     // Returns a native object that carries one counted reference of the managed wrapper.
     // The wrapper becomes non-owning here. Its strong GC handle stays in the instance cache until the native object dies.
     // The native trampoline then releases the counted reference after the engine holds its own reference.
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static nint CreateFromNative(nint typeInfo, nint context)
     {
         global::Urho3D.Core.Object? instance = null;

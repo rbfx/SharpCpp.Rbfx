@@ -22,11 +22,11 @@ public static unsafe class NativeHostEntryPoints
     /// Returns 1 on success. On failure it calls <paramref name="writeError"/> with a UTF-8 message and returns 0.
     /// </summary>
     [RequiresUnreferencedCode("The hostfxr host loads the plugin assembly from a file. Trimmed and AOT applications attach through SharpCpp.Rbfx.NativeHost.")]
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     public static int LoadPlugin(
         nint pluginManager,
         byte* assemblyPath,
-        delegate* unmanaged[Cdecl]<nint, byte*, int, void> writeError,
+        delegate* unmanaged<nint, byte*, int, void> writeError,
         nint errorState)
     {
         try
@@ -62,11 +62,11 @@ public static unsafe class NativeHostEntryPoints
     /// Returns 1 on success. On failure it calls <paramref name="writeError"/> with a UTF-8 message and returns 0.
     /// </summary>
     [RequiresUnreferencedCode("The hostfxr host loads the plugin assembly from a file. Trimmed and AOT applications attach through SharpCpp.Rbfx.NativeHost.")]
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     public static int RegisterPlugin(
         nint pluginManager,
         byte* assemblyPath,
-        delegate* unmanaged[Cdecl]<nint, byte*, int, void> writeError,
+        delegate* unmanaged<nint, byte*, int, void> writeError,
         nint errorState)
     {
         try
@@ -95,7 +95,7 @@ public static unsafe class NativeHostEntryPoints
         }
     }
 
-    private static void WriteError(delegate* unmanaged[Cdecl]<nint, byte*, int, void> writeError, nint errorState, Exception exception)
+    private static void WriteError(delegate* unmanaged<nint, byte*, int, void> writeError, nint errorState, Exception exception)
     {
         if (writeError == null)
         {

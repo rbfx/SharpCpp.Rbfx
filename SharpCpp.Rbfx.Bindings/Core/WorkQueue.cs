@@ -8,9 +8,9 @@ namespace Urho3D.Core;
 public partial class WorkQueue
 {
     private static unsafe readonly nint s_managedTaskCallbackPointer =
-        (nint)(delegate* unmanaged[Cdecl]<nint, uint, nint, void>)&DispatchManagedTask;
+        (nint)(delegate* unmanaged<nint, uint, nint, void>)&DispatchManagedTask;
     private static unsafe readonly nint s_managedTaskReleasePointer =
-        (nint)(delegate* unmanaged[Cdecl]<nint, void>)&ReleaseManagedTask;
+        (nint)(delegate* unmanaged<nint, void>)&ReleaseManagedTask;
 
     public void PostTaskForMainThread(Action<uint, WorkQueue> taskFunction, TaskPriority priority = TaskPriority.Medium)
     {
@@ -37,14 +37,14 @@ public partial class WorkQueue
             callbackHandle);
     }
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [UnmanagedCallersOnly]
     private static void DispatchManagedTask(nint callbackHandle, uint threadIndex, nint workQueue)
     {
         var taskFunction = (Action<uint, WorkQueue>)GCHandle.FromIntPtr(callbackHandle).Target!;
         taskFunction(threadIndex, CreateManagedWrapper(workQueue, ownsHandle: false));
     }
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [UnmanagedCallersOnly]
     private static void ReleaseManagedTask(nint callbackHandle)
     {
         if (callbackHandle == IntPtr.Zero)

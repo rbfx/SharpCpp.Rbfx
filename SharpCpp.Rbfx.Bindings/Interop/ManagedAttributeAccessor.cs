@@ -70,9 +70,9 @@ internal sealed partial class ManagedAttributeAccessor : global::Urho3D.Core.Att
         {
             native = __PInvoke.CreateManagedAttributeAccessor(
                 GCHandle.ToIntPtr(gcHandle),
-                (nint)(delegate* unmanaged[Cdecl]<nint, nint, nint, void>)&GetFromNative,
-                (nint)(delegate* unmanaged[Cdecl]<nint, nint, nint, void>)&SetFromNative,
-                (nint)(delegate* unmanaged[Cdecl]<nint, void>)&FreeFromNative);
+                (nint)(delegate* unmanaged<nint, nint, nint, void>)&GetFromNative,
+                (nint)(delegate* unmanaged<nint, nint, nint, void>)&SetFromNative,
+                (nint)(delegate* unmanaged<nint, void>)&FreeFromNative);
         }
         catch
         {
@@ -180,7 +180,7 @@ internal sealed partial class ManagedAttributeAccessor : global::Urho3D.Core.Att
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void GetFromNative(nint handle, nint serializable, nint dest)
     {
         try
@@ -193,7 +193,7 @@ internal sealed partial class ManagedAttributeAccessor : global::Urho3D.Core.Att
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void SetFromNative(nint handle, nint serializable, nint src)
     {
         try
@@ -206,7 +206,7 @@ internal sealed partial class ManagedAttributeAccessor : global::Urho3D.Core.Att
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void FreeFromNative(nint handle)
     {
         try

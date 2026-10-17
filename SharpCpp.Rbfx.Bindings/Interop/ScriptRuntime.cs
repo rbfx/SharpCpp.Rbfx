@@ -14,11 +14,11 @@ internal static unsafe partial class ScriptRuntime
     [StructLayout(LayoutKind.Sequential)]
     private struct Callbacks
     {
-        public delegate* unmanaged[Cdecl]<nint, void> Dispose;
-        public delegate* unmanaged[Cdecl]<nint, void> FreeHandle;
-        public delegate* unmanaged[Cdecl]<nint, nint> CloneHandle;
-        public delegate* unmanaged[Cdecl]<nint, byte, nint> RecreateHandle;
-        public delegate* unmanaged[Cdecl]<void> FullGc;
+        public delegate* unmanaged<nint, void> Dispose;
+        public delegate* unmanaged<nint, void> FreeHandle;
+        public delegate* unmanaged<nint, nint> CloneHandle;
+        public delegate* unmanaged<nint, byte, nint> RecreateHandle;
+        public delegate* unmanaged<void> FullGc;
     }
 
     // The instance cache calls this before it stores the first wrapper handle in a native object.
@@ -45,7 +45,7 @@ internal static unsafe partial class ScriptRuntime
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void Dispose(nint handle)
     {
         try
@@ -63,7 +63,7 @@ internal static unsafe partial class ScriptRuntime
 
     // Outside of Dispose the engine frees a wrapper handle only in the RefCounted destructor.
     // The native object is then already destroyed, so the wrapper must not touch it again.
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void FreeHandle(nint handle)
     {
         try
@@ -82,7 +82,7 @@ internal static unsafe partial class ScriptRuntime
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static nint CloneHandle(nint handle)
     {
         try
@@ -101,7 +101,7 @@ internal static unsafe partial class ScriptRuntime
     // RefCounted marks the handle as weak, so one handle is never recreated twice.
     // The new handle is allocated before the old one is freed. When a step fails, the result is the new handle or 0.
     // The old handle is never returned after a failure, because it can be invalid. A failure can leak it, but never frees it twice.
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static nint RecreateHandle(nint handle, byte strong)
     {
         nint replacement = 0;
@@ -123,7 +123,7 @@ internal static unsafe partial class ScriptRuntime
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    [UnmanagedCallersOnly]
     private static void FullGc()
     {
         try
@@ -141,12 +141,10 @@ internal static unsafe partial class ScriptRuntime
     private static partial class __PInvoke
     {
         [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_install_script_runtime")]
-        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         [return: MarshalAs(UnmanagedType.I1)]
         internal static partial bool Install(Callbacks* callbacks);
 
         [LibraryImport(SharpCpp.Rbfx.Interop.NativeLibrary.Name, EntryPoint = "sharpcpp_rbfx_uninstall_script_runtime")]
-        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         internal static partial void Uninstall();
     }
 }

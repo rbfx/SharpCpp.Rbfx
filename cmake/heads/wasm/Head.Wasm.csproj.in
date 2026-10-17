@@ -35,6 +35,14 @@
 
   <ItemGroup>
     <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/Program.cs" />
+@RBFX_HEAD_SOURCES_ITEMS@
+    <!-- The source generator of SharpCpp.Rbfx. It makes the type registry (ManagedTypeRegistryAttribute) of the head
+         assembly, for the managed types of HEAD_SOURCES. Same items as SharpCppRbfx.Plugin.props. SDK mode: the
+         assembly of the SDK. Source mode: the project of the source tree. -->
+    <Analyzer Include="$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.SourceGenerator.dll" Condition="'$(SharpCppRbfxIsSdk)' == 'true'" />
+    <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
     <Content Include="wwwroot/index.html;wwwroot/main.js" />
 
     <!-- The managed plugin of the application. -->

@@ -8,11 +8,21 @@ namespace Rbfx.Head;
 /// attaches the managed function table to the host library, so DotNetHost::Initialize in the native application
 /// finds the runtime, as on desktop. Main returns at once: the engine runs on the browser thread (see main.js).
 /// </summary>
-internal static class Program
+internal static partial class Program
 {
+    /// <summary>
+    /// Runs in Main after the module initializer of the native host and before the native entry. The engine Context does
+    /// not exist yet: do not use engine objects. A partial class of the head can implement it (HEAD_SOURCES).
+    /// </summary>
+    static partial void OnManagedStartup();
+
+    // There is no OnManagedShutdown hook in the browser. Main returns at once, and a page has no natural point of
+    // shutdown for the managed code.
+
     private static int Main()
     {
         RuntimeHelpers.RunModuleConstructor(typeof(Urho3D.Plugins.NativeHostModule).Module.ModuleHandle);
+        OnManagedStartup();
         return 0;
     }
 }

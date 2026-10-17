@@ -20,6 +20,7 @@ public partial class AotPlugin : ManagedPlugin
 {
     private const int UpdateCount = 3;
     private const float SpeedValue = 2.5f;
+    private const float HeadSpeedValue = 4.5f;
     private int _updates;
     private Scene? _scene;
 
@@ -58,6 +59,38 @@ public partial class AotPlugin : ManagedPlugin
         else
         {
             Log.Error($"AotApp: attribute mismatch (engine {read.Float}, managed {managed})");
+        }
+
+        CreateHeadComponent();
+    }
+
+    // The component type AotHeadSpinner lives in the head assembly (HEAD_SOURCES). The plugin does not reference the
+    // head, so it creates the component by its type name. The attribute "HeadSpeed" must round-trip through the engine.
+    private void CreateHeadComponent()
+    {
+        var headType = new StringHash("AotHeadSpinner");
+        var headNode = _scene!.CreateChild("HeadSpinner")!;
+        var headComponent = headNode.CreateComponent(headType);
+        if (headComponent == null)
+        {
+            Log.Error("AotApp: head component not registered");
+            return;
+        }
+
+        using var headName = new Ea.String("HeadSpeed");
+        using (var value = new Variant(HeadSpeedValue))
+        {
+            headComponent.SetAttribute(headName, value);
+        }
+
+        using var headRead = headComponent.GetAttribute(headName);
+        if (headRead.Float == HeadSpeedValue)
+        {
+            Log.Info("AotApp: head component registered");
+        }
+        else
+        {
+            Log.Error($"AotApp: head attribute mismatch (engine {headRead.Float})");
         }
     }
 

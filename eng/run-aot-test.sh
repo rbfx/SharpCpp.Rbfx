@@ -3,6 +3,8 @@
 # The native launcher starts the engine headless and loads the head. The C# plugin in the head logs
 # "AotApp: update 1..3" and stops the engine. The plugin also registers a managed component through the generated
 # type registry, writes and reads its float attribute through the engine, and logs the call of a virtual override.
+# The head assembly (HEAD_SOURCES) has a second component: the hook OnManagedStartup registers it, the plugin creates it by
+# its type name, and the log shows its attribute and its override.
 # The test passes when the exit code is 0 and the log has all the lines in EXPECTED_LINES.
 
 set -euo pipefail
@@ -107,6 +109,8 @@ EXPECTED_LINES=(
   "AotApp: component registered"
   "AotApp: attribute 2.5"
   "AotApp: override called"
+  "AotApp: head component registered"
+  "AotApp: head override called"
   "AotApp: update 3"
 )
 for line in "${EXPECTED_LINES[@]}"; do
@@ -115,4 +119,4 @@ for line in "${EXPECTED_LINES[@]}"; do
     exit 1
   fi
 done
-echo "PASS: the NativeAOT head registered the managed component, read its attribute, called the override, ran three updates and stopped with exit code 0."
+echo "PASS: the NativeAOT head registered the managed component, read its attribute, called the override, registered and ran the component of the head assembly, ran three updates and stopped with exit code 0."

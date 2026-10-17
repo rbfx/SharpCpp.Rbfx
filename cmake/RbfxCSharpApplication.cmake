@@ -10,6 +10,7 @@
 #   [DATA <data>]
 #   [RESOURCES <files or folders...>]
 #   [APPLICATION_ID <id>]
+#   [HEAD_SOURCES <C# files...>]
 #   [PROPERTIES <Name=Value>...])
 #
 # The function does what is left after the three functions that make the parts of an application:
@@ -33,6 +34,13 @@
 #               DATA for the resource folders of the application.
 # APPLICATION_ID  The Android package name or the iOS bundle identifier. The default is org.rbfx.<launcher in lower
 #               case>. Accepted and ignored on desktop and on Emscripten.
+# HEAD_SOURCES  C# files of the head assembly (the application assembly). Relative paths are relative to
+#               CMAKE_CURRENT_SOURCE_DIR. Each file becomes a Compile item of the head project. Every head template
+#               declares the class Program with the partial methods OnManagedStartup and OnManagedShutdown, and a file
+#               can implement them. OnManagedStartup runs before the engine Context exists. Do not use engine objects
+#               in the hooks. Use them to register types and to set options, for example
+#               Urho3D.Plugins.ManagedTypeRegistries.Add(typeof(Program).Assembly). The hostfxr mode on desktop
+#               has no head: CMake ignores HEAD_SOURCES there.
 # PROPERTIES    More MSBuild properties for the build of the plugin, as Name=Value. They come after the properties of
 #               the plugin (SHARPCPP_RBFX_PLUGIN_MSBUILD_PROPERTIES of the plugin target).
 #
@@ -122,7 +130,7 @@
 #   (EnableCodeSigning, CodesignKey and CodesignProvision in PROPERTIES or RBFX_CSHARP_MSBUILD_PROPERTIES).
 
 function(rbfx_csharp_package_application launcher)
-  cmake_parse_arguments(PARSE_ARGV 1 arg "" "PLUGIN;DATA;APPLICATION_ID" "RESOURCES;PROPERTIES")
+  cmake_parse_arguments(PARSE_ARGV 1 arg "" "PLUGIN;DATA;APPLICATION_ID" "RESOURCES;HEAD_SOURCES;PROPERTIES")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "rbfx_csharp_package_application(${launcher}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
@@ -203,6 +211,20 @@ function(rbfx_csharp_package_application launcher)
     get_target_property(data_files ${arg_DATA} SHARPCPP_RBFX_DATA_FILES)
     list(APPEND arg_RESOURCES ${data_files})
   endif()
+
+  # The Compile items of HEAD_SOURCES for the head project (RBFX_HEAD_SOURCES_ITEMS in the templates). The head
+  # functions below read this variable. It is empty when HEAD_SOURCES is empty.
+  set(RBFX_HEAD_SOURCES_ITEMS "")
+  foreach(head_source IN LISTS arg_HEAD_SOURCES)
+    cmake_path(ABSOLUTE_PATH head_source BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE)
+    cmake_path(CONVERT "${head_source}" TO_CMAKE_PATH_LIST head_source NORMALIZE)
+    if(NOT EXISTS "${head_source}")
+      message(FATAL_ERROR "rbfx_csharp_package_application(${launcher}): HEAD_SOURCES file '${head_source}' does not exist.")
+    endif()
+    # A change of the file configures again, so the Compile items stay current.
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${head_source}")
+    string(APPEND RBFX_HEAD_SOURCES_ITEMS "    <Compile Include=\"${head_source}\" />\n")
+  endforeach()
 
   if(ANDROID)
     _rbfx_csharp_add_android_application(${launcher})

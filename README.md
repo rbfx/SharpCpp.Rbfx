@@ -468,6 +468,26 @@ Managed type registration needs no reflection scan in the head:
 - Call `ManagedTypeRegistries.Add(typeof(MyType).Assembly)` in `OnManagedStartup` to register the types of another assembly, for example the head assembly.
 - The first plugin that loads registers these types with the assembly name as category. The last plugin that unloads removes them. This applies to both runtimes.
 
+Customize the head with `HEAD_SOURCES`:
+
+- `rbfx_csharp_package_application(MyApp PLUGIN MyPlugin HEAD_SOURCES Head/MyHead.cs)` adds C# files to the head assembly. Each file becomes a `<Compile>` item of the head project. A relative path is relative to the current source folder.
+- The head project has the SharpCpp.Rbfx source generator. A managed type in a `HEAD_SOURCES` file gets a factory, and the head assembly gets its own type registry.
+- Every head declares `Program` as `partial` with the hooks `static partial void OnManagedStartup();` and `static partial void OnManagedShutdown();`. A hook without a body compiles to nothing. The Android head uses the class `RbfxApplication` instead of `Program`.
+- On desktop, `OnManagedStartup` runs in `sharpcpp_rbfx_head_attach` before `NativeHostBootstrap.Attach()`. `OnManagedShutdown` runs in `sharpcpp_rbfx_head_detach`.
+- On iOS and web, `OnManagedStartup` runs in `Program.Main` after the native host module initializer and before the native start. On Android it runs in `RbfxApplication.OnCreate`. These three heads have no `OnManagedShutdown`.
+- The hooks run before the engine `Context` exists. A hook must not touch engine objects. Use it to register types and to set options.
+
+```csharp
+namespace Rbfx.Head;
+
+internal static partial class Program
+{
+    static partial void OnManagedStartup() => Urho3D.Plugins.ManagedTypeRegistries.Add(typeof(Program).Assembly);
+}
+```
+
+The iOS, web and Android heads are not built in CI. The hostfxr mode on desktop has no head, so it ignores `HEAD_SOURCES`.
+
 ### DotNetHost modes
 
 `Urho3D::DotNetHost` has the same public API in two modes. The cache variable `RBFX_HOST_MODE` selects the mode.

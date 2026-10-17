@@ -466,6 +466,8 @@ Managed type registration needs no reflection scan in the head:
 - A JIT runtime (hostfxr, editor) scans the plugin assembly with `GetManagedTypes`. A NativeAOT runtime uses the registry. In both cases the `[SerializeField]` attributes follow.
 - Without the attribute, a NativeAOT runtime registers no type of the plugin assembly and logs a warning.
 - The generator warns RBFXSG003 for a factory type that the registry omits because it or a containing type is private or protected. The type is not registered on AOT hosts.
+- The registry also lists the `[SerializeField]` members of each type as attribute descriptors (getter and setter delegates). The registry path then finds and reads the members without reflection.
+- The generator warns RBFXSG004 for a `[SerializeField]` member that it cannot list: a private, protected, readonly or init-only member, a property without a public getter and setter, or an unsupported value type. That type has no list and reads its attributes by reflection.
 - Call `ManagedTypeRegistries.Add(typeof(MyType).Assembly)` in `OnManagedStartup` to register the types of another assembly, for example the head assembly.
 - The first plugin that loads registers these types with the assembly name as category. The last plugin that unloads removes them. This applies to both runtimes.
 

@@ -58,8 +58,11 @@ public partial class AttributeComponent : Component
     [SerializeField]
     public AttributeMood Mood = AttributeMood.Happy;
 
+    // A private member cannot be listed in the generated registry. The test checks the reflection fallback of this type.
+#pragma warning disable RBFXSG004
     [SerializeField(Name = "Secret Value")]
     private int _secret = 42;
+#pragma warning restore RBFXSG004
 
     [SerializeField, NonSerialized]
     public int Skipped = 5;

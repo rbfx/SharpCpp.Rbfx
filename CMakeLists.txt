@@ -511,7 +511,7 @@ if(RBFX_INSTALL_SDK)
         set(_rbfx_share_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${_rbfx_sdk_share_dir}\")
       endif()
       foreach(_rbfx_assembly IN ITEMS
-          SharpCpp.Rbfx.Bindings SharpCpp.Rbfx.NativeHost SharpCpp.Support SharpCpp.Std SharpCpp.Ea SharpCpp.Rbfx.SourceGenerator)
+          SharpCpp.Rbfx.Bindings SharpCpp.Rbfx.NativeHost SharpCpp.Support SharpCpp.Std SharpCpp.Ea SharpCpp.Rbfx.SourceGenerator SharpCpp.Support.SourceGenerator)
         if(NOT EXISTS \"${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.dll\")
           message(FATAL_ERROR \"The managed assembly is missing: ${_rbfx_sdk_managed_source}/\${_rbfx_assembly}.dll. Run dotnet build before the install step.\")
         endif()

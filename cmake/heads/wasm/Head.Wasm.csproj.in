@@ -25,6 +25,11 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
+    <!-- Source mode: SharpCpp is the sibling checkout of SharpCpp.Rbfx, as in eng/SharpCpp.Rbfx.Build.props. -->
+    <SharpCppRoot Condition="'$(SharpCppRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxPackageRoot)/../SharpCpp'))</SharpCppRoot>
+  </PropertyGroup>
+
   <!-- Mono AOT compilation. Explicit Cdecl calling-convention metadata crashed the AOT compiler (sgen assertion) with the
        .NET 10.0.12 wasm SDK. The managed code uses the default convention. Release only. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -46,6 +51,10 @@
          assembly of the SDK. Source mode: the project of the source tree. -->
     <Analyzer Include="$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.SourceGenerator.dll" Condition="'$(SharpCppRbfxIsSdk)' == 'true'" />
     <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <Analyzer Include="$(SharpCppRbfxManagedDir)/SharpCpp.Support.SourceGenerator.dll" Condition="'$(SharpCppRbfxIsSdk)' == 'true'" />
+    <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Support.SourceGenerator/SharpCpp.Support.SourceGenerator.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
     <Content Include="wwwroot/index.html;wwwroot/main.js" />

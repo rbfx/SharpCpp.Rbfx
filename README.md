@@ -137,7 +137,7 @@ The installed SDK has these parts:
 - The binding metadata `SharpCpp.Rbfx.Bindings.json` and `SharpCpp.Rbfx.ParseUmbrella.hpp` in `share/SharpCppRbfx/metadata`.
 - The package file `SharpCppRbfxConfig.cmake`.
 
-- The managed assemblies `SharpCpp.Rbfx.Bindings`, `SharpCpp.Rbfx.NativeHost`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea` and `SharpCpp.Rbfx.SourceGenerator` in `share/SharpCppRbfx/managed`.
+- The managed assemblies `SharpCpp.Rbfx.Bindings`, `SharpCpp.Rbfx.NativeHost`, `SharpCpp.Support`, `SharpCpp.Std`, `SharpCpp.Ea`, `SharpCpp.Rbfx.SourceGenerator` and `SharpCpp.Support.SourceGenerator` in `share/SharpCppRbfx/managed`.
 - The user-code generator in `share/SharpCppRbfx/tools/usercode`. Run it with `dotnet <prefix>/share/SharpCppRbfx/tools/usercode/Rbfx.UserCode.Generator.dll`.
   It needs a .NET runtime on the machine. The install step copies the files that the generator needs from the output folder of `dotnet build`.
 - The SharpCpp headers in `include/SharpCpp` (`Marshaller.hpp` and its includes, and the `detail` marshaller headers of this repository).
@@ -461,6 +461,7 @@ The native launcher keeps `main`. There is no hostfxr and no `runtimeconfig.json
 
 The generated registry is the only path for managed types and attributes. There is no reflection scan:
 
+- `SharpCpp.Support.SourceGenerator` is required in each plugin and head project with a class that overrides a virtual method of a native type. It emits `IsManagedOverride` for the class. Such a class, and each type that contains it, must be `partial` (error SCPPSG001).
 - `SharpCpp.Rbfx.SourceGenerator` is required in each plugin and head project. It adds a sealed `ManagedTypeRegistryAttribute` to each assembly with managed object types, and to each assembly with a `ManagedPlugin` (the list can be empty).
 - The attribute lists each concrete managed type with a direct generic call to its factory registration.
 - `ManagedPlugin` uses the registry of its assembly on every runtime (JIT with hostfxr or the editor, and NativeAOT), so both behave the same. `ShouldRegister` can still reject a type of the registry. There is no `GetManagedTypes`: the registry is the list.

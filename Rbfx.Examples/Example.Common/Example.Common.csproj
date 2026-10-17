@@ -22,6 +22,9 @@
     <ProjectReference Include="../../SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Support.SourceGenerator/SharpCpp.Support.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup Condition="'$(RbfxBindingsPackageVersion)' != ''">
     <PackageReference Include="SharpCpp.Rbfx.Bindings" Version="$(RbfxBindingsPackageVersion)" />

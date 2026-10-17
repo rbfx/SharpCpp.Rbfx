@@ -23,6 +23,11 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
+    <!-- Source mode: SharpCpp is the sibling checkout of SharpCpp.Rbfx, as in eng/SharpCpp.Rbfx.Build.props. -->
+    <SharpCppRoot Condition="'$(SharpCppRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxPackageRoot)/../SharpCpp'))</SharpCppRoot>
+  </PropertyGroup>
+
   <!-- The workload of .NET for Android tests the configurations Debug and Release only (Microsoft.Android.Sdk.DefaultProperties.targets,
        Microsoft.Android.Sdk.CoreCLR.targets). Each other configuration of CMake, for example RelWithDebInfo, gets the Release
        defaults here. The default runtime of the workload is MonoVM. The head must be AOT compatible, so Release and these
@@ -48,6 +53,10 @@
          assembly of the SDK. Source mode: the project of the source tree. -->
     <Analyzer Include="$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.SourceGenerator.dll" Condition="'$(SharpCppRbfxIsSdk)' == 'true'" />
     <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <Analyzer Include="$(SharpCppRbfxManagedDir)/SharpCpp.Support.SourceGenerator.dll" Condition="'$(SharpCppRbfxIsSdk)' == 'true'" />
+    <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Support.SourceGenerator/SharpCpp.Support.SourceGenerator.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
 

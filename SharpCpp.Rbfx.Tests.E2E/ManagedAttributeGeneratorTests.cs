@@ -783,6 +783,36 @@ public sealed class ManagedAttributeGeneratorTests
     }
 
     [Fact]
+    public void Base_type_of_another_assembly_with_a_hand_written_factory_stops_the_chain()
+    {
+        // The registry lists a type that implements IManagedObjectFactory for itself by hand, also without a public Context constructor.
+        var result = Run(
+            Header + """
+            public partial class Boss : ManualBase
+            {
+                [SerializeField] public int Rage = 4;
+                public Boss(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public class ManualBase : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<ManualBase>
+            {
+                [SerializeField] public float Hp = 10;
+                protected ManualBase(Context context) : base(context) { }
+                public static ManualBase Create(Context context) => new ManualBase(context);
+                public new static TypeInfo GetTypeInfoStatic() => throw new System.NotSupportedException();
+            }
+            """,
+            foreignGenerated: true);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        AssertNoErrors(result);
+        var boss = result.Registration("GeneratorTest.Boss");
+        Assert.Contains("\"Rage\"", boss);
+        Assert.DoesNotContain("Hp", boss);
+    }
+
+    [Fact]
     public void Serialize_field_in_a_base_type_of_another_assembly_without_a_registry_names_the_generator()
     {
         var result = Run(

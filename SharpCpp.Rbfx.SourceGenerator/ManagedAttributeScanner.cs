@@ -110,7 +110,6 @@ internal sealed class ManagedAttributeScanner
     private readonly INamedTypeSymbol? _object;
     private readonly INamedTypeSymbol? _plugin;
     private readonly INamedTypeSymbol? _objectFactory;
-    private readonly INamedTypeSymbol? _context;
     private readonly AttributeDefaultResolver _defaults;
     private int _accessorCount;
 
@@ -131,7 +130,6 @@ internal sealed class ManagedAttributeScanner
         _object = compilation.GetTypeByMetadataName("Urho3D.Core.Object");
         _plugin = compilation.GetTypeByMetadataName("Urho3D.Plugins.Plugin");
         _objectFactory = compilation.GetTypeByMetadataName("SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory`1");
-        _context = compilation.GetTypeByMetadataName("Urho3D.Core.Context");
         _serializeField = serializeField;
         _serializable = serializable;
         _nonSerialized = nonSerialized;
@@ -226,7 +224,7 @@ internal sealed class ManagedAttributeScanner
             return false;
         }
 
-        return ManagedObjectRttiGenerator.IsListedByRegistry(type, _object, _plugin, _objectFactory, _context);
+        return ManagedObjectRttiGenerator.IsListedByRegistry(type, _object, _plugin, _objectFactory);
     }
 
     private bool HasRegistry(IAssemblySymbol assembly) =>
@@ -675,7 +673,7 @@ internal sealed class ManagedAttributeScanner
     private bool ReportForeign(SourceProductionContext context, INamedTypeSymbol type, INamedTypeSymbol declaring, ISymbol member)
     {
         var reason = HasRegistry(declaring.ContainingAssembly)
-            ? "its base type '" + declaring.ToDisplayString() + "' is in another assembly with a generated registry, but that registry does not list the type (it is abstract, generic, not accessible, or has no public constructor with a Context parameter). Make the base type a concrete registered type, or declare the member in a type of this assembly"
+            ? "its base type '" + declaring.ToDisplayString() + "' is in another assembly with a generated registry, but that registry does not list the type (it is abstract, generic, not accessible, or has no IManagedObjectFactory for itself). Make the base type a concrete registered type, or declare the member in a type of this assembly"
             : "its base type '" + declaring.ToDisplayString() + "' is in another assembly that has no generated type registry. Add the SharpCpp.Rbfx.SourceGenerator to the assembly of the base type, or declare the member in a type of this assembly";
         Report(context, type.Locations, member.Name, type, reason);
         return false;

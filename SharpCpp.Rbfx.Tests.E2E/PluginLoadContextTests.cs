@@ -19,7 +19,20 @@ public sealed class PluginLoadContextTests : IDisposable
 
     public PluginLoadContextTests() => Directory.CreateDirectory(_directory);
 
-    public void Dispose() => Directory.Delete(_directory, recursive: true);
+    public void Dispose()
+    {
+        // The plugin contexts are not collectible, so the loaded files stay locked on Windows. The directory is in the temp path.
+        try
+        {
+            Directory.Delete(_directory, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
 
     [Fact]
     public void Private_dependency_without_a_registry_or_a_plugin_module_is_not_shared()

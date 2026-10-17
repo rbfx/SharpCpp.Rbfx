@@ -17,8 +17,8 @@ internal static partial class Program
     /// </summary>
     static partial void OnManagedStartup();
 
-    // There is no OnManagedShutdown hook on iOS. The native entry does not return, and iOS gives the managed code
-    // no natural point of shutdown.
+    /// <summary>Declared for the same class on every platform. This head never calls it: the native entry does not return.</summary>
+    static partial void OnManagedShutdown();
 
     // The application is static code in the executable of the app.
     [DllImport("__Internal", EntryPoint = "rbfx_application_start")]

@@ -16,8 +16,8 @@ internal static partial class Program
     /// </summary>
     static partial void OnManagedStartup();
 
-    // There is no OnManagedShutdown hook in the browser. Main returns at once, and a page has no natural point of
-    // shutdown for the managed code.
+    /// <summary>Declared for the same class on every platform. This head never calls it: Main returns at once.</summary>
+    static partial void OnManagedShutdown();
 
     private static int Main()
     {

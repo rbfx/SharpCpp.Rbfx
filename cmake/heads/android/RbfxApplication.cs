@@ -12,27 +12,17 @@ namespace Rbfx.Head;
 /// application finds the runtime.
 /// </summary>
 [Application]
-public sealed partial class RbfxApplication : Application
+public sealed class RbfxApplication : Application
 {
     public RbfxApplication(IntPtr handle, JniHandleOwnership ownership)
         : base(handle, ownership)
     {
     }
 
-    /// <summary>
-    /// Runs in OnCreate after the module initializer of the native host and before the activity starts the native
-    /// code. The engine Context does not exist yet: do not use engine objects. A partial class of the head can
-    /// implement it (HEAD_SOURCES).
-    /// </summary>
-    static partial void OnManagedStartup();
-
-    // There is no OnManagedShutdown hook on Android. Application.OnTerminate runs only on emulated devices, and the
-    // system ends the process without a managed callback.
-
     public override void OnCreate()
     {
         base.OnCreate();
         RuntimeHelpers.RunModuleConstructor(typeof(Urho3D.Plugins.NativeHostModule).Module.ModuleHandle);
-        OnManagedStartup();
+        Program.RunStartup();
     }
 }

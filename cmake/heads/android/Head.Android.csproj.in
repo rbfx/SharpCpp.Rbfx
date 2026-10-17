@@ -41,6 +41,7 @@
 
   <ItemGroup>
     <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/RbfxApplication.cs" />
+    <Compile Include="@RBFX_HEAD_TEMPLATE_DIR@/Program.cs" />
 @RBFX_HEAD_SOURCES_ITEMS@
     <!-- The source generator of SharpCpp.Rbfx. It makes the type registry (ManagedTypeRegistryAttribute) of the head
          assembly, for the managed types of HEAD_SOURCES. Same items as SharpCppRbfx.Plugin.props. SDK mode: the
@@ -62,6 +63,22 @@
          reference it. SDK mode: the assembly of the SDK. Source mode: the project of the source tree. -->
     <Reference Include="SharpCpp.Rbfx.NativeHost" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
       <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.NativeHost.dll</HintPath>
+    </Reference>
+
+    <!-- SDK mode: the bindings. The plugin project references them with plain Reference items, which are not
+         transitive. A HEAD_SOURCES file needs them to compile. Source mode: the project reference of the plugin and
+         the NativeHost project bring them. -->
+    <Reference Include="SharpCpp.Rbfx.Bindings" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Rbfx.Bindings.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Support" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Support.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Std" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Std.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpCpp.Ea" Condition="'$(SharpCppRbfxIsSdk)' == 'true'">
+      <HintPath>$(SharpCppRbfxManagedDir)/SharpCpp.Ea.dll</HintPath>
     </Reference>
     <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'" />
 

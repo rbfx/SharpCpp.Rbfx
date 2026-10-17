@@ -221,9 +221,18 @@ function(rbfx_csharp_package_application launcher)
     if(NOT EXISTS "${head_source}")
       message(FATAL_ERROR "rbfx_csharp_package_application(${launcher}): HEAD_SOURCES file '${head_source}' does not exist.")
     endif()
-    # A change of the file configures again, so the Compile items stay current.
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${head_source}")
-    string(APPEND RBFX_HEAD_SOURCES_ITEMS "    <Compile Include=\"${head_source}\" />\n")
+    # The path goes into an XML attribute and is an MSBuild item. Escape '%' first (MSBuild), then '&', '<' and '"' (XML).
+    # A ';' cannot occur: it splits the list.
+    set(head_source_item "${head_source}")
+    string(REPLACE "%" "%25" head_source_item "${head_source_item}")
+    string(REPLACE "$" "%24" head_source_item "${head_source_item}")
+    string(REPLACE "@" "%40" head_source_item "${head_source_item}")
+    string(REPLACE "*" "%2A" head_source_item "${head_source_item}")
+    string(REPLACE "?" "%3F" head_source_item "${head_source_item}")
+    string(REPLACE "&" "&amp;" head_source_item "${head_source_item}")
+    string(REPLACE "<" "&lt;" head_source_item "${head_source_item}")
+    string(REPLACE "\"" "&quot;" head_source_item "${head_source_item}")
+    string(APPEND RBFX_HEAD_SOURCES_ITEMS "    <Compile Include=\"${head_source_item}\" />\n")
   endforeach()
 
   if(ANDROID)

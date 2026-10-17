@@ -83,6 +83,59 @@ public sealed class TrimRootsGeneratorTests
     }
 
     [Fact]
+    public void A_plugin_class_without_a_context_constructor_is_not_named_by_the_assembly_attribute()
+    {
+        var roots = Run("""
+            using Urho3D.Core;
+            using Urho3D.Plugins;
+
+            namespace Sample;
+
+            public class APlugin : Plugin
+            {
+                public APlugin(Context context, int extra) : base(context) { }
+            }
+
+            public class BPlugin : Plugin
+            {
+                protected BPlugin(Context context) : base(context) { }
+            }
+
+            public class CPlugin : Plugin
+            {
+                public CPlugin(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.Contains("[assembly: global::Urho3D.Plugins.GeneratedPluginType(typeof(global::Sample.CPlugin))]", roots.Source);
+        Assert.Equal(1, Count(roots.Source, "GeneratedPluginType("));
+        Assert.Contains("typeof(global::Sample.APlugin))]", roots.Source);
+    }
+
+    [Fact]
+    public void The_plugin_class_of_the_assembly_attribute_does_not_depend_on_the_file_order()
+    {
+        const string Z = """
+            using Urho3D.Core;
+            using Urho3D.Plugins;
+            namespace Sample;
+            public class ZPlugin : Plugin { public ZPlugin(Context context) : base(context) { } }
+            """;
+        const string A = """
+            using Urho3D.Core;
+            using Urho3D.Plugins;
+            namespace Sample;
+            public class APlugin : Plugin { public APlugin(Context context) : base(context) { } }
+            """;
+        var zFirst = Run(Z + "\n" + A.Replace("using Urho3D.Core;", string.Empty).Replace("using Urho3D.Plugins;", string.Empty).Replace("namespace Sample;", string.Empty));
+        var aFirst = Run(A + "\n" + Z.Replace("using Urho3D.Core;", string.Empty).Replace("using Urho3D.Plugins;", string.Empty).Replace("namespace Sample;", string.Empty));
+
+        const string Expected = "[assembly: global::Urho3D.Plugins.GeneratedPluginType(typeof(global::Sample.APlugin))]";
+        Assert.Contains(Expected, zFirst.Source);
+        Assert.Contains(Expected, aFirst.Source);
+    }
+
+    [Fact]
     public void An_assembly_without_a_visible_plugin_class_gets_no_assembly_attribute()
     {
         var roots = Run("""

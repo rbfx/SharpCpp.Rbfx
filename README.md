@@ -355,7 +355,7 @@ A .NET Android head is the entry of the application. The native application runs
 - Only native code reaches the plugin class and some `[UnmanagedCallersOnly]` methods. The IL trimmer cannot see these calls.
   The head has no `TrimmerRootAssembly` items. `SharpCpp.Rbfx.SourceGenerator` writes the exact roots (`TrimRootsGenerator`):
   the class `SharpCpp.Rbfx.Generated.TrimRoots` of each assembly has a method `Keep` with `[DynamicDependency]` attributes.
-  They keep each concrete `Plugin` class with its public constructors. They also name the first such class in the assembly attribute
+  They keep each concrete `Plugin` class with its public constructors. They also name the first such class (by documentation id) that has a public constructor that takes a `Context` in the assembly attribute
   `[assembly: GeneratedPluginType(typeof(X))]` (`PluginModule` has priority), and `PluginRuntime.FindPluginType` reads it, so it never scans
   the assembly types. An assembly without the generator needs `PluginModule`. The roots keep each static `[UnmanagedCallersOnly]` method
   without an address-of use (native code finds it by name with `DotNetHost::GetFunctionPointer`). `Keep` also keeps `Keep`

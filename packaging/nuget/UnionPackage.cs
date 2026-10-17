@@ -438,7 +438,10 @@ static class UnionPackage
             new XAttribute("Include", Path.GetRelativePath(Path.GetDirectoryName(path)!, source)))));
         foreach (var dependency in Directory.GetFiles(dependencies, "*.dll").Where(file => Path.GetFileName(file) != "SharpCpp.Rbfx.Bindings.dll"))
             items.Add(new XElement("Reference", new XAttribute("Include", Path.GetFileNameWithoutExtension(dependency)), new XElement("HintPath", dependency)));
-        if (analyzer is not null) items.Add(new XElement("Analyzer", new XAttribute("Include", analyzer)));
+        // The staged analyzer directory also has the Support generator. Its IsManagedOverride members are part of the platform API.
+        if (analyzer is not null)
+            foreach (var file in Directory.GetFiles(Path.GetDirectoryName(analyzer)!, "*.dll").Order(StringComparer.Ordinal))
+                items.Add(new XElement("Analyzer", new XAttribute("Include", file)));
         new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"), Properties(new()
         {
             ["TargetFramework"] = framework, ["AssemblyName"] = "SharpCpp.Rbfx.Bindings", ["AssemblyVersion"] = version,

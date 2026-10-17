@@ -89,7 +89,14 @@ echo "== Configure ($PRESET, shim mode) in $BUILD_DIR"
 )
 
 echo "== Build ($CONFIG)"
-cmake --build "$BUILD_DIR" --config "$CONFIG" --target AotTest.CSharp
+BUILD_LOG="$BUILD_DIR/aot-build.log"
+cmake --build "$BUILD_DIR" --config "$CONFIG" --target AotTest.CSharp 2>&1 | tee "$BUILD_LOG"
+# The publish step reports the trim and AOT analyzer warnings (IL2xxx, IL3xxx) as warnings. They must fail the test.
+if grep -Eq 'warning IL[0-9]+' "$BUILD_LOG"; then
+  echo "FAIL: the build has trim or AOT warnings (IL2xxx, IL3xxx):" >&2
+  grep -E 'warning IL[0-9]+' "$BUILD_LOG" | sort -u | cut -c1-300 >&2
+  exit 1
+fi
 
 EXE="$BUILD_DIR/bin/$CONFIG/AotTest$EXE_SUFFIX"
 LOG="$BUILD_DIR/aot-test.log"

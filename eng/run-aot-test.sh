@@ -60,6 +60,16 @@ if [[ ! -f "$SDK_DIR/share/Urho3D/CMake/Urho3DConfig.cmake" ]]; then
   exit 1
 fi
 
+# macOS has no timeout. Homebrew coreutils installs gtimeout.
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_CMD=timeout
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_CMD=gtimeout
+else
+  echo "error: neither timeout nor gtimeout is available. Install GNU coreutils (brew install coreutils)." >&2
+  exit 2
+fi
+
 echo "== Configure ($PRESET, shim mode) in $BUILD_DIR"
 # The fixture presets include the presets of the repository. --preset reads them from the current folder.
 (
@@ -78,7 +88,7 @@ LOG="$BUILD_DIR/aot-test.log"
 echo "== Run $EXE --headless (timeout ${TIMEOUT}s)"
 set +e
 # The engine can ignore SIGTERM, so SIGKILL follows after 10 seconds.
-timeout --kill-after=10 "$TIMEOUT" "$EXE" --headless >"$LOG" 2>&1
+"$TIMEOUT_CMD" --kill-after=10 "$TIMEOUT" "$EXE" --headless >"$LOG" 2>&1
 STATUS=$?
 set -e
 tail -n 20 "$LOG"

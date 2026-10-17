@@ -23,6 +23,10 @@ target_include_directories(
 if(RBFX_HOST_MODE STREQUAL "shim")
   # A consumer of the shim host sees the definition URHO3D_DOTNETHOST_SHIM.
   target_compile_definitions(sharpcpp-rbfx-host INTERFACE URHO3D_DOTNETHOST_SHIM)
+  if(NOT ANDROID AND NOT EMSCRIPTEN)
+    # The shim host loads the head library on desktop with dlopen.
+    target_link_libraries(sharpcpp-rbfx-host PRIVATE ${CMAKE_DL_LIBS})
+  endif()
 else()
   target_link_libraries(
     sharpcpp-rbfx-host

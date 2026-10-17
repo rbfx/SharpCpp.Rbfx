@@ -169,6 +169,13 @@ internal sealed class AttributeDefaultResolver
 
     private static bool IsAssignedInConstructors(ISymbol member, List<(SemanticModel Model, SyntaxNode Node)> constructors)
     {
+        var memberType = member switch
+        {
+            IFieldSymbol field => field.Type,
+            IPropertySymbol property => property.Type,
+            _ => null,
+        };
+
         foreach (var (model, node) in constructors)
         {
             foreach (var name in node.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
@@ -182,7 +189,7 @@ internal sealed class AttributeDefaultResolver
                 var matches = info.Symbol is { } symbol
                     ? SymbolEqualityComparer.Default.Equals(symbol.OriginalDefinition, member.OriginalDefinition)
                     : info.CandidateSymbols.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, member.OriginalDefinition));
-                if (matches && IsWritten(name))
+                if (matches && IsWritten(name, memberType))
                 {
                     return true;
                 }
@@ -193,12 +200,44 @@ internal sealed class AttributeDefaultResolver
     }
 
     // The name is the target of a write, or a reference that a write can use: this.x = ..., x++, ref x, out x, (x, y) = ..., &x.
-    private static bool IsWritten(IdentifierNameSyntax name)
+    // A part of a value-type member (x.Y = 1, x.Y += 1, x.Normalize()) or an element of an array member (x[0] = 1) is a write too.
+    // Then the outermost member or element access is the target. Any call on a value-type member counts, because it can mutate it.
+    private static bool IsWritten(IdentifierNameSyntax name, ITypeSymbol? memberType)
     {
         SyntaxNode current = name;
         if (current.Parent is MemberAccessExpressionSyntax access && access.Name == name)
         {
             current = access;
+        }
+
+        if (memberType is { IsValueType: true } or IArrayTypeSymbol)
+        {
+            var viaElement = false;
+            while (true)
+            {
+                if (current.Parent is ParenthesizedExpressionSyntax parenthesized)
+                {
+                    current = parenthesized;
+                }
+                else if (current.Parent is MemberAccessExpressionSyntax inner && inner.Expression == current)
+                {
+                    current = inner;
+                }
+                else if (current.Parent is ElementAccessExpressionSyntax element && element.Expression == current)
+                {
+                    current = element;
+                    viaElement = true;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (current.Parent is InvocationExpressionSyntax invocation && invocation.Expression == current && (memberType.IsValueType || viaElement))
+            {
+                return true;
+            }
         }
 
         var parent = current.Parent;
@@ -286,6 +325,13 @@ internal sealed class AttributeDefaultResolver
     {
         for (var current = symbol; current is not null; current = current.ContainingType)
         {
+            // The registry file is outside of the generic type, so a type parameter has no meaning there (Base<T>.Member).
+            if ((current is INamedTypeSymbol named && named.TypeArguments.Any(HasTypeParameter)) ||
+                (current is IMethodSymbol method && method.TypeArguments.Any(HasTypeParameter)))
+            {
+                return false;
+            }
+
             if (!_compilation.IsSymbolAccessibleWithin(current, _compilation.Assembly) || ManagedAttributeScanner.IsObsoleteError(current))
             {
                 return false;
@@ -294,6 +340,14 @@ internal sealed class AttributeDefaultResolver
 
         return true;
     }
+
+    private static bool HasTypeParameter(ITypeSymbol type) => type switch
+    {
+        ITypeParameterSymbol => true,
+        IArrayTypeSymbol array => HasTypeParameter(array.ElementType),
+        INamedTypeSymbol named => named.TypeArguments.Any(HasTypeParameter) || (named.ContainingType is { } outer && HasTypeParameter(outer)),
+        _ => false,
+    };
 
     private bool IsTypeUsable(ITypeSymbol type)
     {
@@ -332,20 +386,24 @@ internal sealed class AttributeDefaultResolver
                 }
             }
 
-            return "unchecked((" + display + ")" + FormatLiteral(value) + ")";
+            return "unchecked((" + display + ")" + Parenthesize(FormatLiteral(value)) + ")";
         }
 
         var literal = FormatLiteral(value);
         switch (value)
         {
             case sbyte or byte or short or ushort:
-                return "unchecked((" + (type ?? _compilation.GetSpecialType(SpecialType.System_Int32)).ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")" + literal + ")";
+                return "unchecked((" + (type ?? _compilation.GetSpecialType(SpecialType.System_Int32)).ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")" +
+                       Parenthesize(literal) + ")";
             case bool or char or string or int or uint or long or ulong or float or double or decimal:
                 return literal;
             default:
                 return null;
         }
     }
+
+    // A negative literal after a cast must be in parentheses: (E)-1 is a subtraction when E is a name.
+    private static string Parenthesize(string literal) => literal.StartsWith("-", StringComparison.Ordinal) ? "(" + literal + ")" : literal;
 
     // The literal of a constant, with the suffix of its type. SymbolDisplay.FormatPrimitive omits the suffix of float and double.
     private static string FormatLiteral(object value)
@@ -422,12 +480,24 @@ internal sealed class AttributeDefaultResolver
                 var symbol = _model.GetSymbolInfo(expression).Symbol;
                 if (symbol is INamedTypeSymbol or IArrayTypeSymbol)
                 {
+                    if (HasTypeParameter((ITypeSymbol)symbol))
+                    {
+                        Failed = true;
+                        return node;
+                    }
+
                     return SyntaxFactory.ParseTypeName(((ITypeSymbol)symbol).ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).WithTriviaFrom(expression);
                 }
 
                 if (expression is SimpleNameSyntax name && IsStandalone(name) &&
                     symbol is IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol && symbol.IsStatic && symbol.ContainingType is { } owner)
                 {
+                    if (HasTypeParameter(owner))
+                    {
+                        Failed = true;
+                        return node;
+                    }
+
                     var visited = base.Visit(node)!;
                     return SyntaxFactory.ParseExpression(owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + visited.ToString().Trim())
                         .WithTriviaFrom(expression);

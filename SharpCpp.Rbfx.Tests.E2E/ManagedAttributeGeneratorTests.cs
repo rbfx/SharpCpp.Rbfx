@@ -149,6 +149,96 @@ public sealed class ManagedAttributeGeneratorTests
         Assert.Contains("}, static ctx => new global::GeneratorTest.Probe(ctx)", text);
     }
 
+    [Theory]
+    [InlineData("Offset.Y = 1;")]
+    [InlineData("this.Offset.X = 2;")]
+    [InlineData("Offset.X += 1;")]
+    [InlineData("Offset.X++;")]
+    [InlineData("Init(ref Offset.Z);")]
+    [InlineData("Offset.Normalize();")]
+    [InlineData("this.Offset.Normalize();")]
+    [InlineData("(Offset).X = 1;")]
+    public void Part_of_a_value_type_member_written_by_a_constructor_removes_its_default(string statement)
+    {
+        var result = Run(Header + "public partial class Probe : Component\n{\n    [SerializeField] public Vector3 Offset;\n" +
+            "    private static void Init(ref float value) { value = 3; }\n" +
+            "    public Probe(Context context) : base(context) { " + statement + " }\n}\n");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        AssertNoErrors(result);
+        var text = result.Registration("GeneratorTest.Probe");
+        Assert.DoesNotContain("static () =>", text);
+        Assert.Contains("}, static ctx => new global::GeneratorTest.Probe(ctx)", text);
+    }
+
+    [Fact]
+    public void Part_of_a_value_type_member_that_a_constructor_only_reads_keeps_its_default()
+    {
+        var result = Run(Header + """
+            public partial class Probe : Component
+            {
+                [SerializeField] public Vector3 Offset = new Vector3(1, 2, 3);
+                private float _copy;
+                public Probe(Context context) : base(context) { _copy = Offset.X + this.Offset.Y; }
+            }
+            """);
+
+        AssertNoErrors(result);
+        var text = result.Registration("GeneratorTest.Probe");
+        Assert.EndsWith("static () => new global::Urho3D.Math.Vector3(1, 2, 3)),", result.Entry(text, "Offset"));
+        Assert.DoesNotContain("static ctx =>", text);
+    }
+
+    [Fact]
+    public void Negative_enum_constant_is_rendered_as_a_parenthesized_cast_operand()
+    {
+        var result = Run(Header + """
+            public enum Layers { None = 0, A = 1, B = 2 }
+
+            public partial class Probe : Component
+            {
+                [SerializeField] public Layers Mask = ~Layers.None;
+                [SerializeField] public Layers Cast = (Layers)(-1);
+                public Probe(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        AssertNoErrors(result);
+        var text = result.Registration("GeneratorTest.Probe");
+        Assert.EndsWith("static () => (object)unchecked((global::GeneratorTest.Layers)(-1))),", result.Entry(text, "Mask"));
+        Assert.EndsWith("static () => (object)unchecked((global::GeneratorTest.Layers)(-1))),", result.Entry(text, "Cast"));
+    }
+
+    [Fact]
+    public void Static_member_of_a_generic_base_type_has_no_default()
+    {
+        var result = Run(Header + """
+            public abstract partial class Base<T> : Component
+            {
+                private static readonly int DefaultX = 3;
+                public static readonly int Shared = 4;
+                [SerializeField] public int X = DefaultX;
+                [SerializeField] public int Y = Shared;
+                [SerializeField] public int Z = 5;
+                protected Base(Context context) : base(context) { }
+            }
+
+            public partial class D : Base<int>
+            {
+                public D(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        AssertNoErrors(result);
+        var text = result.Registration("GeneratorTest.D");
+        Assert.DoesNotContain("static () =>", result.Entry(text, "X"));
+        Assert.DoesNotContain("static () =>", result.Entry(text, "Y"));
+        Assert.EndsWith("static () => 5),", result.Entry(text, "Z"));
+        Assert.Contains("}, static ctx => new global::GeneratorTest.D(ctx)", text);
+    }
+
     [Fact]
     public void Member_that_a_constructor_only_reads_keeps_its_default()
     {

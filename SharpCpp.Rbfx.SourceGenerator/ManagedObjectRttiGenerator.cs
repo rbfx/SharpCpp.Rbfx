@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -12,6 +13,10 @@ namespace SharpCpp.Rbfx.SourceGenerator;
 [Generator(LanguageNames.CSharp)]
 public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
 {
+    private const string GeneratedOverrideHookName = "IsGeneratedManagedOverride";
+
+    private static readonly string[] RttiMethodNames = ["GetType", "GetTypeName", "GetTypeInfo", "IsInstanceOf"];
+
     private static readonly DiagnosticDescriptor PartialRequiredDiagnostic = new(
         id: "RBFXSG001",
         title: "Managed rbfx object types must be partial",
@@ -111,6 +116,8 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             {
                 factoryTypes.Add(candidate.Symbol);
             }
+
+            candidate.SlotKeys = CollectRttiSlotKeys(candidate.Symbol, objectSymbol);
 
             context.AddSource(GetHintName(candidate), SourceText.From(Render(candidate), Encoding.UTF8));
         }
@@ -674,6 +681,18 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             .AppendLine(".GetTypeInfoStatic());");
         builder.Append(memberIndent).AppendLine("}");
 
+        if (candidate.SlotKeys.Count > 0)
+        {
+            // The IsManagedOverride generator cannot see these overrides, so the type lists their slots here.
+            builder.AppendLine();
+            builder.Append(memberIndent).AppendLine("protected override bool IsGeneratedManagedOverride(string slotKey)");
+            builder.Append(memberIndent).AppendLine("{");
+            builder.Append(bodyIndent).Append("return slotKey is ")
+                .Append(string.Join(" or ", candidate.SlotKeys.Select(EscapeStringLiteral)))
+                .AppendLine(" || base.IsGeneratedManagedOverride(slotKey);");
+            builder.Append(memberIndent).AppendLine("}");
+        }
+
         if (candidate.ImplementsObjectFactory)
         {
             builder.AppendLine();
@@ -693,6 +712,55 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         }
 
         return builder.ToString();
+    }
+
+    // The slot keys of the RTTI methods that Render overrides. Each key comes from the ManagedVirtualSlot attribute
+    // of a base method in the overridden chain. The result is empty when the bindings have no IsGeneratedManagedOverride hook.
+    private static IReadOnlyList<string> CollectRttiSlotKeys(INamedTypeSymbol typeSymbol, INamedTypeSymbol objectSymbol)
+    {
+        if (objectSymbol.GetMembers(GeneratedOverrideHookName).IsEmpty)
+        {
+            return Array.Empty<string>();
+        }
+
+        var keys = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var name in RttiMethodNames)
+        {
+            var method = FindInstanceMethod(typeSymbol.BaseType, name);
+            for (var current = method; current is not null; current = current.OverriddenMethod)
+            {
+                foreach (var attribute in current.OriginalDefinition.GetAttributes())
+                {
+                    if (attribute.AttributeClass is { Name: "ManagedVirtualSlotAttribute" } attributeClass &&
+                        attributeClass.ContainingNamespace.ToDisplayString() == "SharpCpp.Support" &&
+                        attribute.ConstructorArguments.Length == 1 &&
+                        attribute.ConstructorArguments[0].Value is string key)
+                    {
+                        keys.Add(key);
+                    }
+                }
+            }
+        }
+
+        return keys.ToList();
+    }
+
+    private static IMethodSymbol? FindInstanceMethod(INamedTypeSymbol? typeSymbol, string name)
+    {
+        for (var current = typeSymbol; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers(name))
+            {
+                if (member is IMethodSymbol { IsStatic: false, MethodKind: MethodKind.Ordinary } method &&
+                    (method.IsVirtual || method.IsOverride || method.IsAbstract) &&
+                    method.Parameters.Length == (name == "IsInstanceOf" ? 1 : 0))
+                {
+                    return method;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static string EscapeStringLiteral(string value)
@@ -735,5 +803,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         public Location Location { get; }
 
         public bool ImplementsObjectFactory { get; set; }
+
+        public IReadOnlyList<string> SlotKeys { get; set; } = Array.Empty<string>();
     }
 }

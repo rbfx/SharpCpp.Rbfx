@@ -462,6 +462,7 @@ The native launcher keeps `main`. There is no hostfxr and no `runtimeconfig.json
 The generated registry is the only path for managed types and attributes. There is no reflection scan:
 
 - `SharpCpp.Support.SourceGenerator` is required in each plugin and head project with a class that overrides a virtual method of a native type. It emits `IsManagedOverride` for the class. Such a class, and each type that contains it, must be `partial` (error SCPPSG001).
+- The RTTI overrides that `SharpCpp.Rbfx.SourceGenerator` emits are not visible to the other generator. The RTTI generator lists their slots in `Object.IsGeneratedManagedOverride`, which `Object.IsManagedOverride` reads.
 - `SharpCpp.Rbfx.SourceGenerator` is required in each plugin and head project. It adds a sealed `ManagedTypeRegistryAttribute` to each assembly with managed object types, and to each assembly with a `ManagedPlugin` (the list can be empty).
 - The attribute lists each concrete managed type with a direct generic call to its factory registration.
 - `ManagedPlugin` uses the registry of its assembly on every runtime (JIT with hostfxr or the editor, and NativeAOT), so both behave the same. `ShouldRegister` can still reject a type of the registry. There is no `GetManagedTypes`: the registry is the list.

@@ -169,6 +169,141 @@ public sealed class ManagedAttributeGeneratorTests
         Assert.DoesNotContain("ManagedAttributeDescriptor", result.Registration("GeneratorTest.Probe"));
     }
 
+    [Theory]
+    [InlineData("[SerializeField, System.Obsolete(\"old\", true)] public int Member;")]
+    [InlineData("[SerializeField, System.Obsolete(\"old\", true)] public int Member { get; set; }")]
+    public void Member_marked_Obsolete_as_error_falls_back_to_reflection(string member)
+    {
+        var result = Run(Header + "public partial class Probe : Component\n{\n    " + member + "\n    public Probe(Context context) : base(context) { }\n}\n");
+
+        var warning = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Contains("Obsolete", warning.GetMessage());
+        Assert.Empty(result.OutputErrors);
+        Assert.DoesNotContain("ManagedAttributeDescriptor", result.Registration("GeneratorTest.Probe"));
+    }
+
+    [Fact]
+    public void Member_marked_Obsolete_as_warning_is_described()
+    {
+        var result = Run(Header + """
+            public partial class Probe : Component
+            {
+                [SerializeField, System.Obsolete("old")] public int Member;
+                public Probe(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Empty(result.OutputErrors);
+        Assert.Contains("Create<int>(\"Member\"", result.Registration("GeneratorTest.Probe"));
+    }
+
+    [Fact]
+    public void NonSerialized_field_in_a_base_type_of_another_assembly_is_skipped_silently()
+    {
+        var result = Run(
+            Header + """
+            public partial class Derived : ForeignBase
+            {
+                [SerializeField] public int Own;
+                public Derived(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public class ForeignBase : Component
+            {
+                [SerializeField, System.NonSerialized] public int Skipped;
+                public ForeignBase(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Empty(result.OutputErrors);
+        Assert.DoesNotContain("Skipped", result.Registration("GeneratorTest.Derived"));
+    }
+
+    [Fact]
+    public void Serialize_field_in_a_base_type_of_another_assembly_falls_back_to_reflection()
+    {
+        var result = Run(
+            Header + """
+            public partial class Derived : ForeignBase
+            {
+                public Derived(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public class ForeignBase : Component
+            {
+                [SerializeField] public int Shared;
+                public ForeignBase(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Empty(result.OutputErrors);
+    }
+
+    [Fact]
+    public void Member_of_a_generic_base_type_compiles()
+    {
+        var result = Run(Header + """
+            public abstract class Base<T> : Component
+            {
+                [SerializeField] public T Value = default!;
+                protected Base(Context context) : base(context) { }
+            }
+
+            public partial class D : Base<int>
+            {
+                public D(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Empty(result.OutputErrors);
+        Assert.Contains("Create<int>(\"Value\"", result.Registration("GeneratorTest.D"));
+    }
+
+    [Fact]
+    public void Member_of_a_nested_type_compiles()
+    {
+        var result = Run(Header + """
+            public partial class Outer
+            {
+                // The generator implements the object factory only for types that are not nested, so this type implements it.
+                public class Inner : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<Inner>
+                {
+                    [SerializeField] public int Value;
+                    public Inner(Context context) : base(context) { }
+                    public static Inner Create(Context context) => new Inner(context);
+                    public new static TypeInfo GetTypeInfoStatic() => throw new System.NotSupportedException();
+                }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Empty(result.OutputErrors);
+        Assert.Contains("Create<int>(\"Value\"", result.Registration("GeneratorTest.Outer.Inner"));
+    }
+
+    [Fact]
+    public void Member_with_a_keyword_name_compiles()
+    {
+        var result = Run(Header + """
+            public partial class Probe : Component
+            {
+                [SerializeField] public int @class;
+                [SerializeField] public float @event { get; set; }
+                public Probe(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Empty(result.OutputErrors);
+        Assert.Contains("Create<int>(\"class\", \"class\"", result.Registration("GeneratorTest.Probe"));
+    }
+
     [Fact]
     public void Attribute_plugin_registry_has_descriptors_only_for_types_without_private_members()
     {
@@ -185,11 +320,26 @@ public sealed class ManagedAttributeGeneratorTests
         Assert.Equal(typeof(double), derived.ValueType);
     }
 
-    private static GeneratorResult Run(string source)
+    // The optional second source is compiled into another assembly that the tested assembly references.
+    private static GeneratorResult Run(string source, string? foreignSource = null)
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
-            .Select(static path => MetadataReference.CreateFromFile(path));
+            .Select(static path => (MetadataReference)MetadataReference.CreateFromFile(path))
+            .ToList();
+        if (foreignSource is not null)
+        {
+            var foreign = CSharpCompilation.Create(
+                "GeneratorTestForeign",
+                [CSharpSyntaxTree.ParseText(foreignSource)],
+                references,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            var image = new MemoryStream();
+            var emitted = foreign.Emit(image);
+            Assert.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+            references.Add(MetadataReference.CreateFromImage(image.ToArray()));
+        }
+
         var compilation = CSharpCompilation.Create(
             "GeneratorTest",
             [CSharpSyntaxTree.ParseText(source)],
@@ -198,10 +348,11 @@ public sealed class ManagedAttributeGeneratorTests
         var driver = CSharpGeneratorDriver.Create(new ManagedObjectRttiGenerator());
         driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
         var registry = driver.GetRunResult().GeneratedTrees
-            .Single(static tree => tree.FilePath.EndsWith("SharpCpp.Rbfx.ManagedTypeRegistry.g.cs", StringComparison.Ordinal))
+            .SingleOrDefault(static tree => tree.FilePath.EndsWith("SharpCpp.Rbfx.ManagedTypeRegistry.g.cs", StringComparison.Ordinal))?
             .ToString();
+        Assert.True(registry is not null, "The generator emitted no registry:\n" + string.Join("\n", diagnostics));
         var errors = output.GetDiagnostics().Where(static d => d.Severity == DiagnosticSeverity.Error).Select(static d => d.ToString()).ToArray();
-        return new GeneratorResult(registry, diagnostics.ToArray(), errors);
+        return new GeneratorResult(registry!, diagnostics.ToArray(), errors);
     }
 
     private sealed record GeneratorResult(string Registry, Diagnostic[] Diagnostics, string[] OutputErrors)

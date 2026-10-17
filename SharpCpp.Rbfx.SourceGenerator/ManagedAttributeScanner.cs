@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -161,14 +162,20 @@ internal sealed class ManagedAttributeScanner
             return true;
         }
 
+        // The reflection path skips a NonSerialized field silently, so the check comes before the check of the assembly.
+        if (IsNotSerialized(field))
+        {
+            return true;
+        }
+
         if (!isLocal)
         {
             return ReportForeign(context, type, declaring, field);
         }
 
-        if (_nonSerialized is not null && FindAttribute(field, _nonSerialized) is not null)
+        if (GetObsoleteError(field, declaring) is { } obsolete)
         {
-            return true;
+            return Fail(context, type, field, obsolete);
         }
 
         if (field.AssociatedSymbol is not null)
@@ -201,6 +208,11 @@ internal sealed class ManagedAttributeScanner
         if (!isLocal)
         {
             return ReportForeign(context, type, declaring, property);
+        }
+
+        if (GetObsoleteError(property, declaring) is { } obsolete)
+        {
+            return Fail(context, type, property, obsolete);
         }
 
         if (property.GetMethod is null || property.SetMethod is null || property.IsIndexer || property.RefKind != RefKind.None ||
@@ -305,6 +317,62 @@ internal sealed class ManagedAttributeScanner
                 case "IntVector2":
                 case "IntVector3":
                     return true;
+            }
+        }
+
+        return false;
+    }
+
+    // NonSerialized is a pseudo attribute: a field from metadata has the flag, and no attribute data. The public API of Roslyn
+    // does not show the flag, so the lookup reads the internal property. When it is not there, the field counts as serialized.
+    private bool IsNotSerialized(IFieldSymbol field)
+    {
+        if (_nonSerialized is not null && FindAttribute(field, _nonSerialized) is not null)
+        {
+            return true;
+        }
+
+        try
+        {
+            var underlying = field.GetType().GetProperty("UnderlyingSymbol", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(field);
+            var flag = underlying?.GetType().GetProperty("IsNotSerialized", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(underlying);
+            return flag is true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    // Generated code that uses a member marked Obsolete(error: true) fails with CS0619, and the pragma of the generated code covers only CS0618.
+    private static string? GetObsoleteError(ISymbol member, INamedTypeSymbol declaring)
+    {
+        if (IsObsoleteError(member))
+        {
+            return "it is marked Obsolete with error: true";
+        }
+
+        for (var current = declaring; current is not null; current = current.ContainingType)
+        {
+            if (IsObsoleteError(current))
+            {
+                return "its declaring type '" + current.Name + "' is marked Obsolete with error: true";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsObsoleteError(ISymbol symbol)
+    {
+        foreach (var attribute in symbol.GetAttributes())
+        {
+            if (attribute.AttributeClass is { Name: "ObsoleteAttribute" } attributeClass &&
+                attributeClass.ContainingNamespace.ToDisplayString() == "System" &&
+                attribute.ConstructorArguments.Length == 2 &&
+                attribute.ConstructorArguments[1].Value is true)
+            {
+                return true;
             }
         }
 

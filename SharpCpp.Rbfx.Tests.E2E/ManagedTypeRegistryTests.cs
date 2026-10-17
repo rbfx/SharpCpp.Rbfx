@@ -89,6 +89,24 @@ public sealed class ManagedTypeRegistryTests
     }
 
     [Fact]
+    public void Added_registry_uses_descriptors_and_scans_only_types_without_them()
+    {
+        using var fixture = new AddedRegistryFixture();
+        var undescribed = fixture.ExtraRegistrations.Count(static item => item.Attributes is null);
+        var scans = ManagedAttributeRegistrar.ReflectionScanCount;
+        var plugin = new RegistryTestPlugin(fixture.Context);
+        plugin.Register();
+        try
+        {
+            Assert.Equal(scans + undescribed, ManagedAttributeRegistrar.ReflectionScanCount);
+        }
+        finally
+        {
+            plugin.Unregister();
+        }
+    }
+
+    [Fact]
     public void Added_registry_stays_registered_while_another_plugin_is_loaded()
     {
         using var fixture = new AddedRegistryFixture();
@@ -167,6 +185,8 @@ public sealed class ManagedTypeRegistryTests
         public Context Context { get; }
 
         public StringHash[] ExtraTypes { get; }
+
+        public IReadOnlyList<ManagedTypeRegistration> ExtraRegistrations => ManagedTypeRegistries.Find(_extraAssembly)!.Registrations;
 
         public void Dispose()
         {

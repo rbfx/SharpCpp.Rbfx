@@ -191,6 +191,7 @@ The default destination is `bin/$<CONFIG>`. If the target is not from `rbfx_csha
 
 - Desktop: the executable, the shared engine library, the native wrapper, the shared host library with its nethost library, the shared libraries of the wrapper targets and of the native plugins,
   the plugin assembly with its `.runtimeconfig.json` and `.deps.json` files, the assemblies of the wrapper targets and the `SharpCpp.*.dll` files.
+  In shim mode the install also has the NativeAOT head library `<plugin>.Head<suffix>` and has no nethost library.
   The installed executable has the run-time path `$ORIGIN` (`@loader_path` on macOS), so it finds the engine library in its folder.
   The function also installs each folder of the data target (the `CoreData` folder is one of them, when `rbfx_csharp_find_core_data()` finds it) in the same destination.
   It installs the `ResourceRoot.ini` of the data target there. The file maps `CoreData` and each folder of `DATA` to the installed folders.

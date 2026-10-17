@@ -18,7 +18,8 @@
 #   files (SHARPCPP_RBFX_DATA_FILES: the ResourceRoot.ini that maps the folders), the shared libraries of the wrapper
 #   targets (SHARPCPP_RBFX_PLUGIN_REFERENCES of the plugin) and of the native plugins (SHARPCPP_RBFX_PLUGINS of the
 #   launcher), the plugin assembly with its runtimeconfig and deps files, the assemblies of the wrapper targets and the
-#   SharpCpp assemblies, all in DESTINATION.
+#   SharpCpp assemblies, all in DESTINATION. In the shim mode the NativeAOT head library <plugin>.Head<suffix>
+#   (SHARPCPP_RBFX_HEAD_LIBRARY of the launcher) is in DESTINATION too, and the install has no nethost library.
 #   Android: the APK. Emscripten: the web folder, as DESTINATION/<name>. iOS: the app bundle.
 #   The function stops with an error when <name> is not from rbfx_csharp_package_application.
 #
@@ -135,11 +136,18 @@ function(rbfx_csharp_install_application name)
   get_target_property(host_type SharpCpp::RbfxHost TYPE)
   if(host_type STREQUAL "SHARED_LIBRARY")
     install(FILES "$<TARGET_FILE:SharpCpp::RbfxHost>" DESTINATION "${arg_DESTINATION}")
-    # The shared host library needs the shared nethost library (nethost.dll, libnethost.so or libnethost.dylib)
-    # in its folder. It is next to the host library.
-    install(
-      FILES "$<TARGET_FILE_DIR:SharpCpp::RbfxHost>/${CMAKE_SHARED_LIBRARY_PREFIX}nethost${CMAKE_SHARED_LIBRARY_SUFFIX}"
-      DESTINATION "${arg_DESTINATION}")
+    # The shared hostfxr host library needs the shared nethost library (nethost.dll, libnethost.so or libnethost.dylib)
+    # in its folder. It is next to the host library. The shim host library has no nethost.
+    if(DEFINED RBFX_HOST_MODE)
+      set(host_mode "${RBFX_HOST_MODE}")
+    else()
+      set(host_mode "${SharpCppRbfx_HOST_MODE}")
+    endif()
+    if(NOT host_mode STREQUAL "shim")
+      install(
+        FILES "$<TARGET_FILE_DIR:SharpCpp::RbfxHost>/${CMAKE_SHARED_LIBRARY_PREFIX}nethost${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        DESTINATION "${arg_DESTINATION}")
+    endif()
   endif()
 
   # The shared engine library. The installed executable finds it in its own folder (INSTALL_RPATH, or the DLL
@@ -160,6 +168,12 @@ function(rbfx_csharp_install_application name)
     foreach(data_file IN LISTS data_files)
       install(FILES "${data_file}" DESTINATION "${arg_DESTINATION}")
     endforeach()
+  endif()
+
+  # The NativeAOT head library of the shim mode (<plugin>.Head<suffix>). The launcher loads it from this folder.
+  get_target_property(head_library ${name} SHARPCPP_RBFX_HEAD_LIBRARY)
+  if(head_library)
+    install(FILES "${head_library}" DESTINATION "${arg_DESTINATION}")
   endif()
 
   # The shared libraries of the wrapper targets and of the native plugins. A static library is in the executable.

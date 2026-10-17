@@ -450,8 +450,13 @@ function(_rbfx_csharp_add_desktop_shim_application name)
     add_dependencies(${name}.Head SharpCpp::RbfxNative SharpCpp::RbfxHost)
   endif()
 
-  # The desktop application is the executable in its folder, so there is no separate output.
-  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "")
+  # The desktop application is the executable in its folder, so there is no separate output. The install rule
+  # (rbfx_csharp_install_application) copies the head library SHARPCPP_RBFX_HEAD_LIBRARY next to the executable.
+  set_target_properties(
+    ${name}
+    PROPERTIES
+      SHARPCPP_RBFX_APPLICATION_OUTPUT ""
+      SHARPCPP_RBFX_HEAD_LIBRARY "${published_head}")
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head ${name}.Native)
 endfunction()
 

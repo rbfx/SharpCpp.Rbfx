@@ -34,3 +34,5 @@ rbfx_csharp_add_plugin(AotApp CSPROJ CSharp/AotApp.csproj)
 rbfx_csharp_add_launcher(AotTest CONSOLE)
 # Head/HeadHooks.cs implements the hooks of the head and has a managed component of the head assembly.
 rbfx_csharp_package_application(AotTest PLUGIN AotApp HEAD_SOURCES Head/HeadHooks.cs)
+
+rbfx_csharp_install_application(AotTest)

@@ -76,10 +76,11 @@ public static class PluginRuntime
     /// Returns the plugin class of the assembly: the type of <see cref="PluginModuleAttribute"/>, else the first
     /// concrete <see cref="Plugin"/> subclass with a public constructor that takes a context.
     /// </summary>
-    // The scan runs on a plugin assembly. The trimmer and the AOT compiler keep every type of that assembly, because
-    // the head makes the plugin assembly a trimmer root. Thus Assembly.GetTypes sees all types with their public constructors.
+    // The scan runs on a plugin assembly. The trimmer and the AOT compiler keep each concrete Plugin class with its public
+    // constructors: the generated trimmer roots (SharpCpp.Rbfx.Generated.TrimRoots) of the plugin assembly have a
+    // DynamicDependency for it. Thus Assembly.GetTypes sees the plugin class.
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The plugin assembly is a trimmer root, so GetTypes returns all of its types.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The generated trimmer roots keep each Plugin class of the assembly, so GetTypes returns it.")]
     public static Type FindPluginType(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
@@ -138,7 +139,7 @@ public static class PluginRuntime
     // The trimmer reports other value sources (an array element, a property) with different codes than the analyzer.
     // This method gives all call sites the same value source.
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-    [UnconditionalSuppressMessage("Trimming", "IL2068", Justification = "The plugin assembly is a trimmer root, so its types keep their public constructors.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2068", Justification = "The generated trimmer roots keep the public constructors of each Plugin class.")]
     private static Type KeepPublicConstructors(Type type) => type;
 
     private static bool IsPluginType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type) =>

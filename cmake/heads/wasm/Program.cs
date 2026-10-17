@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Rbfx.Head;
@@ -19,6 +20,9 @@ internal static partial class Program
     /// <summary>Declared for the same class on every platform. This head never calls it: Main returns at once.</summary>
     static partial void OnManagedShutdown();
 
+    // The generated trimmer roots (SharpCpp.Rbfx.SourceGenerator): the plugin class, the entry points that native code
+    // finds by name, and the roots of the referenced assemblies. The head has no TrimmerRootAssembly items.
+    [DynamicDependency(nameof(global::SharpCpp.Rbfx.Generated.TrimRoots.Keep), typeof(global::SharpCpp.Rbfx.Generated.TrimRoots))]
     private static int Main()
     {
         RuntimeHelpers.RunModuleConstructor(typeof(Urho3D.Plugins.NativeHostModule).Module.ModuleHandle);

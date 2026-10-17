@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -24,6 +25,9 @@ internal static partial class Program
     [DllImport("__Internal", EntryPoint = "rbfx_application_start")]
     private static extern int ApplicationStart();
 
+    // The generated trimmer roots (SharpCpp.Rbfx.SourceGenerator): the plugin class, the entry points that native code
+    // finds by name, and the roots of the referenced assemblies. The head has no TrimmerRootAssembly items.
+    [DynamicDependency(nameof(global::SharpCpp.Rbfx.Generated.TrimRoots.Keep), typeof(global::SharpCpp.Rbfx.Generated.TrimRoots))]
     private static int Main(string[] args)
     {
         RuntimeHelpers.RunModuleConstructor(typeof(Urho3D.Plugins.NativeHostModule).Module.ModuleHandle);

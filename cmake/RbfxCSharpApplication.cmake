@@ -84,7 +84,8 @@
 #   of assets with its name.
 # - The application class of the head runs the module initializer of the bindings before the activity
 #   starts SDL_main. So DotNetHost::Initialize in the native code finds the runtime, as on desktop.
-#   The plugin assembly and the SharpCpp assemblies are trimmer roots.
+#   The head has no trimmer root assemblies. The generated trimmer roots (SharpCpp.Rbfx.Generated.TrimRoots) keep
+#   what only native code reaches.
 # - The target <name>.CSharp builds the head with dotnet and copies the debug-signed APK to
 #   <name>.apk in the output folder of the library (LIBRARY_OUTPUT_DIRECTORY).
 # - APPLICATION_ID is the Android package name. The default is org.rbfx.<name in lower case>.
@@ -432,7 +433,6 @@ function(_rbfx_csharp_add_desktop_shim_application name)
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
   set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
-  _rbfx_csharp_wrapper_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_WRAPPER_TARGETS})
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Desktop.csproj.in" "${head_project}" @ONLY)
   # Empty files stop MSBuild from importing the files of a parent folder (a build folder in a repository).
@@ -495,22 +495,6 @@ endfunction()
 
 # The Android part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name and
 # plugin_properties of the caller.
-# Writes the trimmer root items of the wrapper targets into RBFX_HEAD_USERCODE_ROOTS (a head project fragment). Only native code
-# calls the entry points of these managed assemblies, so the trimmer must keep them.
-function(_rbfx_csharp_wrapper_trim_roots out_variable)
-  set(items "")
-  foreach(wrapper IN LISTS ARGN)
-    if(NOT TARGET ${wrapper})
-      message(FATAL_ERROR "rbfx_csharp_package_application: wrapper target '${wrapper}' does not exist. Call rbfx_csharp_add_wrapper first.")
-    endif()
-    get_target_property(assembly ${wrapper} SHARPCPP_RBFX_WRAPPER_ASSEMBLY)
-    if(assembly)
-      string(APPEND items "    <TrimmerRootAssembly Include=\"${assembly}\" RootMode=\"All\" />\n")
-    endif()
-  endforeach()
-  set(${out_variable} "${items}" PARENT_SCOPE)
-endfunction()
-
 function(_rbfx_csharp_add_android_application name)
   get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
   if(is_multi_config)
@@ -657,7 +641,6 @@ function(_rbfx_csharp_add_android_application name)
   set(RBFX_HEAD_SDL_JAVA_DIR "${RBFX_CSHARP_ANDROID_JAVA_DIR}")
   set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
-  _rbfx_csharp_wrapper_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_WRAPPER_TARGETS})
   set(RBFX_HEAD_ITEMS "${items}")
   set(RBFX_HEAD_JAVA_LIBRARIES "${java_libraries}")
   set(head_project "${head_dir}/${name}.Head.csproj")
@@ -768,7 +751,6 @@ function(_rbfx_csharp_add_wasm_application name)
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
   set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
-  _rbfx_csharp_wrapper_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_WRAPPER_TARGETS})
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Wasm.csproj.in" "${head_project}" @ONLY)
   configure_file("${template_dir}/index.html.in" "${head_dir}/wwwroot/index.html" @ONLY)
@@ -893,7 +875,6 @@ function(_rbfx_csharp_add_ios_application name)
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
   set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
-  _rbfx_csharp_wrapper_trim_roots(RBFX_HEAD_USERCODE_ROOTS ${arg_WRAPPER_TARGETS})
   set(RBFX_HEAD_ITEMS "${items}")
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Ios.csproj.in" "${head_project}" @ONLY)

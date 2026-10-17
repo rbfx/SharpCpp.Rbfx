@@ -352,8 +352,14 @@ A .NET Android head is the entry of the application. The native application runs
 - The application class of the head runs the module initializer of the bindings before the activity starts `SDL_main`.
   The initializer attaches the managed function table to the host library. `DotNetHost::Initialize` and `LoadPlugin`
   then work as on desktop. The launcher needs no Android code.
-- Only native code calls the `[UnmanagedCallersOnly]` methods and the plugin class. The IL trimmer cannot see these calls.
-  So the head makes the plugin assembly and the SharpCpp assemblies trimmer roots (`TrimmerRootAssembly`).
+- Only native code reaches the plugin class and some `[UnmanagedCallersOnly]` methods. The IL trimmer cannot see these calls.
+  The head has no `TrimmerRootAssembly` items. `SharpCpp.Rbfx.SourceGenerator` writes the exact roots (`TrimRootsGenerator`):
+  the class `SharpCpp.Rbfx.Generated.TrimRoots` of each assembly has a method `Keep` with `[DynamicDependency]` attributes.
+  They keep each concrete `Plugin` class with its public constructors and each static `[UnmanagedCallersOnly]` method
+  without an address-of use (native code finds it by name with `DotNetHost::GetFunctionPointer`). `Keep` also keeps `Keep`
+  of each referenced assembly that has one. `Program.cs` of the head keeps `Keep` of the head assembly. A method with an
+  address-of use stays with the managed code that gives its address to native code. ILLink and the NativeAOT compiler both read
+  the attributes.
 - The target `MyApp.CSharp` builds the head with dotnet and copies the debug-signed APK to `MyApp.apk` next to `libMyApp.so`.
   The head gets the configuration of CMake (`-c <config>`) and the list of configurations (`-p:Configurations=<list>`: CMAKE_CONFIGURATION_TYPES, else CMAKE_BUILD_TYPE).
   The workload tests only Debug and Release, so the head project gives each other configuration (for example RelWithDebInfo) the Release defaults of the workload: managed symbols, trimming and Mono AOT (the default runtime is MonoVM). ReadyToRun applies only with `UseMonoRuntime=false`.
@@ -379,7 +385,7 @@ The browser has no hostfxr. A .NET WebAssembly head is the entry. The native app
   object is a `NativeFileReference`, and the flags and the `INTERFACE_LINK_OPTIONS` go to `EmccExtraLDFlags`.
   The head sets the exception mode, so the function removes `DISABLE_EXCEPTION_CATCHING` from the flags.
   A shared library in the closure is a configure error.
-- The head references `SharpCpp.Rbfx.NativeHost` and makes the plugin assembly and the SharpCpp assemblies (also `SharpCpp.Rbfx.NativeHost`) trimmer roots, as on Android.
+- The head references `SharpCpp.Rbfx.NativeHost`. The generated trimmer roots keep what only native code reaches, as on Android.
   A source build compiles the bindings with `RbfxTargetRid=browser-wasm`. Then their import names are the file names of
   `libSharpCpp.Rbfx.Native.a` and `libSharpCpp.Rbfx.Host.a`, and the runtime links the imports statically.
 - A file in `RESOURCES` becomes a file in the root folder of the Emscripten file system. A folder becomes a folder with its name.
@@ -427,7 +433,7 @@ is static code in the executable of the app.
 - `libMyApp.a`, the wrapper, the host library and the libraries of the wrapper targets have `ForceLoad`: the managed side finds their
   exports with `__Internal`. The engine libraries do not have `ForceLoad`. The engine archive has the `main` of SDL, and the
   executable has the `main` of .NET.
-- The head makes the plugin assembly and the SharpCpp assemblies trimmer roots, as on Android. A source build compiles the
+- The generated trimmer roots keep what only native code reaches, as on Android. A source build compiles the
   bindings with `RbfxTargetRid=ios-arm64`, so their import name is `__Internal`.
 - A file in `RESOURCES` becomes a file in the root folder of the app bundle (`BundleResource`). A folder becomes a folder with its name.
 - `APPLICATION_ID` is the bundle identifier. The default is `org.rbfx.<name in lower case>`.
@@ -458,6 +464,7 @@ The native launcher keeps `main`. There is no hostfxr and no `runtimeconfig.json
 - `Program.cs` has the partial hooks `OnManagedStartup` (before the attach) and `OnManagedShutdown` (in `sharpcpp_rbfx_head_detach`).
 - The head finds `SharpCpp.Rbfx.Host` and `SharpCpp.Rbfx.Native` in the folder of the executable with the default NativeAOT probing.
 - `eng/run-aot-test.sh --rid linux-x64` builds and runs the test project `SharpCpp.Rbfx.Tests.Aot` headless.
+- The head has no `TrimmerRootAssembly` items. The NativeAOT compiler roots a whole assembly for each such item (it reads only `RootMode="EntryPoint"`, as no root). The generated trimmer roots (`SharpCpp.Rbfx.Generated.TrimRoots`, see the Android head) keep what only native code reaches. `Program.cs` keeps them with `[DynamicDependency]` on `sharpcpp_rbfx_head_attach`.
 
 The generated registry is the only path for managed types and attributes. There is no reflection scan:
 

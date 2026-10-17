@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace Rbfx.Head;
@@ -17,6 +18,9 @@ internal static partial class Program
     static partial void OnManagedShutdown();
 
     // Returns 1 when the host library holds the table, else 0. An exception must not leave an UnmanagedCallersOnly method.
+    // The generated trimmer roots (SharpCpp.Rbfx.SourceGenerator): the plugin class, the entry points that native code
+    // finds by name, and the roots of the referenced assemblies. The head has no TrimmerRootAssembly items.
+    [DynamicDependency(nameof(global::SharpCpp.Rbfx.Generated.TrimRoots.Keep), typeof(global::SharpCpp.Rbfx.Generated.TrimRoots))]
     [UnmanagedCallersOnly(EntryPoint = "sharpcpp_rbfx_head_attach")]
     private static int HeadAttach()
     {

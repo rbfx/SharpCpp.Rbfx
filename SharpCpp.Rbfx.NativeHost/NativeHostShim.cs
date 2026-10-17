@@ -225,8 +225,8 @@ internal static unsafe partial class NativeHostShim
     }
 
     // A type name can have the form "Namespace.Type, Assembly". The assembly part is already resolved.
-    // The native host gives the names at run time. The head must keep the types that have entry points
-    // (UnmanagedCallersOnly methods), for example with a trimmer root. The lookup by name finds only such kept types.
+    // The native host gives the names at run time. The generated trimmer roots (SharpCpp.Rbfx.Generated.TrimRoots) keep
+    // each UnmanagedCallersOnly method that has no address-of use. The lookup by name finds only such kept types.
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The head keeps the types of the entry points. A type that the trimmer removed is reported as not found.")]
     [UnconditionalSuppressMessage("Trimming", "IL2073", Justification = "The head keeps the methods of the types of the entry points.")]

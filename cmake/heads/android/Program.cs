@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Rbfx.Head;
 
 /// <summary>
@@ -19,5 +21,8 @@ internal static partial class Program
     static partial void OnManagedShutdown();
 
     /// <summary>Calls <see cref="OnManagedStartup"/> for <c>RbfxApplication</c>.</summary>
+    // The generated trimmer roots (SharpCpp.Rbfx.SourceGenerator): the plugin class, the entry points that native code
+    // finds by name, and the roots of the referenced assemblies. The head has no TrimmerRootAssembly items.
+    [DynamicDependency(nameof(global::SharpCpp.Rbfx.Generated.TrimRoots.Keep), typeof(global::SharpCpp.Rbfx.Generated.TrimRoots))]
     internal static void RunStartup() => OnManagedStartup();
 }

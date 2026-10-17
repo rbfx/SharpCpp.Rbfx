@@ -91,15 +91,11 @@
     </Reference>
     <ProjectReference Include="$(SharpCppRbfxPackageRoot)/SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" Condition="'$(SharpCppRbfxIsSdk)' != 'true'" />
 
-    <!-- Only native code calls the managed entry points of these assemblies (UnmanagedCallersOnly methods,
-         the module initializer of the native host and the plugin class). The trimmer must keep them. -->
-    <TrimmerRootAssembly Include="@RBFX_HEAD_PLUGIN_NAME@" RootMode="All" />
-    <TrimmerRootAssembly Include="SharpCpp.Rbfx.Bindings" RootMode="All" />
-    <TrimmerRootAssembly Include="SharpCpp.Rbfx.NativeHost" RootMode="All" />
-    <TrimmerRootAssembly Include="SharpCpp.Support" RootMode="All" />
-    <TrimmerRootAssembly Include="SharpCpp.Std" RootMode="All" />
-    <TrimmerRootAssembly Include="SharpCpp.Ea" RootMode="All" />
-@RBFX_HEAD_USERCODE_ROOTS@  </ItemGroup>
+    <!-- No TrimmerRootAssembly items. Only native code reaches some members of the plugin and of the SharpCpp assemblies
+         (the plugin class, UnmanagedCallersOnly methods that native code finds by name). The source generator
+         SharpCpp.Rbfx.SourceGenerator writes DynamicDependency roots for them (SharpCpp.Rbfx.Generated.TrimRoots), and
+         Program.cs keeps the roots of the head. The trimmer keeps the rest of the code through managed references. -->
+  </ItemGroup>
 
   <!-- Native libraries and resources of the application. -->
   <ItemGroup>

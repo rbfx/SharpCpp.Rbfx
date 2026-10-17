@@ -28,3 +28,38 @@ public partial class AttributeBoss : AttributeComponent
     {
     }
 }
+
+// An abstract type of the other assembly is between this type and the listed type AttributeComponent.
+public partial class MiddleBoss : AttributeMiddle
+{
+    [SerializeField]
+    public int Fury = 3;
+
+    public MiddleBoss(Context context)
+        : base(context)
+    {
+    }
+}
+
+// A generic type has no engine reflection, so the engine type of the derived type has AttributeComponent as its base.
+public abstract partial class GenericMiddle<T> : AttributeComponent
+{
+    [SerializeField]
+    public int Level = 5;
+
+    protected GenericMiddle(Context context)
+        : base(context)
+    {
+    }
+}
+
+public partial class GenericBoss : GenericMiddle<int>
+{
+    [SerializeField]
+    public int Power = 6;
+
+    public GenericBoss(Context context)
+        : base(context)
+    {
+    }
+}

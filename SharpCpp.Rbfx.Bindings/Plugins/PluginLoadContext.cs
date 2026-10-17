@@ -7,8 +7,9 @@ namespace Urho3D.Plugins;
 // Load context of one managed plugin assembly. It is not collectible, because hot reload is not supported.
 // Assemblies that the host can resolve come from the default context. Thus the plugin and the host share one copy of
 // the bindings and of the wrapper types. Only the other dependencies load from the directory of the plugin.
-// An assembly that another plugin context already loaded is shared by its simple name. Thus a type of plugin B can derive
-// from a type of plugin A, and both plugins see one copy of the type of A.
+// A plugin assembly (an assembly with a type registry or a plugin module) that another plugin context already loaded is shared
+// by its simple name. Thus a type of plugin B can derive from a type of plugin A, and both plugins see one copy of the type of A.
+// All other dependencies stay in the context that loads them, so unrelated plugins keep their own private dependencies.
 internal sealed class PluginLoadContext : AssemblyLoadContext
 {
     private static readonly Dictionary<string, Assembly> LoadedByName = new(StringComparer.OrdinalIgnoreCase);
@@ -45,10 +46,13 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         return assembly;
     }
 
-    /// <summary>Records the plugin assembly that a context loaded, for the plugins that reference it. The first assembly of a name stays.</summary>
+    /// <summary>
+    /// Records the plugin assembly that a context loaded, for the plugins that reference it. The first assembly of a name stays.
+    /// An assembly that is not a plugin assembly is not recorded.
+    /// </summary>
     internal static void Remember(Assembly assembly)
     {
-        if (assembly.GetName().Name is { } name)
+        if (IsPluginAssembly(assembly) && assembly.GetName().Name is { } name)
         {
             lock (LoadedByName)
             {
@@ -57,11 +61,16 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         }
     }
 
+    /// <summary>Returns true when the assembly has a type registry or a plugin module.</summary>
+    internal static bool IsPluginAssembly(Assembly assembly) =>
+        assembly.IsDefined(typeof(ManagedTypeRegistryAttribute), inherit: false) ||
+        assembly.IsDefined(typeof(PluginModuleAttribute), inherit: false);
+
     /// <summary>Returns the assembly of this file name that a plugin context loaded already as a dependency of another plugin.</summary>
     internal static Assembly? FindLoadedFile(string assemblyPath)
     {
-        var name = AssemblyName.GetAssemblyName(assemblyPath).Name;
-        if (name is null)
+        var name = AssemblyName.GetAssemblyName(assemblyPath);
+        if (name.Name is null)
         {
             return null;
         }
@@ -69,7 +78,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         // A dependency of another plugin comes from the host first (see TryLoadFromHost), so this plugin uses the same copy.
         foreach (var loaded in Default.Assemblies)
         {
-            if (string.Equals(loaded.GetName().Name, name, StringComparison.OrdinalIgnoreCase))
+            if (SameIdentity(name, loaded.GetName()))
             {
                 return loaded;
             }
@@ -77,7 +86,9 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
 
         lock (LoadedByName)
         {
-            return LoadedByName.GetValueOrDefault(name);
+            return LoadedByName.TryGetValue(name.Name, out var plugin) && SameIdentity(name, plugin.GetName())
+                ? plugin
+                : null;
         }
     }
 
@@ -92,11 +103,18 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         lock (LoadedByName)
         {
             return LoadedByName.TryGetValue(requested.Name, out var loaded) &&
+                   SameIdentity(requested, loaded.GetName()) &&
                    (requested.Version is null || loaded.GetName().Version >= requested.Version)
                 ? loaded
                 : null;
         }
     }
+
+    // The simple name, the culture and the public key token are equal. The version is not part of the comparison.
+    private static bool SameIdentity(AssemblyName left, AssemblyName right) =>
+        string.Equals(left.Name, right.Name, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(left.CultureName ?? string.Empty, right.CultureName ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+        (left.GetPublicKeyToken() ?? []).AsSpan().SequenceEqual(right.GetPublicKeyToken() ?? []);
 
     protected override nint LoadUnmanagedDll(string unmanagedDllName)
     {

@@ -750,7 +750,36 @@ public sealed class ManagedAttributeGeneratorTests
             foreignGenerated: true);
 
         var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
-        Assert.Contains("abstract or generic", error.GetMessage());
+        Assert.Contains("does not list the type", error.GetMessage());
+    }
+
+    [Fact]
+    public void Serialize_field_in_a_base_type_of_another_assembly_that_its_registry_does_not_list_is_an_error()
+    {
+        var result = Run(
+            Header + """
+            public partial class Boss : EnemyBase
+            {
+                public Boss(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public partial class EnemyBase : Component
+            {
+                [SerializeField] public float Hp = 10;
+                protected EnemyBase(Context context) : base(context) { }
+            }
+
+            public partial class ForeignConcrete : Component
+            {
+                public ForeignConcrete(Context context) : base(context) { }
+            }
+            """,
+            foreignGenerated: true);
+
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
+        Assert.Contains("does not list the type", error.GetMessage());
+        Assert.Contains("Hp", error.GetMessage());
     }
 
     [Fact]
@@ -839,7 +868,8 @@ public sealed class ManagedAttributeGeneratorTests
     [Fact]
     public void Attribute_plugin_registry_lists_the_private_members()
     {
-        var assembly = Assembly.LoadFrom(Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll"));
+        // PluginRuntime.Load keeps the assembly in a plugin load context, as the plugin tests expect.
+        var assembly = PluginRuntime.Load(Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll"));
         var registry = ManagedTypeRegistries.Find(assembly)!;
         var byName = registry.Registrations.ToDictionary(static item => item.Type.Name);
 

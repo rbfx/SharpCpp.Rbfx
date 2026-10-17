@@ -44,8 +44,8 @@
 
   <!-- Each test plugin is a separate assembly. Only its dll goes to plugins/<name>/, away from the test assemblies. -->
   <ItemGroup>
-    <Compile Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**" />
-    <None Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**" />
+    <Compile Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**;ChiefPlugin/**" />
+    <None Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**;ChiefPlugin/**" />
     <ProjectReference Include="TestPlugin/SharpCpp.Rbfx.Tests.E2E.TestPlugin.csproj"
                       OutputItemType="E2ETestPluginAssembly"
                       ReferenceOutputAssembly="false" />
@@ -63,6 +63,9 @@
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="BossPlugin/SharpCpp.Rbfx.Tests.E2E.BossPlugin.csproj"
                       OutputItemType="E2EBossPluginAssembly"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="ChiefPlugin/SharpCpp.Rbfx.Tests.E2E.ChiefPlugin.csproj"
+                      OutputItemType="E2EChiefPluginAssembly"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
@@ -109,6 +112,14 @@
     <Copy SourceFiles="@(_E2EBossPluginFile)"
           Condition="Exists('%(_E2EBossPluginFile.FullPath)')"
           DestinationFolder="$(OutDir)plugins/BossPlugin/"
+          SkipUnchangedFiles="true" />
+    <!-- The plugin directory of ChiefPlugin also holds the BossPlugin and AttributePlugin assemblies. -->
+    <ItemGroup>
+      <_E2EChiefPluginFile Include="@(E2EChiefPluginAssembly);@(E2EChiefPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb');@(E2EChiefPluginAssembly->'%(RootDir)%(Directory)SharpCpp.Rbfx.Tests.E2E.BossPlugin.dll');@(E2EChiefPluginAssembly->'%(RootDir)%(Directory)SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_E2EChiefPluginFile)"
+          Condition="Exists('%(_E2EChiefPluginFile.FullPath)')"
+          DestinationFolder="$(OutDir)plugins/ChiefPlugin/"
           SkipUnchangedFiles="true" />
   </Target>
 </Project>

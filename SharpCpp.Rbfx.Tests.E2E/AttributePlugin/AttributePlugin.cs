@@ -129,3 +129,12 @@ public partial class DerivedAttributeComponent : AttributeComponent
     {
     }
 }
+
+// The registry does not list this abstract type. A type of another plugin can derive from it.
+public abstract partial class AttributeMiddle : AttributeComponent
+{
+    protected AttributeMiddle(Context context)
+        : base(context)
+    {
+    }
+}

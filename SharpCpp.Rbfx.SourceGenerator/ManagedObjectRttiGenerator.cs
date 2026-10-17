@@ -306,6 +306,20 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         return RegistryTypeKind.Included;
     }
 
+    // True when the registry of the assembly of the type lists the type. The scanner uses this for a base type from metadata:
+    // the same rules as the registry (concrete, not generic, accessible, not a Plugin, an object) and a public constructor with a
+    // Context parameter, and the type implements IManagedObjectFactory for itself.
+    internal static bool IsListedByRegistry(
+        INamedTypeSymbol typeSymbol,
+        INamedTypeSymbol objectSymbol,
+        INamedTypeSymbol? pluginSymbol,
+        INamedTypeSymbol objectFactorySymbol,
+        INamedTypeSymbol? contextSymbol) =>
+        ClassifyRegistryType(typeSymbol, objectSymbol, pluginSymbol) == RegistryTypeKind.Included &&
+        ImplementsFactoryForItself(typeSymbol, objectFactorySymbol) &&
+        contextSymbol is not null &&
+        HasContextConstructor(typeSymbol, contextSymbol);
+
     private static bool ImplementsFactoryForItself(INamedTypeSymbol typeSymbol, INamedTypeSymbol objectFactorySymbol)
     {
         foreach (var interfaceSymbol in typeSymbol.AllInterfaces)

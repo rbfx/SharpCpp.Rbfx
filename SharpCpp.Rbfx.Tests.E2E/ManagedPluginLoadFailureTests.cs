@@ -1,6 +1,9 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Text;
+
+using SharpCpp.Rbfx.Bindings.Interop;
 
 using Urho3D.Core;
 using Urho3D.Engine;
@@ -16,16 +19,23 @@ public sealed unsafe class ManagedPluginLoadFailureTests
 {
     private const string AttributePluginName = "E2E.AttributePlugin";
     private const string RetryPluginName = "E2E.RetryPlugin";
+    private const string BossPluginName = "E2E.BossPlugin";
 
     private static readonly StringHash AttributeType = new("AttributeComponent");
     private static readonly StringHash RetryType = new("RetryPluginComponent");
     private static readonly StringHash BossType = new("AttributeBoss");
+    private static readonly StringHash ChiefType = new("ChiefBoss");
+    private static readonly StringHash MiddleBossType = new("MiddleBoss");
+    private static readonly StringHash GenericBossType = new("GenericBoss");
 
     private static string AttributePath =>
         Path.Combine(AppContext.BaseDirectory, "plugins", "AttributePlugin", "SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll");
 
     private static string BossPath =>
         Path.Combine(AppContext.BaseDirectory, "plugins", "BossPlugin", "SharpCpp.Rbfx.Tests.E2E.BossPlugin.dll");
+
+    private static string ChiefPath =>
+        Path.Combine(AppContext.BaseDirectory, "plugins", "ChiefPlugin", "SharpCpp.Rbfx.Tests.E2E.ChiefPlugin.dll");
 
     private static string RetryPath =>
         Path.Combine(AppContext.BaseDirectory, "plugins", "RetryPlugin", "SharpCpp.Rbfx.Tests.E2E.RetryPlugin.dll");
@@ -55,6 +65,12 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         var boss = host.Manager.LoadManagedPlugin(BossPath);
         Assert.True(boss.IsLoaded);
 
+        // The plugin B shares the assembly of the plugin A, so both use one copy of the type of A.
+        var shared = PluginRuntime.Load(AttributePath);
+        Assert.IsType<PluginLoadContext>(AssemblyLoadContext.GetLoadContext(shared));
+        var bossType = PluginRuntime.Load(BossPath).GetTypes().Single(static type => type.Name == "AttributeBoss");
+        Assert.Same(shared, bossType.BaseType!.Assembly);
+
         // The registry of the plugin B lists only "Rage". The others come from the reflection of the base type of plugin A.
         var component = host.Create(BossType);
         Assert.Equal(4, host.ReadInt(component, "Rage"));
@@ -63,19 +79,164 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         Assert.Equal(2.5f, host.ReadFloat(component, "Speed"));
         Assert.True(host.WriteInt(component, "Secret Value", 11));
         Assert.Equal(11, host.ReadInt(component, "Secret Value"));
+
+        // The defaults of the inherited attributes are the initializers of the base type, also after a write.
+        Assert.Equal(42, host.ReadDefaultInt(component, "Secret Value"));
+        Assert.Equal(7, host.ReadDefaultInt(component, "Count"));
+        Assert.Equal(4, host.ReadDefaultInt(component, "Rage"));
         host.Unload();
+    }
+
+    [Fact]
+    public void Type_with_an_unlisted_abstract_type_of_another_plugin_between_it_and_the_base_copies_the_base_attributes()
+    {
+        using var host = new Host();
+        host.Manager.LoadManagedPlugin(AttributePath);
+        host.Manager.LoadManagedPlugin(BossPath);
+
+        var component = host.Create(MiddleBossType);
+        Assert.Equal(3, host.ReadInt(component, "Fury"));
+        Assert.Equal(7, host.ReadInt(component, "Count"));
+        Assert.Equal(42, host.ReadInt(component, "Secret Value"));
+        host.Unload();
+    }
+
+    [Fact]
+    public void Type_with_a_generic_type_between_it_and_the_base_of_another_plugin_copies_the_base_attributes()
+    {
+        using var host = new Host();
+        host.Manager.LoadManagedPlugin(AttributePath);
+        host.Manager.LoadManagedPlugin(BossPath);
+
+        var component = host.Create(GenericBossType);
+        Assert.Equal(6, host.ReadInt(component, "Power"));
+        Assert.Equal(5, host.ReadInt(component, "Level"));
+        Assert.Equal(7, host.ReadInt(component, "Count"));
+        Assert.Equal(42, host.ReadInt(component, "Secret Value"));
+        host.Unload();
+    }
+
+    [Fact]
+    public void Types_with_a_type_between_them_and_the_base_of_a_plugin_that_is_not_loaded_are_not_registered()
+    {
+        var messages = new List<string>();
+        ManagedAttributeAccessor.MessageObserver = messages.Add;
+        try
+        {
+            using var host = new Host();
+            var boss = host.Manager.LoadManagedPlugin(BossPath);
+
+            Assert.True(boss.IsLoaded);
+            host.AssertNotCreatable(MiddleBossType);
+            host.AssertNotCreatable(GenericBossType);
+            host.Unload();
+        }
+        finally
+        {
+            ManagedAttributeAccessor.MessageObserver = null;
+        }
+
+        AssertBaseError(messages, "MiddleBoss", "AttributeComponent");
+        AssertBaseError(messages, "GenericBoss", "AttributeComponent");
     }
 
     [Fact]
     public void Type_with_a_base_type_of_a_plugin_that_is_not_loaded_is_not_registered()
     {
-        using var host = new Host();
-        var boss = host.Manager.LoadManagedPlugin(BossPath);
+        var messages = new List<string>();
+        ManagedAttributeAccessor.MessageObserver = messages.Add;
+        try
+        {
+            using var host = new Host();
+            var boss = host.Manager.LoadManagedPlugin(BossPath);
 
-        // The plugin loads and logs an error. The derived type is not registered, because it would lack the base attributes.
-        Assert.True(boss.IsLoaded);
-        host.AssertNotCreatable(BossType);
+            // The plugin loads and logs an error. The derived type is not registered, because it would lack the base attributes.
+            Assert.True(boss.IsLoaded);
+            host.AssertNotCreatable(BossType);
+            host.Unload();
+        }
+        finally
+        {
+            ManagedAttributeAccessor.MessageObserver = null;
+        }
+
+        AssertBaseError(messages, "AttributeBoss", "AttributeComponent");
+    }
+
+    [Fact]
+    public void Type_of_a_third_plugin_copies_the_attributes_of_both_base_plugins()
+    {
+        using var host = new Host();
+        host.Manager.LoadManagedPlugin(AttributePath);
+        host.Manager.LoadManagedPlugin(BossPath);
+        host.Manager.LoadManagedPlugin(ChiefPath);
+
+        // ChiefBoss derives from AttributeBoss (plugin B), which derives from AttributeComponent (plugin A).
+        var component = host.Create(ChiefType);
+        Assert.Equal(9, host.ReadInt(component, "Rank"));
+        Assert.Equal(4, host.ReadInt(component, "Rage"));
+        Assert.Equal(7, host.ReadInt(component, "Count"));
+        Assert.Equal(42, host.ReadInt(component, "Secret Value"));
+        Assert.Equal(2.5f, host.ReadFloat(component, "Speed"));
         host.Unload();
+    }
+
+    [Fact]
+    public void Type_of_a_third_plugin_is_not_registered_when_the_middle_plugin_is_not_loaded()
+    {
+        var messages = new List<string>();
+        ManagedAttributeAccessor.MessageObserver = messages.Add;
+        try
+        {
+            using var host = new Host();
+            host.Manager.LoadManagedPlugin(AttributePath);
+            var chief = host.Manager.LoadManagedPlugin(ChiefPath);
+
+            Assert.True(chief.IsLoaded);
+            host.AssertNotCreatable(ChiefType);
+            host.Unload();
+        }
+        finally
+        {
+            ManagedAttributeAccessor.MessageObserver = null;
+        }
+
+        AssertBaseError(messages, "ChiefBoss", "AttributeBoss");
+    }
+
+    [Fact]
+    public void Plugins_that_derive_from_each_other_load_again_after_the_base_plugin_unloads()
+    {
+        using var host = new Host();
+        host.Manager.LoadManagedPlugin(AttributePath);
+        host.Manager.LoadManagedPlugin(BossPath);
+        host.AssertCreatable(BossType);
+
+        // Unload A while B is loaded, load A again, then load B again.
+        host.SetLoaded(BossPluginName);
+        host.AssertNotCreatable(AttributeType);
+        host.SetLoaded(BossPluginName, AttributePluginName);
+        host.AssertCreatable(AttributeType);
+        host.SetLoaded(AttributePluginName);
+        host.AssertNotCreatable(BossType);
+        host.SetLoaded(AttributePluginName, BossPluginName);
+
+        var component = host.Create(BossType);
+        Assert.Equal(4, host.ReadInt(component, "Rage"));
+        Assert.Equal(7, host.ReadInt(component, "Count"));
+        Assert.Equal(42, host.ReadInt(component, "Secret Value"));
+        host.Unload();
+    }
+
+    private static void AssertBaseError(List<string> messages, string typeName, string baseName)
+    {
+        Assert.Contains(
+            messages,
+            message => message.Contains("Cannot register the managed type", StringComparison.Ordinal) &&
+                       message.Contains("." + typeName + ":", StringComparison.Ordinal) &&
+                       message.Contains("base type", StringComparison.Ordinal) &&
+                       message.Contains("." + baseName + " ", StringComparison.Ordinal) &&
+                       message.Contains("Load the plugin of that assembly first", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -295,6 +456,13 @@ public sealed unsafe class ManagedPluginLoadFailureTests
             return value.Int;
         }
 
+        public int ReadDefaultInt(Component component, string name)
+        {
+            using var text = new Ea.String(name);
+            using var value = component.GetAttributeDefault(text);
+            return value.Int;
+        }
+
         public float ReadFloat(Component component, string name)
         {
             using var text = new Ea.String(name);
@@ -320,6 +488,24 @@ public sealed unsafe class ManagedPluginLoadFailureTests
         {
             var created = _node.CreateComponent(type);
             Assert.True(created is null || created.IsInvalid);
+        }
+
+        public void SetLoaded(params string[] names)
+        {
+            var items = names.Select(static item => new Ea.String(item)).ToList();
+            try
+            {
+                using var vector = new Ea.Vector<Ea.String>(items);
+                Manager.SetPluginsLoaded(vector);
+                Manager.Commit();
+            }
+            finally
+            {
+                foreach (var item in items)
+                {
+                    item.Dispose();
+                }
+            }
         }
 
         public void Unload()

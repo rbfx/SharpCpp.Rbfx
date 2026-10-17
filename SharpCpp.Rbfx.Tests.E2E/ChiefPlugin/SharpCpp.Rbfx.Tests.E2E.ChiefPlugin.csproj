@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A managed plugin for ManagedPluginLoadFailureTests. Its type derives from a type of BossPlugin, an assembly with its own
+       generated registry. The test project copies this assembly, the BossPlugin assembly and the AttributePlugin assembly to plugins/ChiefPlugin/. -->
+  <PropertyGroup>
+    <AssemblyName>SharpCpp.Rbfx.Tests.E2E.ChiefPlugin</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../SharpCpp.Ea/SharpCpp.Ea.csproj" />
+    <ProjectReference Include="../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
+    <ProjectReference Include="../BossPlugin/SharpCpp.Rbfx.Tests.E2E.BossPlugin.csproj" />
+    <ProjectReference Include="../../SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

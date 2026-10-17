@@ -153,7 +153,7 @@ public abstract partial class ManagedPlugin : Plugin
 
             // The attributes of a base type of another assembly are copied from its engine reflection. The plugin of that
             // assembly must be loaded first. Else the derived type has no base attributes, so the type is an error.
-            if (FindUnreflectedForeignBase(context, item.Type, typeInfo, listed) is { } missingBase)
+            if (FindUnreflectedForeignBase(context, item.Type, listed) is { } missingBase)
             {
                 ManagedAttributeAccessor.LogError(
                     $"Cannot register the managed type {item.Type.FullName}: its base type {missingBase.FullName} is in the assembly {missingBase.Assembly.GetName().Name}, and the engine does not reflect it. Load the plugin of that assembly first.");
@@ -166,29 +166,27 @@ public abstract partial class ManagedPlugin : Plugin
         }
     }
 
-    // Walks the managed base types together with the base type infos up to the first base type of this registry or of the bindings.
-    // A base type of another assembly that its own registry lists must have an engine reflection.
-    private static Type? FindUnreflectedForeignBase(Context context, Type type, TypeInfo typeInfo, HashSet<Type> listed)
+    // Walks the managed base types up to the first base type of this registry or of the bindings. A base type of another assembly
+    // that its own registry lists must have an engine reflection. The name of the type is the name of its engine type. A base type
+    // that the foreign registry does not list has no engine type, so the walk goes on over it.
+    private static Type? FindUnreflectedForeignBase(Context context, Type type, HashSet<Type> listed)
     {
-        var info = typeInfo.BaseTypeInfo;
-        for (var current = type.BaseType; current is not null && info is { IsInvalid: false }; current = current.BaseType, info = info.BaseTypeInfo)
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
             if (listed.Contains(current) || current.Assembly == typeof(ManagedPlugin).Assembly)
             {
                 return null;
             }
 
-            if (current.Assembly != type.Assembly)
+            if (current.Assembly == type.Assembly ||
+                ManagedTypeRegistries.Find(current.Assembly) is not { } foreignRegistry ||
+                !foreignRegistry.Registrations.Any(item => item.Type == current))
             {
-                if (ManagedTypeRegistries.Find(current.Assembly) is not { } foreignRegistry ||
-                    !foreignRegistry.Registrations.Any(item => item.Type == current))
-                {
-                    return null;
-                }
-
-                var reflection = context.GetReflection(info.GetType());
-                return reflection is { IsInvalid: false } ? null : current;
+                continue;
             }
+
+            var reflection = context.GetReflection(new StringHash(current.Name));
+            return reflection is { IsInvalid: false } ? null : current;
         }
 
         return null;

@@ -55,6 +55,12 @@ esac
 
 SDK_DIR="${SDK_DIR:-$REPO_ROOT/build/sdk/$RID}"
 BUILD_DIR="${BUILD_DIR:-$REPO_ROOT/build/aot-test/$RID}"
+# Git Bash gives MSYS paths (/d/a/...). A native cmake.exe cannot read them in a list that contains a semicolon.
+if command -v cygpath >/dev/null 2>&1; then
+  REPO_ROOT="$(cygpath -m "$REPO_ROOT")"
+  SDK_DIR="$(cygpath -m "$SDK_DIR")"
+  BUILD_DIR="$(cygpath -m "$BUILD_DIR")"
+fi
 if [[ ! -f "$SDK_DIR/share/Urho3D/CMake/Urho3DConfig.cmake" ]]; then
   echo "No rbfx SDK in '$SDK_DIR'. Run eng/fetch-rbfx-sdk.sh --rid $RID, or pass --sdk." >&2
   exit 1

@@ -65,6 +65,10 @@ public sealed class ManagedAttributeGeneratorTests
             "static o => (object)((global::GeneratorTest.Derived)o).Mood, static (o, v) => ((global::GeneratorTest.Derived)o).Mood = (global::GeneratorTest.Mood)v)",
             derivedText);
         Assert.DoesNotContain("Skipped", derivedText);
+
+        // The registration carries a factory of the temporary instance, so that the default values need no Activator. The compile check is OutputErrors.
+        Assert.Contains("}, static ctx => new global::GeneratorTest.Base(ctx)", baseText);
+        Assert.Contains("}, static ctx => new global::GeneratorTest.Derived(ctx)", derivedText);
         Assert.DoesNotContain("NotMarked", derivedText);
 
         // The reflection path lists the fields of a type first, then its properties.
@@ -109,7 +113,11 @@ public sealed class ManagedAttributeGeneratorTests
             """);
 
         Assert.Empty(result.OutputErrors);
-        Assert.Contains("global::System.Array.Empty<global::Urho3D.Plugins.ManagedAttributeDescriptor>()", result.Registration("GeneratorTest.Plain"));
+        var text = result.Registration("GeneratorTest.Plain");
+        Assert.Contains("global::System.Array.Empty<global::Urho3D.Plugins.ManagedAttributeDescriptor>()", text);
+
+        // An empty list never reads default values, so there is no factory.
+        Assert.DoesNotContain("static ctx =>", text);
     }
 
     [Fact]
@@ -139,6 +147,7 @@ public sealed class ManagedAttributeGeneratorTests
         // The type has no list at all, not even for its public members.
         var hidden = result.Registration("GeneratorTest.Hidden");
         Assert.DoesNotContain("ManagedAttributeDescriptor", hidden);
+        Assert.DoesNotContain("static ctx =>", hidden);
         Assert.Contains("ManagedAttributeDescriptor.Create<float>", result.Registration("GeneratorTest.Visible"));
     }
 
@@ -169,6 +178,8 @@ public sealed class ManagedAttributeGeneratorTests
 
         // AttributeComponent has a private [SerializeField] field. DerivedAttributeComponent copies its attributes from the base reflection.
         Assert.Null(byName["AttributeComponent"].Attributes);
+        Assert.Null(byName["AttributeComponent"].CreateDefaults);
+        Assert.NotNull(byName["DerivedAttributeComponent"].CreateDefaults);
         var derived = Assert.Single(byName["DerivedAttributeComponent"].Attributes!);
         Assert.Equal("Extra", derived.Name);
         Assert.Equal(typeof(double), derived.ValueType);

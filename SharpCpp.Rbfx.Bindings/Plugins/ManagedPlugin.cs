@@ -6,6 +6,7 @@ using SharpCpp.Rbfx.Bindings.Interop;
 
 using Urho3D.Core;
 using Urho3D.Math;
+using Urho3D.Scene;
 
 using TypeInfo = Urho3D.Core.TypeInfo;
 
@@ -158,7 +159,7 @@ public abstract partial class ManagedPlugin : Plugin
                 continue;
             }
 
-            RegisterAttributes(context, item.Type, typeInfo, registered, item.Attributes);
+            RegisterAttributes(context, item.Type, typeInfo, registered, item.Attributes, item.CreateDefaults);
         }
     }
 
@@ -170,13 +171,14 @@ public abstract partial class ManagedPlugin : Plugin
         [DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)] Type type,
         TypeInfo typeInfo,
         List<StringHash> registered,
-        ManagedAttributeDescriptor[]? descriptors = null)
+        ManagedAttributeDescriptor[]? descriptors = null,
+        Func<Context, Serializable>? createDefaults = null)
     {
         try
         {
             registered.Add(typeInfo.GetType());
             var reflection = context.GetReflection(typeInfo.GetType());
-            ManagedAttributeRegistrar.Register(context, reflection, typeInfo, type, descriptors);
+            ManagedAttributeRegistrar.Register(context, reflection, typeInfo, type, descriptors, createDefaults);
         }
         catch (Exception exception)
         {

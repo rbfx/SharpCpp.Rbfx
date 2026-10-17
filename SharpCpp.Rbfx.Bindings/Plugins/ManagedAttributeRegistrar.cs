@@ -29,22 +29,39 @@ internal static class ManagedAttributeRegistrar
     private static readonly MethodInfo CreateBindingMethod =
         typeof(ManagedAttributeRegistrar).GetMethod(nameof(CreateBinding), BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static int _reflectionScanCount;
+    private static int _activatorCreateCount;
+
+    /// <summary>The number of member scans by reflection (<c>CollectMembers</c>). It is incremented once for each scan, and read by tests.</summary>
+    internal static int ReflectionScanCount => Volatile.Read(ref _reflectionScanCount);
+
+    /// <summary>The number of temporary instances made by <see cref="Activator"/>. It is incremented once for each instance, and read by tests.</summary>
+    internal static int ActivatorCreateCount => Volatile.Read(ref _activatorCreateCount);
+
     /// <summary>
     /// Copies the attributes of the nearest reflected base type, then adds the marked members of the type and of its
     /// managed base types that have no reflection. A temporary instance gives the default values.
     /// When <paramref name="descriptors"/> is not null, it is the complete list of the attributes of the type (the generated registry).
     /// The type is not scanned for members then. When it is null, the members come from reflection.
+    /// With descriptors, <paramref name="createDefaults"/> makes the temporary instance without <see cref="Activator"/>. When it is null, <see cref="Activator"/> makes it.
     /// </summary>
     public static void Register(
         Context context,
         ObjectReflection reflection,
         TypeInfo typeInfo,
         [DynamicallyAccessedMembers(ManagedTypeMembers)] Type type,
-        ManagedAttributeDescriptor[]? descriptors = null)
+        ManagedAttributeDescriptor[]? descriptors = null,
+        Func<Context, Serializable>? createDefaults = null)
     {
         CopyBaseAttributes(context, reflection, typeInfo);
 
-        var members = descriptors is null ? CollectMembers(context, type) : null;
+        List<(MemberInfo Member, SerializeFieldAttribute Attribute)>? members = null;
+        if (descriptors is null)
+        {
+            Interlocked.Increment(ref _reflectionScanCount);
+            members = CollectMembers(context, type);
+        }
+
         if ((members?.Count ?? descriptors!.Length) == 0)
         {
             return;
@@ -59,7 +76,15 @@ internal static class ManagedAttributeRegistrar
         Serializable? defaults = null;
         try
         {
-            defaults = (Serializable)Activator.CreateInstance(type, context)!;
+            if (descriptors is not null && createDefaults is not null)
+            {
+                defaults = createDefaults(context);
+            }
+            else
+            {
+                Interlocked.Increment(ref _activatorCreateCount);
+                defaults = (Serializable)Activator.CreateInstance(type, context)!;
+            }
         }
         catch (Exception exception)
         {

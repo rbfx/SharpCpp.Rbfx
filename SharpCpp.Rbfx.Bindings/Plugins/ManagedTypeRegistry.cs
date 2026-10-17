@@ -3,6 +3,7 @@ using System.Reflection;
 
 using Urho3D.Core;
 using Urho3D.Math;
+using Urho3D.Scene;
 
 using TypeInfo = Urho3D.Core.TypeInfo;
 
@@ -19,7 +20,8 @@ public readonly record struct ManagedTypeRegistration(
     [property: DynamicallyAccessedMembers(ManagedAttributeRegistrar.ManagedTypeMembers)]
     Type Type,
     Func<Context, string, TypeInfo> Register,
-    ManagedAttributeDescriptor[]? Attributes = null);
+    ManagedAttributeDescriptor[]? Attributes = null,
+    Func<Context, Serializable>? CreateDefaults = null);
 
 /// <summary>
 /// The list of the managed object types of an assembly. The source generator (SharpCpp.Rbfx.SourceGenerator) derives a

@@ -195,7 +195,7 @@ function(_rbfx_csharp_editor_host_setup name)
   endif()
 endfunction()
 
-# rbfx_csharp_host_editor(<target>)
+# rbfx_csharp_host_editor(<target> [LAUNCHER <launcher>])
 #
 # Gives an existing editor executable of a project the .NET hosting of rbfx_csharp_add_editor. The editor of the project
 # is an EditorApplication that the project makes with add_executable and links with EditorLibrary and its own plugins
@@ -209,10 +209,24 @@ endfunction()
 # the executable (RUNTIME_OUTPUT_DIRECTORY of the target, else the binary folder, with the configuration folder for a
 # multi-config generator) before the executable links, and copies SharpCpp::RbfxNative (and on Windows the host library
 # and nethost.dll) next to the executable. All editors share the target SharpCpp.Rbfx.EditorHost.
+# LAUNCHER <launcher> registers the managed plugin of the launcher (rbfx_csharp_package_application) in the editor.
+# The editor then shows the C# components and the other types of that plugin. The editor only registers the plugin, and
+# the project loads it. The function defines SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN (the name of the plugin), which makes
+# RbfxEditorDotNetHost register <executable folder>/<plugin>.dll. The editor target then depends on <launcher>.Plugin, and
+# the build of its bootstrap plugin runs after it. The conditions are:
+#   - The launcher is defined before the call (add its folder before the folder of the editor).
+#   - The launcher uses the hostfxr host mode, and the editor and the launcher have the same output folder.
+#   - The plugins are shared libraries. A static plugin build has no shared App.Main library for the DllImport of the
+#     bindings, so the editor cannot use the C# plugin then.
+# Without LAUNCHER, the editor registers no plugin of the project.
 # Desktop only. It is a fatal error on Android, iOS and Emscripten, and for a target that is not an executable.
 function(rbfx_csharp_host_editor name)
-  if(ARGC GREATER 1)
-    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): unknown arguments: ${ARGN}")
+  cmake_parse_arguments(PARSE_ARGV 1 arg "" "LAUNCHER" "")
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  if(arg_KEYWORDS_MISSING_VALUES)
+    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): LAUNCHER needs a target name.")
   endif()
   if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS" OR EMSCRIPTEN)
     message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the editor is a desktop program. Android, iOS and Emscripten are not supported.")
@@ -227,5 +241,29 @@ function(rbfx_csharp_host_editor name)
   if(NOT TARGET SharpCpp::RbfxHost)
     message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the target SharpCpp::RbfxHost does not exist.")
   endif()
+  if(arg_LAUNCHER)
+    # Check the launcher before any change to the editor target.
+    if(NOT TARGET ${arg_LAUNCHER})
+      message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the launcher '${arg_LAUNCHER}' does not exist. Add the folder of the launcher before the call.")
+    endif()
+    get_target_property(launcher_plugin_name ${arg_LAUNCHER} SHARPCPP_RBFX_MANAGED_PLUGIN)
+    if(NOT launcher_plugin_name OR NOT TARGET ${arg_LAUNCHER}.Plugin)
+      message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the launcher '${arg_LAUNCHER}' has no managed plugin that dotnet builds. Call rbfx_csharp_package_application for it first. The shim host mode is not supported.")
+    endif()
+  endif()
   _rbfx_csharp_editor_host_setup(${name})
+  if(arg_LAUNCHER)
+    # The editor and the launcher must share one output folder, because the editor looks for the plugin next to its own
+    # executable. Use the same rule as _rbfx_csharp_editor_host_setup for the folder of the editor.
+    get_target_property(editor_directory ${name} RUNTIME_OUTPUT_DIRECTORY)
+    get_target_property(launcher_directory ${arg_LAUNCHER} RUNTIME_OUTPUT_DIRECTORY)
+    if(editor_directory AND launcher_directory AND NOT editor_directory STREQUAL launcher_directory)
+      message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the output folder of the editor '${editor_directory}' is not the output folder of the launcher '${launcher_directory}'.")
+    endif()
+    target_compile_definitions(${name} PRIVATE SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN="${launcher_plugin_name}")
+    # The editor needs the managed plugin of the launcher. Two dotnet builds must not run together, so the build of the
+    # bootstrap plugin of the editor waits for the build of the plugin of the launcher.
+    add_dependencies(${name} ${arg_LAUNCHER}.Plugin ${arg_LAUNCHER}.Native)
+    add_dependencies(${name}.Plugin ${arg_LAUNCHER}.Plugin)
+  endif()
 endfunction()

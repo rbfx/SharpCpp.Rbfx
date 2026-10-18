@@ -290,13 +290,21 @@ A project that builds its own editor target calls `rbfx_csharp_host_editor()` fo
 add_executable(MyProjectEditor Editor.cpp)
 target_link_libraries(MyProjectEditor PUBLIC EditorLibrary)
 target_link_plugins(MyProjectEditor "${APP_PLUGIN_LIST}")
-rbfx_csharp_host_editor(MyProjectEditor)
+rbfx_csharp_host_editor(MyProjectEditor [LAUNCHER MyProject])
 ```
 
 - The function links `SharpCpp::RbfxHost`, defines `SHARPCPP_RBFX_EDITOR_NAME` and `SHARPCPP_RBFX_EDITOR_HOST_NAME`, and adds the folder
   `cmake/launcher` to the include folders. It builds the bootstrap plugin as `rbfx_csharp_add_editor()` does, into the folder of the executable
   (`RUNTIME_OUTPUT_DIRECTORY` of the target, else its binary folder, with the configuration folder for a multi-config generator).
   It does not call `target_link_plugins()`.
+- `LAUNCHER <launcher>` registers the managed plugin of the launcher in the editor. The editor then shows the C# components of that plugin
+  (the category of the plugin is the property `FactoryCategory`; override it to change the category). The function defines `SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN` (the name of
+  the plugin). `RbfxEditorDotNetHost` then registers `<folder of the executable>/<plugin>.dll` for each new `PluginManager`. It registers the
+  plugin and does not load it. The editor depends on `<launcher>.Plugin`, and the build of its bootstrap plugin runs after it, so two
+  `dotnet` builds never run together. Without `LAUNCHER` the editor registers no plugin of the project.
+- `LAUNCHER` has conditions. Add the folder of the launcher before the folder of the editor. The launcher must use the hostfxr host mode
+  (`rbfx_csharp_package_application()`). The editor and the launcher need the same `RUNTIME_OUTPUT_DIRECTORY`; if they differ, CMake stops with an error.
+- A static plugin build has no shared `App.Main` library for the `DllImport` of the bindings. So the registration of a C# plugin in the editor needs shared plugins.
 - The editor code uses the header-only class `Urho3D::RbfxEditorDotNetHost`:
 
 ```cpp

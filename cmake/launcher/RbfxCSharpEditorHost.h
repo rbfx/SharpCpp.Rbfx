@@ -20,6 +20,7 @@
 #include <Urho3D/Plugins/PluginManager.h>
 
 #include <EASTL/string.h>
+#include <EASTL/vector.h>
 #include <EASTL/string_view.h>
 
 namespace Urho3D
@@ -37,10 +38,10 @@ class ManagedPluginRegistrar : public Object
     URHO3D_OBJECT(ManagedPluginRegistrar, Object);
 
 public:
-    ManagedPluginRegistrar(Context* context, DotNetHost* host, ea::string assemblyPath)
+    ManagedPluginRegistrar(Context* context, DotNetHost* host, ea::vector<ea::string> assemblyPaths)
         : Object(context)
         , host_(host)
-        , assemblyPath_(ea::move(assemblyPath))
+        , assemblyPaths_(ea::move(assemblyPaths))
     {
         SubscribeToEvent(E_ENDFRAME, [this](StringHash, VariantMap&) { Poll(); });
     }
@@ -54,21 +55,30 @@ public:
         if (!current || current == pluginManager_.Get())
             return;
         pluginManager_ = current;
-        ea::string error;
-        if (!host_->RegisterPlugin(current, assemblyPath_, error))
-            URHO3D_LOGERROR("{}", error);
-        else if (!current->IsReloadPending())
+        // The first path is the bootstrap plugin. The other paths are plugins of the project.
+        bool registered = false;
+        for (const ea::string& assemblyPath : assemblyPaths_)
+        {
+            ea::string error;
+            if (!host_->RegisterPlugin(current, assemblyPath, error))
+                URHO3D_LOGERROR("{}", error);
+            else
+                registered = true;
+        }
+        if (registered && !current->IsReloadPending())
             current->Reload();
     }
 
 private:
     SharedPtr<DotNetHost> host_;
-    ea::string assemblyPath_;
+    ea::vector<ea::string> assemblyPaths_;
     WeakPtr<PluginManager> pluginManager_;
 };
 
 // Starts the .NET runtime of an editor and registers the bootstrap plugin SharpCpp.Rbfx.EditorHost.
 // The bootstrap plugin registers the managed plugins of the folder ManagedPlugins next to the executable.
+// When the editor defines SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN (rbfx_csharp_host_editor with LAUNCHER), the helper also
+// registers <executable folder>/<SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN>.dll.
 class RbfxEditorDotNetHost
 {
 public:
@@ -81,7 +91,12 @@ public:
     {
         directory_ = AddTrailingSlash(context->GetSubsystem<FileSystem>()->GetProgramDir());
         const ea::string name{hostName.data(), static_cast<ea::string::size_type>(hostName.size())};
-        assemblyPath_ = directory_ + name + ".dll";
+        assemblyPaths_.clear();
+        assemblyPaths_.push_back(directory_ + name + ".dll");
+#ifdef SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN
+        // The managed plugin of the launcher is in the same folder. The editor registers it and does not load it.
+        assemblyPaths_.push_back(directory_ + SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN ".dll");
+#endif
         DotNetHostOptions options;
         options.runtimeConfigPath = directory_ + name + ".runtimeconfig.json";
         context_ = context;
@@ -101,7 +116,7 @@ public:
     {
         if (!host_)
             return;
-        registrar_ = MakeShared<ManagedPluginRegistrar>(context_, host_.Get(), assemblyPath_);
+        registrar_ = MakeShared<ManagedPluginRegistrar>(context_, host_.Get(), assemblyPaths_);
         registrar_->Poll();
     }
 
@@ -117,7 +132,7 @@ private:
     Context* context_{};
     SharedPtr<DotNetHost> host_;
     ea::string directory_;
-    ea::string assemblyPath_;
+    ea::vector<ea::string> assemblyPaths_;
     SharedPtr<ManagedPluginRegistrar> registrar_;
 };
 

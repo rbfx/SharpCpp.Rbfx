@@ -294,7 +294,9 @@ function(_rbfx_csharp_add_desktop_application name)
   _rbfx_csharp_add_desktop_native_copy(${name})
 
   # The desktop application is the executable in its folder, so there is no separate output.
-  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "")
+  # SHARPCPP_RBFX_MANAGED_PLUGIN is the name of the managed plugin. An editor of the project registers it
+  # (rbfx_csharp_host_editor, LAUNCHER).
+  set_target_properties(${name} PROPERTIES SHARPCPP_RBFX_APPLICATION_OUTPUT "" SHARPCPP_RBFX_MANAGED_PLUGIN "${plugin_name}")
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Plugin ${name}.Native)
 endfunction()
 

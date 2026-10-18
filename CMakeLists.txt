@@ -557,6 +557,10 @@ if(RBFX_INSTALL_SDK)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk"
     DESTINATION "${_rbfx_sdk_module_dir}")
+  # The targets that write the depfile of a nested MSBuild run (rbfx_csharp_add_dotnet_project).
+  install(
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/eng/SharpCpp.Rbfx.Depfile.targets"
+    DESTINATION "${_rbfx_sdk_module_dir}/sdk")
   # The source of the default launcher (rbfx_csharp_add_launcher without SOURCES).
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/launcher"

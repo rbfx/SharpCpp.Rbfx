@@ -1,0 +1,190 @@
+<Project>
+  <!-- Writes a dependency file (depfile) for the build of CMake, so that CMake can skip the dotnet build when no input changed.
+
+       CMake loads this file into every project of the nested build with -p:CustomAfterMicrosoftCommonTargets=<this file>
+       (rbfx_csharp_add_dotnet_project in cmake/RbfxCSharpDotNet.cmake). The file does nothing in any other build: all
+       targets need the property RbfxDepfile. The MSBuild-driven build (SharpCpp.Rbfx.slnx) does not set it.
+
+       Properties from CMake:
+         RbfxDepfile              Path of the depfile to write.
+         RbfxDepfileStamp         The output file of the CMake command. The depfile names it as the target of the rule.
+         RbfxDepfileProject       The project that CMake builds. Only this project writes the depfile. The referenced
+                                  projects only report their inputs.
+         RbfxDepfileOutputs       The files that the CMake command writes (separated with ;). They are not inputs.
+         RbfxDepfileExtraInputs   Files that the project imports and that MSBuild does not list (separated with ;).
+         RbfxDepfileChainTargets  A user value of CustomAfterMicrosoftCommonTargets. This file imports it.
+
+       Input of a project (what changes the result of its build):
+         - the source items (Compile, EmbeddedResource, AdditionalFiles, Analyzer, content that is copied),
+         - the reference assemblies (ReferencePath) and the native runtime files. The assemblies of the referenced projects
+           and the files below the managed output root (SharpCppManagedOutputRoot) and the plugin output folder
+           (RbfxPluginOutDir) are not inputs: they are outputs of other commands of CMake,
+         - the project file, the imported MSBuild files, the files of NuGet restore and the SDK of MSBuild,
+         - the directories of the source files, the project folder and all directories below them. The time stamp of a
+           directory changes when a file is added or deleted. A directory below BaseOutputPath, BaseIntermediateOutputPath,
+           OutDir, IntermediateOutputPath or the folders .git and .vs of the project is not an input.
+       The inputs of the referenced projects are inputs of the project too. -->
+
+  <Import Project="$(RbfxDepfileChainTargets)" Condition="'$(RbfxDepfileChainTargets)' != '' and Exists('$(RbfxDepfileChainTargets)')" />
+
+  <Target Name="RbfxGetDepfileInputs"
+          Condition="'$(RbfxDepfile)' != ''"
+          DependsOnTargets="PrepareProjectReferences"
+          Returns="@(RbfxDepfileInput)">
+    <ItemGroup>
+      <_RbfxSource Include="@(Compile);@(EmbeddedResource);@(AdditionalFiles);@(Analyzer);@(RbfxNativeRuntimeFile);@(EditorConfigFiles);@(PotentialEditorConfigFiles)" />
+      <_RbfxSource Include="@(None->HasMetadata('CopyToOutputDirectory'));@(Content->HasMetadata('CopyToOutputDirectory'))" />
+    </ItemGroup>
+
+    <!-- The project, the imported files and the files of restore. -->
+    <ItemGroup>
+      <_RbfxProjectFile Include="$(MSBuildProjectFullPath)" />
+      <_RbfxProjectFile Include="$(MSBuildThisFileFullPath)" />
+      <_RbfxProjectFile Include="$(MSBuildAllProjects)" />
+      <_RbfxProjectFile Include="$(ProjectAssetsFile)" />
+      <_RbfxProjectFile Include="$(MSBuildProjectExtensionsPath)*.g.props;$(MSBuildProjectExtensionsPath)*.g.targets" />
+      <_RbfxProjectFile Include="$(DirectoryBuildPropsPath);$(DirectoryBuildTargetsPath);$(DirectoryPackagesPropsPath);$(ResolvedCodeAnalysisRuleSet)" />
+      <_RbfxProjectFile Include="$(SharpCppRbfxPluginProps)" />
+      <_RbfxProjectFile Include="$([MSBuild]::Unescape('$(RbfxDepfileExtraInputs)'))" />
+      <_RbfxProjectFile Include="$(MSBuildThisFileDirectory)*.props;$(MSBuildThisFileDirectory)*.targets" />
+      <_RbfxProjectFile Include="$(MSBuildProjectDirectory)/*.props;$(MSBuildProjectDirectory)/*.targets" />
+      <_RbfxProjectFile Include="$(MSBuildBinPath)/MSBuild.dll" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_RbfxGlobalJson>$([MSBuild]::GetPathOfFileAbove('global.json', '$(MSBuildProjectDirectory)'))</_RbfxGlobalJson>
+      <_RbfxBuildPropsDirectory Condition="'$(DirectoryBuildPropsPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(DirectoryBuildPropsPath)'))</_RbfxBuildPropsDirectory>
+      <_RbfxBuildTargetsDirectory Condition="'$(DirectoryBuildTargetsPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(DirectoryBuildTargetsPath)'))</_RbfxBuildTargetsDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_RbfxProjectFile Include="$(_RbfxGlobalJson)" Condition="'$(_RbfxGlobalJson)' != ''" />
+      <!-- The Directory.Build files import the files of the folder eng next to them. -->
+      <_RbfxProjectFile Include="$(_RbfxBuildPropsDirectory)/eng/*.props;$(_RbfxBuildPropsDirectory)/eng/*.targets" Condition="'$(_RbfxBuildPropsDirectory)' != ''" />
+      <_RbfxProjectFile Include="$(_RbfxBuildTargetsDirectory)/eng/*.props;$(_RbfxBuildTargetsDirectory)/eng/*.targets" Condition="'$(_RbfxBuildTargetsDirectory)' != ''" />
+    </ItemGroup>
+
+    <!-- The directories of the source files. The project folder is always a root: a file that is added to the folder (a new
+         source, an item that a glob finds) changes its time stamp, also when the project has no source file yet. -->
+    <ItemGroup>
+      <_RbfxSourceDirectory Include="@(Compile->'%(RootDir)%(Directory)');@(EmbeddedResource->'%(RootDir)%(Directory)')" />
+      <_RbfxSourceDirectory Include="$(MSBuildProjectDirectory)/" />
+      <_RbfxSourceDirectory Include="@(RbfxDepfileSourceRoot->'%(FullPath)')" />
+      <_RbfxSourceRoot Include="@(_RbfxSourceDirectory->Distinct())" />
+    </ItemGroup>
+
+    <!-- The folders that the build writes into are not inputs: BaseOutputPath, BaseIntermediateOutputPath, OutDir and
+         IntermediateOutputPath, the .git and .vs folders of the project, and the folders bin and obj below a source folder.
+         The test is a prefix of the full path, so a folder named bin or obj in another place (for example a parent folder
+         of the project) is still an input. The metadata Pattern is the prefix as a regular expression. MSBuild changes
+         a backslash in a value that looks like a path (on Unix), so the paths use only "/" and the pattern has no
+         backslash: a character class [.] stands for a special character. -->
+    <ItemGroup>
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(BaseOutputPath)'))" Condition="'$(BaseOutputPath)' != ''" />
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(BaseIntermediateOutputPath)'))" Condition="'$(BaseIntermediateOutputPath)' != ''" />
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(OutDir)'))" Condition="'$(OutDir)' != ''" />
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)'))" Condition="'$(IntermediateOutputPath)' != ''" />
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '.git'))" />
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '.vs'))" />
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('%(_RbfxSourceRoot.FullPath)', 'bin'))" />
+      <_RbfxOutputFolder Include="$([MSBuild]::NormalizeDirectory('%(_RbfxSourceRoot.FullPath)', 'obj'))" />
+      <_RbfxOutputFolder>
+        <Pattern>$([System.String]::Copy('%(Identity)').Replace('\', '/').Replace('[', '[[]').Replace('.', '[.]').Replace('*', '[*]').Replace('?', '[?]').Replace('{', '[{]').Replace('+', '[+]').Replace('(', '[(]').Replace(')', '[)]').Replace('$', '[$]').Replace('|', '[|]'))</Pattern>
+      </_RbfxOutputFolder>
+    </ItemGroup>
+    <PropertyGroup>
+      <_RbfxOutputFolderRegex>^(@(_RbfxOutputFolder->'%(Pattern)', '|'))</_RbfxOutputFolderRegex>
+      <_RbfxOutputFolderRegex Condition="$([MSBuild]::IsOSPlatform('Windows'))">(?i)$(_RbfxOutputFolderRegex)</_RbfxOutputFolderRegex>
+    </PropertyGroup>
+    <ItemGroup>
+      <_RbfxSourceRoot>
+        <NormPath>$([System.String]::Copy('%(FullPath)').Replace('\', '/'))/</NormPath>
+      </_RbfxSourceRoot>
+      <_RbfxSourceRoot Remove="@(_RbfxSourceRoot)" Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(NormPath)', '$(_RbfxOutputFolderRegex)'))" />
+    </ItemGroup>
+    <ItemGroup>
+      <_RbfxSourceTree Include="$([System.IO.Directory]::GetDirectories('%(_RbfxSourceRoot.FullPath)', '*', System.IO.SearchOption.AllDirectories))" Condition="Exists('%(_RbfxSourceRoot.FullPath)')" />
+      <_RbfxSourceTree>
+        <NormPath>$([System.String]::Copy('%(FullPath)').Replace('\', '/'))/</NormPath>
+      </_RbfxSourceTree>
+      <_RbfxSourceTree Remove="@(_RbfxSourceTree)" Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(NormPath)', '$(_RbfxOutputFolderRegex)'))" />
+    </ItemGroup>
+
+    <!-- The files that the build writes are not inputs. -->
+    <ItemGroup>
+      <_RbfxSource>
+        <NormPath>$([System.String]::Copy('%(FullPath)').Replace('\', '/'))/</NormPath>
+      </_RbfxSource>
+      <_RbfxSource Remove="@(_RbfxSource)" Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(NormPath)', '$(_RbfxOutputFolderRegex)'))" />
+    </ItemGroup>
+
+    <!-- The reference assemblies. The assembly of a referenced project is an output of that project: the build of the
+         referenced project reports its inputs (see the call of MSBuild below). The managed output root and the output
+         folder of the plugin hold the outputs of the commands of CMake (BYPRODUCTS), and a file cannot be an input and an
+         output of the rules. The assemblies of the installed SDK and of NuGet stay. -->
+    <ItemGroup>
+      <_RbfxReference Include="@(ReferencePath)" />
+      <_RbfxReference Remove="@(ReferencePath->WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(SharpCppManagedOutputRoot)' != ''">
+      <_RbfxOutputRoot Include="$([MSBuild]::NormalizeDirectory('$(SharpCppManagedOutputRoot)'))" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(RbfxPluginOutDir)' != ''">
+      <_RbfxOutputRoot Include="$([MSBuild]::NormalizeDirectory('$(RbfxPluginOutDir)'))" />
+    </ItemGroup>
+    <ItemGroup>
+      <_RbfxOutputRoot>
+        <Pattern>$([System.String]::Copy('%(Identity)').Replace('\', '/').Replace('[', '[[]').Replace('.', '[.]').Replace('*', '[*]').Replace('?', '[?]').Replace('{', '[{]').Replace('+', '[+]').Replace('(', '[(]').Replace(')', '[)]').Replace('$', '[$]').Replace('|', '[|]'))</Pattern>
+      </_RbfxOutputRoot>
+    </ItemGroup>
+    <PropertyGroup Condition="'@(_RbfxOutputRoot)' != ''">
+      <_RbfxOutputRootRegex>^(@(_RbfxOutputRoot->'%(Pattern)', '|'))</_RbfxOutputRootRegex>
+      <_RbfxOutputRootRegex Condition="$([MSBuild]::IsOSPlatform('Windows'))">(?i)$(_RbfxOutputRootRegex)</_RbfxOutputRootRegex>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_RbfxOutputRootRegex)' != ''">
+      <_RbfxReference>
+        <NormPath>$([System.String]::Copy('%(FullPath)').Replace('\', '/'))/</NormPath>
+      </_RbfxReference>
+      <_RbfxReference Remove="@(_RbfxReference)" Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(NormPath)', '$(_RbfxOutputRootRegex)'))" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <RbfxDepfileInput Include="@(_RbfxSource->'%(FullPath)')" />
+      <RbfxDepfileInput Include="@(_RbfxReference->'%(FullPath)')" />
+      <RbfxDepfileInput Include="@(_RbfxProjectFile->'%(FullPath)')" />
+      <RbfxDepfileInput Include="@(_RbfxSourceRoot->'%(FullPath)')" />
+      <RbfxDepfileInput Include="@(_RbfxSourceTree->'%(FullPath)')" />
+    </ItemGroup>
+
+    <!-- The inputs of the referenced projects. The call has the same properties as the call of ResolveProjectReferences,
+         so the projects are the ones that the build has evaluated and built already. -->
+    <MSBuild Projects="@(_MSBuildProjectReferenceExistent)"
+             Targets="RbfxGetDepfileInputs"
+             BuildInParallel="$(BuildInParallel)"
+             Properties="%(_MSBuildProjectReferenceExistent.SetConfiguration); %(_MSBuildProjectReferenceExistent.SetPlatform); %(_MSBuildProjectReferenceExistent.SetTargetFramework)"
+             Condition="'%(_MSBuildProjectReferenceExistent.BuildReference)' == 'true' and '@(_MSBuildProjectReferenceExistent)' != ''"
+             RemoveProperties="%(_MSBuildProjectReferenceExistent.GlobalPropertiesToRemove)$(_GlobalPropertiesToRemoveFromProjectReferences)"
+             SkipNonexistentTargets="true">
+      <Output TaskParameter="TargetOutputs" ItemName="RbfxDepfileInput" />
+    </MSBuild>
+  </Target>
+
+  <Target Name="RbfxWriteDepfile"
+          AfterTargets="Build"
+          DependsOnTargets="RbfxGetDepfileInputs"
+          Condition="'$(RbfxDepfile)' != '' and '$(RbfxDepfileProject)' != '' and '$([MSBuild]::NormalizePath($(RbfxDepfileProject)))' == '$(MSBuildProjectFullPath)'">
+    <ItemGroup>
+      <_RbfxDepfileCandidate Include="@(RbfxDepfileInput->Replace('\', '/')->Distinct())" />
+      <!-- A file that does not exist would keep the rule dirty for ever. -->
+      <_RbfxDepfileExisting Include="@(_RbfxDepfileCandidate)" Condition="Exists('%(Identity)')" />
+      <_RbfxDepfileOutput Include="$([MSBuild]::Unescape('$(RbfxDepfileOutputs)'))" />
+      <_RbfxDepfileExisting Remove="@(_RbfxDepfileOutput)" />
+      <!-- The rules of a depfile need these escapes: a space is "\ ", "$" is "$$" and "#" is "\#". -->
+      <_RbfxDepfileEscaped Include="@(_RbfxDepfileExisting->Replace('$', '$$')->Replace('#', '\#')->Replace(' ', '\ '))" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_RbfxDepfileStampEscaped>$(RbfxDepfileStamp.Replace('\', '/').Replace('$', '$$').Replace('#', '\#').Replace(' ', '\ '))</_RbfxDepfileStampEscaped>
+      <_RbfxDepfileLine>$(_RbfxDepfileStampEscaped): @(_RbfxDepfileEscaped, ' ')</_RbfxDepfileLine>
+    </PropertyGroup>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(RbfxDepfile)'))" />
+    <WriteLinesToFile File="$(RbfxDepfile)" Lines="$(_RbfxDepfileLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
+</Project>

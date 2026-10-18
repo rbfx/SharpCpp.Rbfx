@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <RbfxDepfileSourceRoot Include="@RBFX_PLUGIN_DIR@/" />
     <Compile Include="@RBFX_PLUGIN_DIR@/**/*.cs" Exclude="@RBFX_PLUGIN_DIR@/bin/**;@RBFX_PLUGIN_DIR@/obj/**" />
   </ItemGroup>
 </Project>

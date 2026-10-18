@@ -281,15 +281,20 @@ endfunction()
 # The desktop part of rbfx_csharp_package_application (hostfxr mode). It reads the variables arg_*, plugin_name,
 # plugin_project and plugin_properties of the caller.
 function(_rbfx_csharp_add_desktop_application name)
-  # The plugin is built with dotnet next to the executable.
+  # The plugin is built with dotnet next to the executable. The plugin project compiles the generated sources of the
+  # bindings, so it also waits for the generate targets (and their stamps).
+  set(plugin_generate_targets)
+  foreach(bindings IN LISTS arg_BINDINGS_TARGETS)
+    if(TARGET sharpcpp-generate-${bindings})
+      list(APPEND plugin_generate_targets sharpcpp-generate-${bindings})
+    endif()
+  endforeach()
   rbfx_csharp_add_plugin_build(
     ${name}.Plugin
     PROJECT "${plugin_project}"
     HOST ${name}
+    DEPENDS ${arg_BINDINGS_NATIVE_TARGETS} ${plugin_generate_targets}
     PROPERTIES ${plugin_properties})
-  if(arg_BINDINGS_NATIVE_TARGETS)
-    add_dependencies(${name}.Plugin ${arg_BINDINGS_NATIVE_TARGETS})
-  endif()
 
   _rbfx_csharp_add_desktop_native_copy(${name})
 

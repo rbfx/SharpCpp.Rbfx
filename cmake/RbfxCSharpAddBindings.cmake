@@ -363,6 +363,19 @@ function(rbfx_csharp_add_bindings target)
     set(engine_generation_dependencies "${RBFX_METADATA_FILE}")
   endif()
 
+  # The source-tree build of a consumer builds the generators with dotnet. In the depfile mode of
+  # rbfx_csharp_add_dotnet_project, the stamps of these builds list all the sources of the generators, so a change of a
+  # source of the generators runs the generate command. Else the command depends on the DLL.
+  set(generator_build_dependencies "${SHARPCPP_RBFX_USERCODE_GENERATOR_DLL}")
+  foreach(generator_build IN ITEMS sharpcpp-rbfx-build-generator sharpcpp-rbfx-build-usercode-generator)
+    if(TARGET ${generator_build})
+      get_target_property(generator_build_stamp ${generator_build} SHARPCPP_RBFX_DOTNET_STAMP)
+      if(generator_build_stamp)
+        list(APPEND generator_build_dependencies "${generator_build_stamp}")
+      endif()
+    endif()
+  endforeach()
+
   add_custom_command(
     OUTPUT "${generated_stamp}"
     COMMAND "${CMAKE_COMMAND}"
@@ -391,7 +404,7 @@ function(rbfx_csharp_add_bindings target)
             --log-file "${generator_log}"
     COMMAND "${CMAKE_COMMAND}" -E touch "${generated_stamp}"
     DEPENDS
-      "${SHARPCPP_RBFX_USERCODE_GENERATOR_DLL}"
+      ${generator_build_dependencies}
       "${RBFX_SDK_FLAGS_FILE}"
       ${engine_generation_dependencies}
       ${headers}
@@ -422,6 +435,8 @@ function(rbfx_csharp_add_bindings target)
   add_custom_target(
     sharpcpp-generate-${target}
     DEPENDS "${generated_stamp}")
+  # The dotnet builds that read the generated sources wait for this stamp (rbfx_csharp_dotnet_depend).
+  set_property(TARGET sharpcpp-generate-${target} PROPERTY SHARPCPP_RBFX_DOTNET_STAMP "${generated_stamp}")
   if(TARGET sharpcpp-generate-rbfx)
     add_dependencies(sharpcpp-generate-${target} sharpcpp-generate-rbfx)
   endif()

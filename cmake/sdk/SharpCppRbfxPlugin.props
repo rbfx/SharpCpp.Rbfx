@@ -5,7 +5,8 @@
        CMake passes these MSBuild properties:
          SharpCppRbfxIsSdk       - "true" when SharpCpp.Rbfx comes from an installed SDK, else "false".
          SharpCppRbfxManagedDir  - folder with the managed assemblies of the SDK (SDK mode only).
-         SharpCppRbfxPackageRoot - root of the SharpCpp.Rbfx source tree (source mode only). -->
+         SharpCppRbfxPackageRoot - root of the SharpCpp.Rbfx source tree (source mode only).
+         RbfxPluginOutDir        - output folder of the plugin (optional). -->
   <PropertyGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
     <!-- Source mode: SharpCpp is the sibling checkout of SharpCpp.Rbfx, as in eng/SharpCpp.Rbfx.Build.props. -->
     <SharpCppRoot Condition="'$(SharpCppRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxPackageRoot)/../SharpCpp'))</SharpCppRoot>
@@ -20,6 +21,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>12.0</LangVersion>
     <NuGetAudit>false</NuGetAudit>
+    <!-- Only this project sets OutDir. A global OutDir would also move the referenced projects, and they would build again. -->
+    <OutDir Condition="'$(RbfxPluginOutDir)' != ''">$(RbfxPluginOutDir)</OutDir>
   </PropertyGroup>
 
   <!-- SDK mode: reference the managed assemblies of the installed SharpCpp.Rbfx SDK. -->

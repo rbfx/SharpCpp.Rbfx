@@ -67,7 +67,9 @@ function(rbfx_csharp_add_dotnet_project target)
     -p:UseSharedCompilation=false
     -nodeReuse:false)
   if(arg_OUTPUT_DIRECTORY)
-    list(APPEND dotnet_arguments "-p:OutDir=${arg_OUTPUT_DIRECTORY}/")
+    # Not -p:OutDir. A global OutDir goes to the referenced projects, and they build again each time the output folder
+    # changes. The plugin project reads RbfxPluginOutDir in SharpCppRbfxPlugin.props and sets OutDir for itself.
+    list(APPEND dotnet_arguments "-p:RbfxPluginOutDir=${arg_OUTPUT_DIRECTORY}/")
   endif()
   # RBFX_CSHARP_MSBUILD_PROPERTIES comes first, so that a PROPERTIES item of the caller wins.
   foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES arg_PROPERTIES)

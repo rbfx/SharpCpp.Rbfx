@@ -17,6 +17,7 @@ public partial class RegistryPluginEntry : ManagedPlugin
     }
 }
 
+[FactoryReflection]
 public partial class RegistryFixtureComponent : Component
 {
     [SerializeField]
@@ -34,6 +35,7 @@ public partial class RegistryFixtureComponent : Component
     }
 }
 
+[FactoryReflection]
 public partial class RegistryFixtureDerivedComponent : RegistryFixtureComponent
 {
     [SerializeField]
@@ -44,3 +46,24 @@ public partial class RegistryFixtureDerivedComponent : RegistryFixtureComponent
     {
     }
 }
+
+// The category of this type is its own. The other types of this assembly use the category of the plugin.
+[FactoryReflection(Category = "RegistryCategory")]
+public partial class RegistryCategorizedComponent : Component
+{
+    public RegistryCategorizedComponent(Context context)
+        : base(context)
+    {
+    }
+}
+
+// This type has no [FactoryReflection] on purpose: the registry does not list it, so the engine does not reflect it.
+#pragma warning disable RBFXSG008
+public partial class RegistryUnmarkedComponent : Component
+{
+    public RegistryUnmarkedComponent(Context context)
+        : base(context)
+    {
+    }
+}
+#pragma warning restore RBFXSG008

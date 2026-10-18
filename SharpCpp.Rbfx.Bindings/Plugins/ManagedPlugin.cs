@@ -18,9 +18,10 @@ namespace Urho3D.Plugins;
 /// The registry is the only source of the types and the attributes. There is no assembly scan and no reflection on members.
 /// An assembly without a registry (the generator is not in the plugin project) logs an error and registers no type.
 /// The plugin manager extensions refuse to register such a plugin and throw an exception with the same message.
-/// A type is registered when it is a concrete <see cref="Object"/> with a public constructor that takes a
-/// <see cref="Context"/>, and when it is partial, so that the source generator implements
-/// <see cref="IManagedObjectFactory{T}"/>. Override <see cref="Load"/> and <see cref="Unload"/> to add more work,
+/// A type is registered only when it has <see cref="FactoryReflectionAttribute"/>. A type without the attribute is not registered.
+/// A marked type is a concrete <see cref="Object"/> that is partial, so that the source generator implements
+/// <see cref="IManagedObjectFactory{T}"/>, and that has a public constructor that takes a <see cref="Context"/>
+/// (or a manual factory). Override <see cref="Load"/> and <see cref="Unload"/> to add more work,
 /// and call the base methods.
 /// </summary>
 public abstract partial class ManagedPlugin : Plugin
@@ -39,7 +40,10 @@ public abstract partial class ManagedPlugin : Plugin
     /// </summary>
     public IReadOnlyList<StringHash> RegisteredTypes => _registeredTypes;
 
-    /// <summary>The reflection category of the registered types. The default is the simple name of the plugin assembly.</summary>
+    /// <summary>
+    /// The reflection category of the registered types. The default is the simple name of the plugin assembly.
+    /// <see cref="FactoryReflectionAttribute.Category"/> of a type overrides it for that type.
+    /// </summary>
     protected virtual string FactoryCategory => ((object)this).GetType().Assembly.GetName().Name ?? string.Empty;
 
     /// <summary>Returns the message of the error for an assembly without a registry.</summary>
@@ -54,7 +58,8 @@ public abstract partial class ManagedPlugin : Plugin
     protected override void Unload() => UnregisterManagedTypes();
 
     /// <summary>
-    /// Returns true to register the type of the registry. The default accepts every factory type that is not a plugin.
+    /// Returns true to register the type of the registry. The registry lists only the types with <see cref="FactoryReflectionAttribute"/>.
+    /// This method is a second filter. The default accepts every factory type that is not a plugin.
     /// A type that this method rejects is not registered, and its derived types of the registry are not registered either.
     /// </summary>
     protected virtual bool ShouldRegister([DynamicallyAccessedMembers(ManagedTypeRegistration.TypeMembers)] Type type) =>
@@ -142,7 +147,7 @@ public abstract partial class ManagedPlugin : Plugin
             TypeInfo typeInfo;
             try
             {
-                typeInfo = item.Register(context, category);
+                typeInfo = item.Register(context, item.Category ?? category);
             }
             catch (Exception exception)
             {

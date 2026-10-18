@@ -4,6 +4,7 @@ using SharpCpp.Rbfx.Bindings.Interop;
 
 using Urho3D.Core;
 using Urho3D.Math;
+using Urho3D.Plugins;
 using Urho3D.Scene;
 
 using Xunit;
@@ -131,6 +132,7 @@ public sealed class ManagedObjectFactoryTests
     }
 }
 
+[FactoryReflection]
 public partial class FactorySpinner : LogicComponent
 {
     private static int _created;

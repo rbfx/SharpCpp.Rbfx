@@ -1,6 +1,7 @@
 using Urho3D.Core;
 using Urho3D.IO;
 using Urho3D.Math;
+using Urho3D.Plugins;
 using Urho3D.Scene;
 
 namespace DesktopAot;
@@ -9,6 +10,7 @@ namespace DesktopAot;
 /// A managed component that rotates its node around the Y axis. The generated type registry registers it,
 /// and the engine attribute "Speed" comes from the <see cref="SerializeFieldAttribute"/>.
 /// </summary>
+[FactoryReflection]
 public partial class Spinner : LogicComponent
 {
     private bool _logged;

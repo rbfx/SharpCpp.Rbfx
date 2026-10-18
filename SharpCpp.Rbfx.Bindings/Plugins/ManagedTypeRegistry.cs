@@ -15,13 +15,16 @@ namespace Urho3D.Plugins;
 /// <see cref="Attributes"/> is the complete list of the engine attributes of the type, without the attributes of its nearest listed base type.
 /// A descriptor has the default value of its member: the generator reads it from the declaration initializer, so the plugin makes no
 /// temporary instance.
+/// <see cref="Category"/> is the reflection category from <see cref="FactoryReflectionAttribute"/>. When it is null, the registration
+/// uses the category of the plugin.
 /// </summary>
 public readonly record struct ManagedTypeRegistration(
     [DynamicallyAccessedMembers(ManagedTypeRegistration.TypeMembers)]
     [property: DynamicallyAccessedMembers(ManagedTypeRegistration.TypeMembers)]
     Type Type,
     Func<Context, string, TypeInfo> Register,
-    ManagedAttributeDescriptor[] Attributes)
+    ManagedAttributeDescriptor[] Attributes,
+    string? Category = null)
 {
     /// <summary>
     /// The members of a registered type that the trimmer and the AOT compiler keep. The overrides and the constructor are called from
@@ -32,8 +35,9 @@ public readonly record struct ManagedTypeRegistration(
 }
 
 /// <summary>
-/// The list of the managed object types of an assembly. The source generator (SharpCpp.Rbfx.SourceGenerator) derives a
-/// sealed attribute for each assembly that has managed object types, and applies it to the assembly.
+/// The list of the managed object types of an assembly: the types with <see cref="FactoryReflectionAttribute"/>.
+/// The source generator (SharpCpp.Rbfx.SourceGenerator) derives a sealed attribute for each assembly that has
+/// such types or a <see cref="ManagedPlugin"/>, and applies it to the assembly.
 /// <see cref="ManagedPlugin"/> uses this list as the only source of the managed types, so the registration needs no dynamic code.
 /// </summary>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false, Inherited = false)]
@@ -46,7 +50,8 @@ public abstract class ManagedTypeRegistryAttribute : Attribute
 /// <summary>
 /// The managed type registries of other assemblies, for example the application assembly of a head.
 /// On load, a <see cref="ManagedPlugin"/> registers the types of its own assembly, then the types of each added registry
-/// that no other loaded plugin registered. The category of these types is the simple name of their assembly.
+/// that no other loaded plugin registered. The category of these types is the simple name of their assembly,
+/// unless <see cref="FactoryReflectionAttribute.Category"/> of the type sets another category.
 /// The first plugin that claims a registry registers its types. The last plugin that claims it removes them on unload.
 /// </summary>
 public static class ManagedTypeRegistries

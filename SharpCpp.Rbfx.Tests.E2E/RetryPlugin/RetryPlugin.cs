@@ -23,6 +23,7 @@ public partial class RetryPluginEntry : Plugin
     protected override void Unload() => Context.RemoveReflection(new StringHash(nameof(RetryPluginComponent)));
 }
 
+[FactoryReflection]
 public partial class RetryPluginComponent : Component
 {
     public RetryPluginComponent(Context context)

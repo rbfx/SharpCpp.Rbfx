@@ -18,6 +18,7 @@ public partial class ChiefPluginEntry : ManagedPlugin
 
 // The base type AttributeBoss is in plugin B, and its base type AttributeComponent is in plugin A.
 // The registry of this assembly lists only "Rank". The engine reflection of AttributeBoss has the others.
+[FactoryReflection]
 public partial class ChiefBoss : AttributeBoss
 {
     [SerializeField]

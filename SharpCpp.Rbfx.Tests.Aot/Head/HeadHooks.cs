@@ -23,6 +23,7 @@ internal static partial class Program
 /// A managed component in the head assembly. The generated type registry of the head registers it, the engine attribute
 /// "HeadSpeed" comes from the <see cref="SerializeFieldAttribute"/>, and the engine calls the <see cref="Update"/> override.
 /// </summary>
+[FactoryReflection]
 public partial class AotHeadSpinner : LogicComponent
 {
     private bool _updateLogged;

@@ -29,9 +29,19 @@ public sealed class ManagedRegistryDefaultTests
         {
             var plugin = host.Load();
             Assert.NotNull(ManagedTypeRegistries.Find(((object)plugin).GetType().Assembly));
-            Assert.Equal(2, plugin.RegisteredTypes.Count);
+            Assert.Equal(3, plugin.RegisteredTypes.Count);
             Assert.True(host.Context.IsReflected(new StringHash("RegistryFixtureComponent")));
             Assert.True(host.Context.IsReflected(new StringHash("RegistryFixtureDerivedComponent")));
+
+            // A type with a Category registers in that category. A type without one uses the category of the plugin.
+            // A type without [FactoryReflection] is not registered.
+            Assert.True(host.Context.IsReflected(new StringHash("RegistryCategorizedComponent")));
+            Assert.Equal("RegistryCategory", host.Context.GetReflection(new StringHash("RegistryCategorizedComponent"))!.GetCategory().ToString());
+            Assert.Equal(
+                "SharpCpp.Rbfx.Tests.E2E.RegistryPlugin",
+                host.Context.GetReflection(new StringHash("RegistryFixtureComponent"))!.GetCategory().ToString());
+            Assert.False(host.Context.IsReflected(new StringHash("RegistryUnmarkedComponent")));
+            Assert.DoesNotContain(new StringHash("RegistryUnmarkedComponent"), plugin.RegisteredTypes);
 
             // The attributes are registered and have the defaults of the declarations.
             var derived = host.Create("RegistryFixtureDerivedComponent");

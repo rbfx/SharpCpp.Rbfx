@@ -308,6 +308,7 @@ internal enum DescriptorMood
 }
 
 // The probe type has the members Speed, Mood and Hidden. The tests give descriptors for some of them only.
+[FactoryReflection]
 internal sealed partial class DescriptorProbeComponent : Component
 {
     [SerializeField]
@@ -326,6 +327,7 @@ internal sealed partial class DescriptorProbeComponent : Component
 }
 
 // Its constructor fails while Blocked is set, so Activator cannot make a temporary instance. A registration factory can.
+[FactoryReflection]
 internal sealed partial class GuardedDefaultsComponent : Component
 {
     public static bool Blocked;
@@ -357,6 +359,7 @@ internal sealed partial class GuardedDefaultsComponent : Component
     }
 }
 
+[FactoryReflection]
 internal partial class DescriptorBaseComponent : Component
 {
     [SerializeField]
@@ -368,6 +371,7 @@ internal partial class DescriptorBaseComponent : Component
     }
 }
 
+[FactoryReflection]
 internal sealed partial class DescriptorDerivedComponent : DescriptorBaseComponent
 {
     [SerializeField]

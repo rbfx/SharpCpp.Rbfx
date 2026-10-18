@@ -1,10 +1,12 @@
 using Urho3D.Core;
 using Urho3D.IO;
+using Urho3D.Plugins;
 using Urho3D.Scene;
 
 namespace RbfxNativeHost;
 
 /// <summary>C# component that rotates its node around the Y axis.</summary>
+[FactoryReflection]
 public partial class Spinner : LogicComponent
 {
     private const int LogInterval = 5;

@@ -41,6 +41,7 @@ public partial class AttributePluginEntry : ManagedPlugin
     }
 }
 
+[FactoryReflection]
 public partial class AttributeComponent : Component
 {
     [SerializeField]
@@ -110,6 +111,7 @@ public abstract partial class AttributeGenericBase<T> : Component
 }
 #pragma warning restore CS8618, CS0649
 
+[FactoryReflection]
 public partial class AttributeGenericComponent : AttributeGenericBase<int>
 {
     public AttributeGenericComponent(Context context)
@@ -119,6 +121,7 @@ public partial class AttributeGenericComponent : AttributeGenericBase<int>
 }
 
 // The derived type copies the attributes of AttributeComponent from its reflection.
+[FactoryReflection]
 public partial class DerivedAttributeComponent : AttributeComponent
 {
     [SerializeField]

@@ -51,6 +51,7 @@ public partial class TestPluginEntry : Plugin
     }
 }
 
+[FactoryReflection]
 public partial class TestPluginComponent : Component
 {
     public TestPluginComponent(Context context)

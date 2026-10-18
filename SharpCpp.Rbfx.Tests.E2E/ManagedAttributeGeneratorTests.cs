@@ -17,6 +17,7 @@ public sealed class ManagedAttributeGeneratorTests
     private const string Header = """
         using Urho3D.Core;
         using Urho3D.Math;
+        using Urho3D.Plugins;
         using Urho3D.Scene;
 
         namespace GeneratorTest;
@@ -48,12 +49,14 @@ public sealed class ManagedAttributeGeneratorTests
     public void Public_members_become_descriptors_in_base_first_order()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Base : Component
             {
                 [SerializeField] public float Speed = 1;
                 public Base(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class Derived : Base
             {
                 [SerializeField(Name = "Label Text", Mode = AttributeMode.AmFile | AttributeMode.AmNoedit)] public string Label { get; set; } = "";
@@ -98,6 +101,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Defaults_come_from_the_declaration_initializers()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Probe : Component
             {
                 public const float Base = 1.5f;
@@ -156,7 +160,7 @@ public sealed class ManagedAttributeGeneratorTests
     [InlineData("[SerializeField] private float Speed = 1;", "Speed = 2;")]
     public void Member_assigned_by_a_constructor_is_an_error(string member, string statement)
     {
-        var result = Run(Header + "public partial class Probe : Component\n{\n    " + member +
+        var result = Run(Header + "[FactoryReflection]\npublic partial class Probe : Component\n{\n    " + member +
             "\n    private int _unused;\n    private static void Init(out float value) { value = 3; }\n" +
             "    public Probe(Context context) : base(context) { " + statement + " }\n}\n");
 
@@ -177,7 +181,7 @@ public sealed class ManagedAttributeGeneratorTests
     [InlineData("(Offset).X = 1;")]
     public void Part_of_a_value_type_member_written_by_a_constructor_is_an_error(string statement)
     {
-        var result = Run(Header + "public partial class Probe : Component\n{\n    [SerializeField] public Vector3 Offset;\n" +
+        var result = Run(Header + "[FactoryReflection]\npublic partial class Probe : Component\n{\n    [SerializeField] public Vector3 Offset;\n" +
             "    private static void Init(ref float value) { value = 3; }\n" +
             "    public Probe(Context context) : base(context) { " + statement + " }\n}\n");
 
@@ -188,6 +192,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Part_of_a_value_type_member_that_a_constructor_only_reads_keeps_its_default()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Probe : Component
             {
                 [SerializeField] public Vector3 Offset = new Vector3(1, 2, 3);
@@ -208,6 +213,7 @@ public sealed class ManagedAttributeGeneratorTests
         var result = Run(Header + """
             public enum Layers { None = 0, A = 1, B = 2 }
 
+            [FactoryReflection]
             public partial class Probe : Component
             {
                 [SerializeField] public Layers Mask = ~Layers.None;
@@ -237,6 +243,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected Base(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class D : Base<int>
             {
                 public D(Context context) : base(context) { }
@@ -253,6 +260,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Member_that_a_constructor_only_reads_keeps_its_default()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Probe : Component
             {
                 [SerializeField] public float Speed = 1;
@@ -278,6 +286,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected Abstract(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class Concrete : Abstract
             {
                 public Concrete(Context context) : base(context) { Shared = 10; }
@@ -292,6 +301,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Initializer_that_needs_the_instance_or_a_hidden_symbol_is_an_error()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Probe(Context context) : Component(context)
             {
                 private static readonly Vector3 Secret = new(1, 2, 3);
@@ -323,6 +333,7 @@ public sealed class ManagedAttributeGeneratorTests
         var result = Run("""
             using Urho3D.Core;
             using Urho3D.Math;
+            using Urho3D.Plugins;
             using Urho3D.Scene;
 
             namespace Other
@@ -331,6 +342,7 @@ public sealed class ManagedAttributeGeneratorTests
 
                 public enum Level { Low = 1, High = 2 }
 
+                [FactoryReflection]
                 public partial class Probe : Component
                 {
                     [SerializeField] public float Rounded = M.Abs(-2.5f);
@@ -359,6 +371,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected Abstract(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class Concrete : Abstract
             {
                 [SerializeField] public double Own;
@@ -379,6 +392,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Type_without_marked_members_gets_an_empty_list()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Plain : Component
             {
                 public int NotMarked;
@@ -398,6 +412,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Private_members_use_UnsafeAccessor_and_the_generated_code_compiles()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Hidden : Component
             {
                 [SerializeField] public float Open = 1;
@@ -442,6 +457,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected Base(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class D : Base<int>
             {
                 public D(Context context) : base(context) { }
@@ -449,6 +465,7 @@ public sealed class ManagedAttributeGeneratorTests
 
             public partial class Holder
             {
+                [FactoryReflection]
                 public class Nested : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<Nested>
                 {
                     [SerializeField] private int Value;
@@ -478,6 +495,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected Base(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class D : Base<int>
             {
                 public D(Context context) : base(context) { }
@@ -495,7 +513,7 @@ public sealed class ManagedAttributeGeneratorTests
     {
         var result = Run(Header + "public abstract partial class Base<T> : Component\n{\n    [SerializeField] " + access +
             " float Gain { get; set; } = 1;\n    protected Base(Context context) : base(context) { }\n}\n" +
-            "public partial class D : Base<int>\n{\n    public D(Context context) : base(context) { }\n}\n");
+            "[FactoryReflection]\npublic partial class D : Base<int>\n{\n    public D(Context context) : base(context) { }\n}\n");
 
         var error = AssertMemberError(result, "Gain");
         Assert.Contains("generic type 'Base'", error.GetMessage());
@@ -516,6 +534,7 @@ public sealed class ManagedAttributeGeneratorTests
                 }
             }
 
+            [FactoryReflection]
             public partial class D : Outer<int>.Inner<string>
             {
                 public D(Context context) : base(context) { }
@@ -546,7 +565,7 @@ public sealed class ManagedAttributeGeneratorTests
     [InlineData("[SerializeField, System.Obsolete(\"old\", true)] public int Member { get; set; }", "Obsolete")]
     public void Member_the_generator_cannot_describe_is_an_error(string member, string reason)
     {
-        var result = Run(Header + "public partial class Probe : Component\n{\n    " + member +
+        var result = Run(Header + "[FactoryReflection]\npublic partial class Probe : Component\n{\n    " + member +
             "\n    public Probe(Context context) : base(context) { }\n}\n");
 
         var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG004");
@@ -559,6 +578,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Private_enum_type_of_a_member_is_an_error()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Probe : Component
             {
                 private enum Hidden { A, B }
@@ -581,6 +601,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected Base(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class D : Base<string>
             {
                 public D(Context context) : base(context) { }
@@ -595,6 +616,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Type_that_is_not_a_Serializable_is_an_error()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Plain : Urho3D.Core.Object
             {
                 [SerializeField] public int Value = 1;
@@ -611,6 +633,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Private_nested_managed_type_is_an_error()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Visible : Component
             {
                 public Visible(Context context) : base(context) { }
@@ -618,6 +641,7 @@ public sealed class ManagedAttributeGeneratorTests
 
             public partial class Outer
             {
+                [FactoryReflection]
                 private class Hidden : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<Hidden>
                 {
                     public Hidden(Context context) : base(context) { }
@@ -636,6 +660,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Member_marked_Obsolete_as_warning_is_described()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Probe : Component
             {
                 [SerializeField, System.Obsolete("old")] public int Member;
@@ -653,6 +678,7 @@ public sealed class ManagedAttributeGeneratorTests
     {
         var result = Run(
             Header + """
+            [FactoryReflection]
             public partial class Derived : ForeignBase
             {
                 [SerializeField] public int Own;
@@ -660,6 +686,7 @@ public sealed class ManagedAttributeGeneratorTests
             }
             """,
             Header + """
+            [FactoryReflection]
             public class ForeignBase : Component
             {
                 [SerializeField, System.NonSerialized] public int Skipped;
@@ -677,12 +704,14 @@ public sealed class ManagedAttributeGeneratorTests
     {
         var result = Run(
             Header + """
+            [FactoryReflection]
             public partial class Derived : ForeignBase
             {
                 public Derived(Context context) : base(context) { }
             }
             """,
             Header + """
+            [FactoryReflection]
             public class ForeignBase : Component
             {
                 [SerializeField] public int Shared;
@@ -700,6 +729,7 @@ public sealed class ManagedAttributeGeneratorTests
     {
         var result = Run(
             Header + """
+            [FactoryReflection]
             public partial class Boss : ForeignEnemy
             {
                 [SerializeField] public int Rage = 4;
@@ -707,6 +737,7 @@ public sealed class ManagedAttributeGeneratorTests
             }
             """,
             Header + """
+            [FactoryReflection]
             public partial class ForeignEnemy : Component
             {
                 [SerializeField] public float Speed = 1;
@@ -730,6 +761,7 @@ public sealed class ManagedAttributeGeneratorTests
     {
         var result = Run(
             Header + """
+            [FactoryReflection]
             public partial class Boss : ForeignBase
             {
                 public Boss(Context context) : base(context) { }
@@ -742,6 +774,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected ForeignBase(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class ForeignConcrete : ForeignBase
             {
                 public ForeignConcrete(Context context) : base(context) { }
@@ -758,18 +791,21 @@ public sealed class ManagedAttributeGeneratorTests
     {
         var result = Run(
             Header + """
+            [FactoryReflection]
             public partial class Boss : EnemyBase
             {
                 public Boss(Context context) : base(context) { }
             }
             """,
             Header + """
+            [FactoryReflection]
             public partial class EnemyBase : Component
             {
                 [SerializeField] public float Hp = 10;
                 protected EnemyBase(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class ForeignConcrete : Component
             {
                 public ForeignConcrete(Context context) : base(context) { }
@@ -788,6 +824,7 @@ public sealed class ManagedAttributeGeneratorTests
         // The registry lists a type that implements IManagedObjectFactory for itself by hand, also without a public Context constructor.
         var result = Run(
             Header + """
+            [FactoryReflection]
             public partial class Boss : ManualBase
             {
                 [SerializeField] public int Rage = 4;
@@ -795,6 +832,7 @@ public sealed class ManagedAttributeGeneratorTests
             }
             """,
             Header + """
+            [FactoryReflection]
             public class ManualBase : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<ManualBase>
             {
                 [SerializeField] public float Hp = 10;
@@ -817,12 +855,14 @@ public sealed class ManagedAttributeGeneratorTests
     {
         var result = Run(
             Header + """
+            [FactoryReflection]
             public partial class Boss : ForeignBase
             {
                 public Boss(Context context) : base(context) { }
             }
             """,
             Header + """
+            [FactoryReflection]
             public class ForeignBase : Component
             {
                 [SerializeField] public float Speed = 1;
@@ -845,6 +885,7 @@ public sealed class ManagedAttributeGeneratorTests
                 protected Base(Context context) : base(context) { }
             }
 
+            [FactoryReflection]
             public partial class D : Base<int>
             {
                 public D(Context context) : base(context) { }
@@ -863,6 +904,7 @@ public sealed class ManagedAttributeGeneratorTests
             public partial class Outer
             {
                 // The generator implements the object factory only for types that are not nested, so this type implements it.
+                [FactoryReflection]
                 public class Inner : Component, SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory<Inner>
                 {
                     [SerializeField] public int Value;
@@ -882,6 +924,7 @@ public sealed class ManagedAttributeGeneratorTests
     public void Member_with_a_keyword_name_compiles()
     {
         var result = Run(Header + """
+            [FactoryReflection]
             public partial class Probe : Component
             {
                 [SerializeField] public int @class;
@@ -893,6 +936,206 @@ public sealed class ManagedAttributeGeneratorTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG004");
         AssertNoErrors(result);
         Assert.Contains("Create<int>(\"class\", \"class\"", result.Registration("GeneratorTest.Probe"));
+    }
+
+    [Fact]
+    public void Registry_lists_only_the_types_with_FactoryReflection()
+    {
+        var result = Run(Header + """
+            [FactoryReflection]
+            public partial class Marked : Component
+            {
+                public Marked(Context context) : base(context) { }
+            }
+
+            public partial class Unmarked : Component
+            {
+                public Unmarked(Context context) : base(context) { }
+            }
+            """);
+
+        AssertNoErrors(result);
+        Assert.Contains("new(typeof(global::GeneratorTest.Marked),", result.Registry, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratorTest.Unmarked", result.Registry, StringComparison.Ordinal);
+        // The assembly has no ManagedPlugin, so the unmarked type gets no warning.
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG008");
+    }
+
+    [Fact]
+    public void Category_of_FactoryReflection_is_in_the_registry()
+    {
+        var result = Run(Header + """
+            [FactoryReflection(Category = "Enemies \"A\"")]
+            public partial class Categorized : Component
+            {
+                public Categorized(Context context) : base(context) { }
+            }
+
+            [FactoryReflection]
+            public partial class Plain : Component
+            {
+                public Plain(Context context) : base(context) { }
+            }
+            """);
+
+        AssertNoErrors(result);
+        Assert.Contains(", Category: \"Enemies \\\"A\\\"\")", result.Registration("GeneratorTest.Categorized"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Category:", result.Registration("GeneratorTest.Plain"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("public abstract partial class Probe : Component { protected Probe(Context context) : base(context) { } }", "abstract")]
+    [InlineData("public partial class Probe<T> : Component { public Probe(Context context) : base(context) { } }", "generic")]
+    [InlineData("public partial class Probe { }", "does not derive")]
+    [InlineData("public partial class Probe : ManagedPlugin { public Probe(Context context) : base(context) { } }", "Plugin")]
+    [InlineData("public partial class Probe : Component { protected Probe(Context context) : base(context) { } }", "no factory")]
+    [InlineData("file partial class Probe : Component { public Probe(Context context) : base(context) { } }", "file-local")]
+    public void FactoryReflection_on_a_type_that_cannot_be_registered_is_an_error(string declaration, string reason)
+    {
+        var result = Run(Header + "// A ManagedPlugin makes the registry exist, also when no type is valid.\n" +
+            "public partial class HostPlugin : ManagedPlugin { public HostPlugin(Context context) : base(context) { } }\n\n" + "[FactoryReflection]\n" + declaration + "\n");
+
+        var errors = result.Diagnostics.Where(static d => d.Id == "RBFXSG005").ToArray();
+        var error = Assert.Single(errors);
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains("Probe", error.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains(reason, error.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratorTest.Probe", result.Registry, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("\"\"")]
+    [InlineData("\"  \"")]
+    public void FactoryReflection_with_an_empty_category_is_an_error(string category)
+    {
+        var result = Run(Header + "public partial class HostPlugin : ManagedPlugin { public HostPlugin(Context context) : base(context) { } }\n\n" + "[FactoryReflection(Category = " + category + ")]\n" + """
+            public partial class Probe : Component
+            {
+                public Probe(Context context) : base(context) { }
+            }
+            """);
+
+        var error = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG006");
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains("Probe", error.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratorTest.Probe", result.Registry, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Marked_type_with_an_unmarked_base_type_of_the_assembly_is_a_warning()
+    {
+        var result = Run(Header + """
+            public partial class Base : Component
+            {
+                public Base(Context context) : base(context) { }
+            }
+
+            [FactoryReflection]
+            public partial class Derived : Base
+            {
+                public Derived(Context context) : base(context) { }
+            }
+
+            public abstract partial class AbstractBase : Component
+            {
+                protected AbstractBase(Context context) : base(context) { }
+            }
+
+            [FactoryReflection]
+            public partial class OverAbstract : AbstractBase
+            {
+                public OverAbstract(Context context) : base(context) { }
+            }
+            """);
+
+        var warning = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG007");
+        Assert.Equal(DiagnosticSeverity.Warning, warning.Severity);
+        Assert.Contains("GeneratorTest.Derived", warning.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("GeneratorTest.Base", warning.GetMessage(), StringComparison.Ordinal);
+        AssertNoErrors(result);
+        Assert.Contains("new(typeof(global::GeneratorTest.Derived),", result.Registry, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Marked_type_with_an_unmarked_base_type_that_has_only_a_protected_constructor_gets_no_RBFXSG007()
+    {
+        var result = Run(Header + """
+            public partial class ProtectedBase : Component
+            {
+                protected ProtectedBase(Context context) : base(context) { }
+            }
+
+            [FactoryReflection]
+            public partial class Derived : ProtectedBase
+            {
+                public Derived(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG007");
+        AssertNoErrors(result);
+        Assert.Contains("new(typeof(global::GeneratorTest.Derived),", result.Registry, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Marked_type_with_an_unmarked_base_type_of_another_assembly_gets_no_RBFXSG007()
+    {
+        var result = Run(
+            Header + """
+            [FactoryReflection]
+            public partial class Derived : ForeignBase
+            {
+                public Derived(Context context) : base(context) { }
+            }
+            """,
+            Header + """
+            public class ForeignBase : Component
+            {
+                public ForeignBase(Context context) : base(context) { }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "RBFXSG007");
+        AssertNoErrors(result);
+    }
+
+    [Fact]
+    public void Unmarked_type_in_an_assembly_with_a_ManagedPlugin_is_a_warning()
+    {
+        var result = Run(Header + """
+            public partial class EmptyPlugin : ManagedPlugin
+            {
+                public EmptyPlugin(Context context) : base(context) { }
+            }
+
+            [FactoryReflection]
+            public partial class Marked : Component
+            {
+                public Marked(Context context) : base(context) { }
+            }
+
+            public partial class Unmarked : Component
+            {
+                public Unmarked(Context context) : base(context) { }
+            }
+
+            // These types cannot be registered, so they get no warning.
+            public abstract partial class AbstractType : Component
+            {
+                protected AbstractType(Context context) : base(context) { }
+            }
+
+            public partial class GenericType<T> : Component
+            {
+                public GenericType(Context context) : base(context) { }
+            }
+            """);
+
+        var warning = Assert.Single(result.Diagnostics, static d => d.Id == "RBFXSG008");
+        Assert.Equal(DiagnosticSeverity.Warning, warning.Severity);
+        Assert.Contains("GeneratorTest.Unmarked", warning.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratorTest.Unmarked", result.Registry, StringComparison.Ordinal);
+        Assert.Contains("new(typeof(global::GeneratorTest.Marked),", result.Registry, StringComparison.Ordinal);
     }
 
     [Fact]

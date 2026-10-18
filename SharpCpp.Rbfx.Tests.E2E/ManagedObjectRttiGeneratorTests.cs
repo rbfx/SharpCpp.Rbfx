@@ -1,5 +1,6 @@
 using Urho3D.Core;
 using Urho3D.Engine;
+using Urho3D.Plugins;
 using Urho3D.Scene;
 
 using Xunit;
@@ -40,6 +41,7 @@ public sealed class ManagedObjectRttiGeneratorTests
     }
 }
 
+[FactoryReflection]
 public partial class GeneratedRttiOnlyComponent : Component
 {
     public GeneratedRttiOnlyComponent(Context context)
@@ -48,6 +50,7 @@ public partial class GeneratedRttiOnlyComponent : Component
     }
 }
 
+[FactoryReflection]
 public partial class GeneratedManagedApplication : Application
 {
     public GeneratedManagedApplication(Context context)

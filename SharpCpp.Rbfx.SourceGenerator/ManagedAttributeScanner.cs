@@ -110,6 +110,7 @@ internal sealed class ManagedAttributeScanner
     private readonly INamedTypeSymbol? _object;
     private readonly INamedTypeSymbol? _plugin;
     private readonly INamedTypeSymbol? _objectFactory;
+    private readonly INamedTypeSymbol? _factoryReflection;
     private readonly AttributeDefaultResolver _defaults;
     private int _accessorCount;
 
@@ -130,6 +131,7 @@ internal sealed class ManagedAttributeScanner
         _object = compilation.GetTypeByMetadataName("Urho3D.Core.Object");
         _plugin = compilation.GetTypeByMetadataName("Urho3D.Plugins.Plugin");
         _objectFactory = compilation.GetTypeByMetadataName("SharpCpp.Rbfx.Bindings.Interop.IManagedObjectFactory`1");
+        _factoryReflection = compilation.GetTypeByMetadataName(ManagedObjectRttiGenerator.FactoryReflectionMetadataName);
         _serializeField = serializeField;
         _serializable = serializable;
         _nonSerialized = nonSerialized;
@@ -215,16 +217,17 @@ internal sealed class ManagedAttributeScanner
 
     // A type of another assembly that the registry of that assembly lists is registered by it. The engine reflects it
     // (with its attributes) before the derived type, so the chain stops there and the runtime copies the attributes of the base type.
-    // The test is the test of the registry, so a type that the registry leaves out does not stop the chain.
+    // The test is the test of the registry (the type has FactoryReflectionAttribute), so a type that the registry leaves out
+    // does not stop the chain. A base type of this assembly stops the chain only when it is in the registry (see Scan).
     private bool IsRegisteredInOtherAssembly(INamedTypeSymbol type)
     {
-        if (_registryAttribute is null || _object is null || _objectFactory is null ||
+        if (_registryAttribute is null || _object is null || _objectFactory is null || _factoryReflection is null ||
             SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, _assembly) || !HasRegistry(type.ContainingAssembly))
         {
             return false;
         }
 
-        return ManagedObjectRttiGenerator.IsListedByRegistry(type, _object, _plugin, _objectFactory);
+        return ManagedObjectRttiGenerator.IsListedByRegistry(type, _object, _plugin, _objectFactory, _factoryReflection);
     }
 
     private bool HasRegistry(IAssemblySymbol assembly) =>

@@ -42,6 +42,41 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         isEnabledByDefault: true,
         customTags: new[] { WellKnownDiagnosticTags.NotConfigurable });
 
+    private static readonly DiagnosticDescriptor FactoryReflectionTargetDiagnostic = new(
+        id: "RBFXSG005",
+        title: "FactoryReflection is on a type that cannot be registered",
+        messageFormat: "Type '{0}' has [FactoryReflection], but it cannot be registered: {1}",
+        category: "SharpCpp.Rbfx.SourceGenerator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        customTags: new[] { WellKnownDiagnosticTags.NotConfigurable });
+
+    private static readonly DiagnosticDescriptor FactoryReflectionCategoryDiagnostic = new(
+        id: "RBFXSG006",
+        title: "FactoryReflection category must not be empty",
+        messageFormat: "Type '{0}' has [FactoryReflection] with an empty Category. Set a name, or leave Category unset to use the category of the plugin.",
+        category: "SharpCpp.Rbfx.SourceGenerator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        customTags: new[] { WellKnownDiagnosticTags.NotConfigurable });
+
+    private static readonly DiagnosticDescriptor UnmarkedBaseDiagnostic = new(
+        id: "RBFXSG007",
+        title: "Base type of a registered type is not registered",
+        messageFormat: "Type '{0}' has [FactoryReflection], but its base type '{1}' in the same assembly has not. The engine has no reflection of '{1}'. The attributes of '{1}' are listed with '{0}'. Add [FactoryReflection] to '{1}' to register it.",
+        category: "SharpCpp.Rbfx.SourceGenerator",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor UnmarkedTypeDiagnostic = new(
+        id: "RBFXSG008",
+        title: "Managed rbfx object type is not registered",
+        messageFormat: "Type '{0}' is not registered in the engine, because it has no [FactoryReflection]. Add [FactoryReflection] to register it.",
+        category: "SharpCpp.Rbfx.SourceGenerator",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    internal const string FactoryReflectionMetadataName = "Urho3D.Plugins.FactoryReflectionAttribute";
     internal const string RegistryAttributeMetadataName = "Urho3D.Plugins.ManagedTypeRegistryAttribute";
     internal const string RegistryNamespace = "SharpCpp.Rbfx.Generated";
     internal const string RegistryClassName = "GeneratedManagedTypeRegistryAttribute";
@@ -50,7 +85,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var typeDeclarations = context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is ClassDeclarationSyntax { BaseList.Types.Count: > 0 },
+            static (node, _) => node is ClassDeclarationSyntax { BaseList.Types.Count: > 0 } or ClassDeclarationSyntax { AttributeLists.Count: > 0 },
             static (syntaxContext, cancellationToken) => syntaxContext.SemanticModel.GetDeclaredSymbol((ClassDeclarationSyntax)syntaxContext.Node, cancellationToken) as INamedTypeSymbol)
             .Where(static symbol => symbol is not null);
 
@@ -83,6 +118,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         }
 
         var factoryTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var reportedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         foreach (var typeSymbol in uniqueSymbols)
         {
             if (objectFactorySymbol is not null && ImplementsFactoryForItself(typeSymbol, objectFactorySymbol))
@@ -90,7 +126,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
                 factoryTypes.Add(typeSymbol);
             }
 
-            if (!TryCreateCandidate(context, typeSymbol, objectSymbol, stringHashSymbol, nativeObjectRegistrationSymbol, out var candidate) ||
+            if (!TryCreateCandidate(context, typeSymbol, objectSymbol, stringHashSymbol, nativeObjectRegistrationSymbol, reportedTypes, out var candidate) ||
                 candidate is null)
             {
                 continue;
@@ -103,6 +139,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
                     candidate.Location,
                     candidate.Symbol.ToDisplayString(),
                     candidate.TypeName));
+                reportedTypes.Add(candidate.Symbol);
                 continue;
             }
 
@@ -137,17 +174,19 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             }
         }
 
-        EmitTypeRegistry(context, compilation, objectSymbol, factoryTypes, hasManagedPlugin);
+        EmitTypeRegistry(context, compilation, objectSymbol, uniqueSymbols, factoryTypes, reportedTypes, hasManagedPlugin);
     }
 
-    // Emits the ManagedTypeRegistryAttribute of the assembly: one AOT safe registration for each concrete managed type.
-    // The rules are the rules of ManagedPlugin.ShouldRegister (ManagedObjectFactory.IsFactoryType, not a Plugin),
-    // so the list has the types that the default ShouldRegister accepts. ShouldRegister filters the list again at run time.
+    // Emits the ManagedTypeRegistryAttribute of the assembly: one AOT safe registration for each marked managed type.
+    // A type is listed only when it has FactoryReflectionAttribute and passes the rules of ManagedPlugin.ShouldRegister
+    // (ManagedObjectFactory.IsFactoryType, not a Plugin). ShouldRegister filters the list again at run time.
     private static void EmitTypeRegistry(
         SourceProductionContext context,
         Compilation compilation,
         INamedTypeSymbol objectSymbol,
+        HashSet<INamedTypeSymbol> allTypes,
         HashSet<INamedTypeSymbol> factoryTypes,
+        HashSet<INamedTypeSymbol> reportedTypes,
         bool hasManagedPlugin)
     {
         var registrySymbol = compilation.GetTypeByMetadataName(RegistryAttributeMetadataName);
@@ -157,9 +196,23 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         }
 
         var pluginSymbol = compilation.GetTypeByMetadataName("Urho3D.Plugins.Plugin");
+        var factoryReflectionSymbol = compilation.GetTypeByMetadataName(FactoryReflectionMetadataName);
+        var categories = new Dictionary<INamedTypeSymbol, string?>(SymbolEqualityComparer.Default);
+        var invalid = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        if (factoryReflectionSymbol is not null)
+        {
+            ValidateFactoryReflection(
+                context, compilation, objectSymbol, pluginSymbol, factoryReflectionSymbol, allTypes, factoryTypes, reportedTypes, hasManagedPlugin, categories, invalid);
+        }
+
         var types = new List<INamedTypeSymbol>();
         foreach (var typeSymbol in factoryTypes)
         {
+            if (!categories.ContainsKey(typeSymbol) || invalid.Contains(typeSymbol))
+            {
+                continue;
+            }
+
             switch (ClassifyRegistryType(typeSymbol, objectSymbol, pluginSymbol))
             {
                 case RegistryTypeKind.Included:
@@ -193,12 +246,13 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
             }
         }
 
-        context.AddSource(RegistryHintName, SourceText.From(RenderTypeRegistry(types, attributes), Encoding.UTF8));
+        context.AddSource(RegistryHintName, SourceText.From(RenderTypeRegistry(types, attributes, categories), Encoding.UTF8));
     }
 
     internal static string RenderTypeRegistry(
         IReadOnlyList<INamedTypeSymbol> types,
-        IReadOnlyDictionary<INamedTypeSymbol, List<AttributeEntry>> attributes)
+        IReadOnlyDictionary<INamedTypeSymbol, List<AttributeEntry>> attributes,
+        IReadOnlyDictionary<INamedTypeSymbol, string?> categories)
     {
         var builder = new StringBuilder();
         builder.AppendLine("// <auto-generated />");
@@ -222,6 +276,10 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
                 .Append("), static (context, category) => global::SharpCpp.Rbfx.Bindings.Interop.ManagedObjectFactory.RegisterFactoryAndGetTypeInfo<")
                 .Append(display).Append(">(context, category)");
             RenderAttributes(builder, attributes.TryGetValue(type, out var entries) ? entries : new List<AttributeEntry>());
+            if (categories.TryGetValue(type, out var category) && category is not null)
+            {
+                builder.Append(", Category: ").Append(Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(category, quote: true));
+            }
 
             builder.AppendLine("),");
         }
@@ -314,15 +372,181 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
     }
 
     // True when the registry of the assembly of the type lists the type. The scanner uses this for a base type from metadata.
-    // The registry lists a type that passes ClassifyRegistryType and implements IManagedObjectFactory for itself. The factory is
-    // generated or written by hand, so the type needs no public constructor with a Context parameter.
+    // The registry lists a type that has FactoryReflectionAttribute, passes ClassifyRegistryType and implements IManagedObjectFactory
+    // for itself. The factory is generated or written by hand, so the type needs no public constructor with a Context parameter.
     internal static bool IsListedByRegistry(
         INamedTypeSymbol typeSymbol,
         INamedTypeSymbol objectSymbol,
         INamedTypeSymbol? pluginSymbol,
-        INamedTypeSymbol objectFactorySymbol) =>
+        INamedTypeSymbol objectFactorySymbol,
+        INamedTypeSymbol factoryReflectionSymbol) =>
+        HasFactoryReflection(typeSymbol, factoryReflectionSymbol, out _) &&
         ClassifyRegistryType(typeSymbol, objectSymbol, pluginSymbol) == RegistryTypeKind.Included &&
         ImplementsFactoryForItself(typeSymbol, objectFactorySymbol);
+
+    // Finds FactoryReflectionAttribute on the type itself. The attribute is not inherited. A null category is the plugin category.
+    private static bool HasFactoryReflection(INamedTypeSymbol typeSymbol, INamedTypeSymbol factoryReflectionSymbol, out string? category)
+    {
+        category = null;
+        foreach (var attribute in typeSymbol.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, factoryReflectionSymbol))
+            {
+                continue;
+            }
+
+            foreach (var argument in attribute.NamedArguments)
+            {
+                if (argument.Key == "Category")
+                {
+                    category = argument.Value.Value as string;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // Checks each type with FactoryReflectionAttribute of the compilation. A valid type goes to categories (null is the plugin category),
+    // an invalid type goes to invalid. The checks also give the migration warning for a type that now needs the attribute.
+    private static void ValidateFactoryReflection(
+        SourceProductionContext context,
+        Compilation compilation,
+        INamedTypeSymbol objectSymbol,
+        INamedTypeSymbol? pluginSymbol,
+        INamedTypeSymbol factoryReflectionSymbol,
+        HashSet<INamedTypeSymbol> allTypes,
+        HashSet<INamedTypeSymbol> factoryTypes,
+        HashSet<INamedTypeSymbol> reportedTypes,
+        bool hasManagedPlugin,
+        Dictionary<INamedTypeSymbol, string?> categories,
+        HashSet<INamedTypeSymbol> invalid)
+    {
+        foreach (var typeSymbol in allTypes)
+        {
+            if (typeSymbol.TypeKind != TypeKind.Class || !SymbolEqualityComparer.Default.Equals(typeSymbol.ContainingAssembly, compilation.Assembly))
+            {
+                continue;
+            }
+
+            if (!HasFactoryReflection(typeSymbol, factoryReflectionSymbol, out var category))
+            {
+                if (hasManagedPlugin && factoryTypes.Contains(typeSymbol) &&
+                    ClassifyRegistryType(typeSymbol, objectSymbol, pluginSymbol) == RegistryTypeKind.Included)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(UnmarkedTypeDiagnostic, GetLocation(typeSymbol), typeSymbol.ToDisplayString()));
+                }
+
+                continue;
+            }
+
+            var reason = GetFactoryReflectionTargetError(typeSymbol, objectSymbol, pluginSymbol, factoryTypes, reportedTypes);
+            if (reason is not null)
+            {
+                invalid.Add(typeSymbol);
+                if (reason.Length > 0)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(FactoryReflectionTargetDiagnostic, GetLocation(typeSymbol), typeSymbol.ToDisplayString(), reason));
+                }
+
+                continue;
+            }
+
+            if (category is not null && string.IsNullOrWhiteSpace(category))
+            {
+                invalid.Add(typeSymbol);
+                context.ReportDiagnostic(Diagnostic.Create(FactoryReflectionCategoryDiagnostic, GetLocation(typeSymbol), typeSymbol.ToDisplayString()));
+                continue;
+            }
+
+            categories[typeSymbol] = category;
+            ReportUnmarkedBase(context, compilation, typeSymbol, objectSymbol, pluginSymbol, factoryReflectionSymbol, factoryTypes);
+        }
+    }
+
+    // Returns the reason why the type cannot be registered, an empty string when another diagnostic reports it already, or null.
+    private static string? GetFactoryReflectionTargetError(
+        INamedTypeSymbol typeSymbol,
+        INamedTypeSymbol objectSymbol,
+        INamedTypeSymbol? pluginSymbol,
+        HashSet<INamedTypeSymbol> factoryTypes,
+        HashSet<INamedTypeSymbol> reportedTypes)
+    {
+        if (!DerivesFrom(typeSymbol, objectSymbol))
+        {
+            return "the type does not derive from Urho3D.Core.Object";
+        }
+
+        if (typeSymbol.IsAbstract)
+        {
+            return "the type is abstract";
+        }
+
+        if (pluginSymbol is not null && DerivesFromOrIs(typeSymbol, pluginSymbol))
+        {
+            return "the type is a Plugin. Plugins are not registered";
+        }
+
+        for (var current = typeSymbol; current is not null; current = current.ContainingType)
+        {
+            if (current.TypeParameters.Length > 0)
+            {
+                return "the type or a containing type is generic";
+            }
+        }
+
+        if (typeSymbol.IsFileLocal)
+        {
+            return "the type is file-local";
+        }
+
+        if (!factoryTypes.Contains(typeSymbol))
+        {
+            // The partial rule and the name rule report their own error.
+            return reportedTypes.Contains(typeSymbol)
+                ? string.Empty
+                : "the type has no factory. Add a public constructor with one Urho3D.Core.Context parameter, or implement IManagedObjectFactory<T> for the type";
+        }
+
+        return null;
+    }
+
+    // The nearest base type of the same assembly that the registry can list must have the attribute too. Else the engine has no reflection of it.
+    // A base type that can never be registered is skipped.
+    private static void ReportUnmarkedBase(
+        SourceProductionContext context,
+        Compilation compilation,
+        INamedTypeSymbol typeSymbol,
+        INamedTypeSymbol objectSymbol,
+        INamedTypeSymbol? pluginSymbol,
+        INamedTypeSymbol factoryReflectionSymbol,
+        HashSet<INamedTypeSymbol> factoryTypes)
+    {
+        for (var current = typeSymbol.BaseType; current is not null; current = current.BaseType)
+        {
+            if (!SymbolEqualityComparer.Default.Equals(current.ContainingAssembly, compilation.Assembly) ||
+                SymbolEqualityComparer.Default.Equals(current, objectSymbol))
+            {
+                return;
+            }
+
+            if (!factoryTypes.Contains(current) ||
+                ClassifyRegistryType(current, objectSymbol, pluginSymbol) != RegistryTypeKind.Included)
+            {
+                continue;
+            }
+
+            if (!HasFactoryReflection(current, factoryReflectionSymbol, out _))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    UnmarkedBaseDiagnostic, GetLocation(typeSymbol), typeSymbol.ToDisplayString(), current.ToDisplayString()));
+            }
+
+            return;
+        }
+    }
 
     private static bool ImplementsFactoryForItself(INamedTypeSymbol typeSymbol, INamedTypeSymbol objectFactorySymbol)
     {
@@ -367,6 +591,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         INamedTypeSymbol objectSymbol,
         INamedTypeSymbol stringHashSymbol,
         INamedTypeSymbol nativeObjectRegistrationSymbol,
+        HashSet<INamedTypeSymbol> reportedTypes,
         out Candidate? candidate)
     {
         candidate = null;
@@ -388,6 +613,7 @@ public sealed class ManagedObjectRttiGenerator : IIncrementalGenerator
         if (!IsPartial(typeSymbol))
         {
             context.ReportDiagnostic(Diagnostic.Create(PartialRequiredDiagnostic, GetLocation(typeSymbol), typeSymbol.Name));
+            reportedTypes.Add(typeSymbol);
             return false;
         }
 

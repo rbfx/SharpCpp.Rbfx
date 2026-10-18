@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 
 using Urho3D.Core;
 using Urho3D.Engine;
+using Urho3D.Plugins;
 using Urho3D.Scene;
 
 using Xunit;
@@ -111,6 +112,7 @@ public sealed class WeakPtrFieldTests
     }
 }
 
+[FactoryReflection]
 public partial class ContextFieldReader : LogicComponent
 {
     public ContextFieldReader(Context context)
@@ -122,6 +124,7 @@ public partial class ContextFieldReader : LogicComponent
     public Context ReadContext() => Context;
 }
 
+[FactoryReflection]
 public partial class ContextReadingApplication : Application
 {
     public ContextReadingApplication(Context context)

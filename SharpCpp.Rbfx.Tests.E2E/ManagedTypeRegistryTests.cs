@@ -39,7 +39,7 @@ public sealed class ManagedTypeRegistryTests
             Assert.True(registry.GetType().IsSealed);
             Assert.Same(assembly, registry.GetType().Assembly);
 
-            // The list has exactly the types that ManagedPlugin.ShouldRegister accepts, with each base type first.
+            // The list has exactly the types with [FactoryReflection] that ManagedPlugin.ShouldRegister accepts, with each base type first.
             var scanned = assembly.GetTypes().Where(ShouldRegister).OrderBy(static t => t.FullName, StringComparer.Ordinal).ToArray();
             var listed = registry.Registrations.Select(static item => item.Type).ToList();
             Assert.NotEmpty(scanned);
@@ -137,6 +137,7 @@ public sealed class ManagedTypeRegistryTests
     }
 
     private static bool ShouldRegister(Type type) =>
+        type.GetCustomAttribute<FactoryReflectionAttribute>(inherit: false) is not null &&
         ManagedObjectFactory.IsFactoryType(type) && !typeof(Plugin).IsAssignableFrom(type);
 
     // The registry of the attribute plugin assembly is the added registry. The plugins that claim it are in the test assembly,
@@ -219,6 +220,7 @@ internal sealed partial class RegistryTestPlugin : ManagedPlugin
     public void Unregister() => UnregisterManagedTypes();
 }
 
+[FactoryReflection]
 internal sealed partial class RegistryTestComponent : Component
 {
     public RegistryTestComponent(Context context)

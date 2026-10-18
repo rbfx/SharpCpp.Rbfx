@@ -1,5 +1,6 @@
 using Urho3D.Core;
 using Urho3D.IO;
+using Urho3D.Plugins;
 using Urho3D.Scene;
 
 namespace AotApp;
@@ -8,6 +9,7 @@ namespace AotApp;
 /// The managed component of the NativeAOT head test. The generated type registry registers it, the engine attribute
 /// "Speed" comes from the <see cref="SerializeFieldAttribute"/>, and the engine calls the <see cref="Update"/> override.
 /// </summary>
+[FactoryReflection]
 public partial class AotSpinner : LogicComponent
 {
     private bool _updateLogged;
@@ -46,6 +48,7 @@ public partial class AotSpinner : LogicComponent
 /// A component without an override of a native virtual method. Its <c>Update</c> hides the virtual method and does not
 /// override it, so the generated <c>IsManagedOverride</c> is false and native code never calls it.
 /// </summary>
+[FactoryReflection]
 public partial class AotPlainSpinner : LogicComponent
 {
     /// <summary>The number of calls of the hiding <c>Update</c> method.</summary>
@@ -76,6 +79,7 @@ public abstract partial class AotGenericBase<T> : LogicComponent
     public int GenericCount => _genericCount;
 }
 
+[FactoryReflection]
 public partial class AotGenericSpinner : AotGenericBase<int>
 {
     public AotGenericSpinner(Context context)

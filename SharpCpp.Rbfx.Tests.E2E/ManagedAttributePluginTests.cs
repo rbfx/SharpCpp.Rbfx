@@ -399,6 +399,7 @@ public sealed class ManagedAttributePluginTests
     }
 }
 
+[FactoryReflection]
 public partial class AccessorProbe : Component
 {
     public int Value;

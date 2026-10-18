@@ -18,6 +18,7 @@ public partial class BossPluginEntry : ManagedPlugin
 
 // The base type AttributeComponent is in another assembly with its own registry. The registry of this assembly lists
 // only the attribute of this type. The engine reflection of AttributeComponent has the others.
+[FactoryReflection]
 public partial class AttributeBoss : AttributeComponent
 {
     [SerializeField]
@@ -30,6 +31,7 @@ public partial class AttributeBoss : AttributeComponent
 }
 
 // An abstract type of the other assembly is between this type and the listed type AttributeComponent.
+[FactoryReflection]
 public partial class MiddleBoss : AttributeMiddle
 {
     [SerializeField]
@@ -53,6 +55,7 @@ public abstract partial class GenericMiddle<T> : AttributeComponent
     }
 }
 
+[FactoryReflection]
 public partial class GenericBoss : GenericMiddle<int>
 {
     [SerializeField]

@@ -11,7 +11,7 @@ WebAssembly, and UWP require the matching .NET workload or Windows UWP tools.
 
 `Example.Common` and all the apps build the native user code `Example.UserCode`,
 so the cube also shows the native `RotatingComponent`. They need the native build (CMake option
-`RBFX_BUILD_USERCODE`, ON by default). See `Example.UserCode/README.md`. `Example.Common` is one project
+`RBFX_BUILD_USERCODE`, ON by default for a top-level build). See `Example.UserCode/README.md`. `Example.Common` is one project
 with two modes. The MSBuild property `RbfxBindingsPackageVersion` selects the mode:
 
 - Source mode (the property is empty, the default): `Example.Common` references the bindings source

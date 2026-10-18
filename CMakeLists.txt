@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.28)
 
 project(SharpCppRbfx VERSION 0.0.0 LANGUAGES CXX)
 
-option(RBFX_BUILD_USERCODE "Build the phase-two user-code integration fixtures." ON)
+# The examples and fixtures are for CI and direct development of this repository. They are OFF by default
+# when another project consumes this source tree, and they are never part of the installed SDK.
+option(RBFX_BUILD_USERCODE "Build the phase-two user-code integration fixtures (Example.UserCode)." ${PROJECT_IS_TOP_LEVEL})
 # DotNetHost has two modes. hostfxr hosts the runtime (desktop). shim never starts a runtime and reads
 # function pointers that the managed side attached (Android, iOS, Emscripten).
 if(ANDROID OR EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -37,7 +39,7 @@ if(RBFX_INSTALL_SDK AND NOT RBFX_BUILD_HOST)
   message(STATUS "RBFX_INSTALL_SDK is ignored because RBFX_BUILD_HOST is OFF.")
   set(RBFX_INSTALL_SDK OFF)
 endif()
-if(RBFX_BUILD_USERCODE AND RBFX_BUILD_HOST AND RBFX_HOST_MODE STREQUAL "hostfxr")
+if(PROJECT_IS_TOP_LEVEL AND RBFX_BUILD_USERCODE AND RBFX_BUILD_HOST AND RBFX_HOST_MODE STREQUAL "hostfxr")
   set(_rbfx_build_examples_default ON)
 else()
   set(_rbfx_build_examples_default OFF)

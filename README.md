@@ -74,6 +74,7 @@ The engine must come from an installed rbfx SDK. The two prefixes differ in how 
 - Shim prefix. Put the folder `cmake/SharpCppRbfx` of this repository on `CMAKE_PREFIX_PATH`. The package builds this source tree
   with `add_subdirectory()` in `<build>/SharpCppRbfx`. A SharpCpp checkout must be at `SHARPCPP_ROOT` (default `../SharpCpp`).
   The shim sets `RBFX_BUILD_USERCODE`, `RBFX_BUILD_EXAMPLES` and `RBFX_INSTALL_SDK` to OFF and `RBFX_BUILD_HOST` to ON, when the consumer did not define them.
+  The two examples options default to ON only for a top-level build of this repository. They are for CI and development. The installed SDK never has the examples.
   The consumer must call `find_package(Urho3D)` before `find_package(SharpCppRbfx)`. The desktop shared engine is the tested case.
   A static engine is accepted on iOS and Emscripten only. An engine in source mode is not supported.
   The first call adds the source tree. A second call (also from a sibling directory) only sets the variables below.

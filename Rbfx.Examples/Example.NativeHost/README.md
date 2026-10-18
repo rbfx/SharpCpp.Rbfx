@@ -34,7 +34,7 @@ cmake --build <build directory> --config Debug
 - `dotnet build SharpCpp.Rbfx.slnx` alone also builds the plugin. In that case MSBuild is the driver and it configures `build/native/linux-gcc-x64-dll` with `-DRBFX_CSHARP_BUILD_MANAGED=OFF`. Use another build directory for the CMake build.
 - On Linux, set `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768` for a run with a window.
 
-The example builds when `RBFX_BUILD_EXAMPLES` is ON. The default is ON when `RBFX_BUILD_USERCODE` and `RBFX_BUILD_HOST` are ON.
+The example builds when `RBFX_BUILD_EXAMPLES` is ON. The default is ON when the project is top-level and `RBFX_BUILD_USERCODE` and `RBFX_BUILD_HOST` are ON.
 
 ## Notes
 

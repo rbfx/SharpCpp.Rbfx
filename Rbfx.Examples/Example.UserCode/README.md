@@ -2,7 +2,7 @@
 
 Example of a native C++ component that the generator wraps for C#. This example has only native code. It is not an executable project and it has no managed project in this directory.
 
-Like `Example.NativeHost`, this example builds from source with the main CMake project of this repository. It builds when `RBFX_BUILD_USERCODE` is ON (the default).
+Like `Example.NativeHost`, this example builds from source with the main CMake project of this repository. It builds when `RBFX_BUILD_USERCODE` is ON (the default for a top-level build; a consumer project gets OFF).
 
 ## Parts
 

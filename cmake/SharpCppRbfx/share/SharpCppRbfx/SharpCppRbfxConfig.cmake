@@ -11,7 +11,9 @@
 # - SHARPCPP_ROOT is the SharpCpp checkout. The default is the folder ../SharpCpp next to this
 #   repository. Set SHARPCPP_ROOT before find_package() when the checkout is in another place.
 # - Set RBFX_BUILD_USERCODE, RBFX_BUILD_EXAMPLES, RBFX_INSTALL_SDK or RBFX_BUILD_HOST before
-#   find_package() to change the defaults below.
+#   find_package() to change the defaults below. The examples (RBFX_BUILD_USERCODE and
+#   RBFX_BUILD_EXAMPLES) are for CI and for development of this repository. They are OFF by default
+#   for a consumer.
 # - The first call adds the source tree. A later call, also from a sibling directory, only sets the
 #   variables of the package.
 

@@ -101,11 +101,39 @@ function(rbfx_csharp_add_editor name)
     PLUGINS ${arg_PLUGINS}
     LINK_LIBRARIES EditorLibrary ${arg_LINK_LIBRARIES}
     ${launcher_options})
-  target_compile_definitions(${name} PRIVATE SHARPCPP_RBFX_EDITOR_NAME="${name}" SHARPCPP_RBFX_EDITOR_HOST_NAME="SharpCpp.Rbfx.EditorHost")
   # The default editor calls LinkedPlugins::RegisterStaticPlugins, which target_link_plugins defines. The launcher
   # function calls target_link_plugins only for a non-empty PLUGINS list, so the empty list needs the call here.
   if(NOT arg_PLUGINS)
     target_link_plugins(${name} "")
+  endif()
+
+  _rbfx_csharp_editor_host_setup(${name})
+endfunction()
+
+# Internal. Gives the executable target <name> the .NET hosting of the editor: the compile definitions, the include
+# folder of RbfxCSharpEditorHost.h, the bootstrap plugin SharpCpp.Rbfx.EditorHost in the folder of the executable, and the
+# copies of the native libraries. The target links SharpCpp::RbfxHost (rbfx_csharp_add_launcher does it already).
+function(_rbfx_csharp_editor_host_setup name)
+  target_compile_definitions(${name} PRIVATE SHARPCPP_RBFX_EDITOR_NAME="${name}" SHARPCPP_RBFX_EDITOR_HOST_NAME="SharpCpp.Rbfx.EditorHost")
+  target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/launcher")
+  target_link_libraries(${name} PRIVATE SharpCpp::RbfxHost)
+
+  # The bootstrap plugin builds into the folder of the executable. The folder must be known at configure time. For a
+  # target that rbfx_csharp_add_launcher made, this is already so. For another target, use the property, else the binary
+  # folder of the target. A multi-config generator adds a folder for each configuration, so the folder has the
+  # configuration in it, as in rbfx_csharp_add_launcher.
+  get_target_property(output_dir ${name} RUNTIME_OUTPUT_DIRECTORY)
+  if(NOT output_dir)
+    get_target_property(output_dir ${name} BINARY_DIR)
+  endif()
+  get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+  if(is_multi_config AND NOT output_dir MATCHES "\\$<")
+    set(output_dir "${output_dir}/$<CONFIG>")
+  endif()
+  set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Urho3D must be a startup dependency of the executable (see rbfx_csharp_add_launcher).
+    target_link_options(${name} PRIVATE LINKER:--no-as-needed)
   endif()
 
   # The bootstrap plugin. The repository has the sources in SharpCpp.Rbfx.EditorHost, the SDK in editor-host.
@@ -124,7 +152,6 @@ function(rbfx_csharp_add_editor name)
   endif()
   get_target_property(host_project SharpCpp.Rbfx.EditorHost SHARPCPP_RBFX_PLUGIN_PROJECT)
   get_target_property(host_properties SharpCpp.Rbfx.EditorHost SHARPCPP_RBFX_PLUGIN_MSBUILD_PROPERTIES)
-  get_target_property(output_dir ${name} RUNTIME_OUTPUT_DIRECTORY)
   set(host_dependencies)
   if(TARGET sharpcpp-rbfx-runtime)
     list(APPEND host_dependencies sharpcpp-rbfx-runtime)
@@ -166,4 +193,39 @@ function(rbfx_csharp_add_editor name)
         VERBATIM)
     endif()
   endif()
+endfunction()
+
+# rbfx_csharp_host_editor(<target>)
+#
+# Gives an existing editor executable of a project the .NET hosting of rbfx_csharp_add_editor. The editor of the project
+# is an EditorApplication that the project makes with add_executable and links with EditorLibrary and its own plugins
+# (target_link_plugins). Call the function after both. The function does not call target_link_plugins.
+#
+# The function links SharpCpp::RbfxHost, defines SHARPCPP_RBFX_EDITOR_NAME and SHARPCPP_RBFX_EDITOR_HOST_NAME, and adds
+# the folder cmake/launcher to the include folders of the target. The sources of the editor include
+# "RbfxCSharpEditorHost.h" and use the class Urho3D::RbfxEditorDotNetHost (see that header): Start before
+# EditorApplication::Start, OnEditorStarted after it, and Stop after EditorApplication::Stop. As in
+# rbfx_csharp_add_editor, the function builds SharpCpp.Rbfx.EditorHost.dll and its runtimeconfig.json into the folder of
+# the executable (RUNTIME_OUTPUT_DIRECTORY of the target, else the binary folder, with the configuration folder for a
+# multi-config generator) before the executable links, and copies SharpCpp::RbfxNative (and on Windows the host library
+# and nethost.dll) next to the executable. All editors share the target SharpCpp.Rbfx.EditorHost.
+# Desktop only. It is a fatal error on Android, iOS and Emscripten, and for a target that is not an executable.
+function(rbfx_csharp_host_editor name)
+  if(ARGC GREATER 1)
+    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): unknown arguments: ${ARGN}")
+  endif()
+  if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS" OR EMSCRIPTEN)
+    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the editor is a desktop program. Android, iOS and Emscripten are not supported.")
+  endif()
+  if(NOT TARGET ${name})
+    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the target does not exist.")
+  endif()
+  get_target_property(target_type ${name} TYPE)
+  if(NOT target_type STREQUAL "EXECUTABLE")
+    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the target is not an executable.")
+  endif()
+  if(NOT TARGET SharpCpp::RbfxHost)
+    message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the target SharpCpp::RbfxHost does not exist.")
+  endif()
+  _rbfx_csharp_editor_host_setup(${name})
 endfunction()

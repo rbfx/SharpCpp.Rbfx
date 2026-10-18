@@ -435,11 +435,14 @@ if(RBFX_BUILD_EXAMPLES)
   add_subdirectory(Rbfx.Examples/Example.NativeHost)
 endif()
 # The editor that hosts the .NET runtime. The rbfx SDK must have the editor library.
+option(RBFX_BUILD_EDITOR "Build the default .NET-hosting editor (SharpCppRbfxEditor)." ${PROJECT_IS_TOP_LEVEL})
 # The editor needs the managed bootstrap plugin, which dotnet builds. When CMake drives the build, the target
 # SharpCppRbfxEditor.Plugin builds it. When MSBuild drives the build (RBFX_CSHARP_BUILD_MANAGED=OFF), that target does
 # nothing and the caller builds the plugin project (packaging/nuget/package.sh does this). The editor is not built by the
 # targets that MSBuild uses, only by the target SharpCppRbfxEditor or by the default target.
-if(RBFX_BUILD_HOST AND RBFX_HOST_MODE STREQUAL "hostfxr" AND TARGET EditorLibrary)
+# The option RBFX_BUILD_EDITOR is OFF in a consumer tree (add_subdirectory or the find_package shim). A project that builds
+# its own editor calls rbfx_csharp_host_editor.
+if(RBFX_BUILD_EDITOR AND RBFX_BUILD_HOST AND RBFX_HOST_MODE STREQUAL "hostfxr" AND TARGET EditorLibrary)
   rbfx_csharp_add_editor(SharpCppRbfxEditor)
 endif()
 

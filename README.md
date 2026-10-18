@@ -74,6 +74,7 @@ The engine must come from an installed rbfx SDK. The two prefixes differ in how 
 - Shim prefix. Put the folder `cmake/SharpCppRbfx` of this repository on `CMAKE_PREFIX_PATH`. The package builds this source tree
   with `add_subdirectory()` in `<build>/SharpCppRbfx`. A SharpCpp checkout must be at `SHARPCPP_ROOT` (default `../SharpCpp`).
   The shim sets `RBFX_BUILD_USERCODE`, `RBFX_BUILD_EXAMPLES` and `RBFX_INSTALL_SDK` to OFF and `RBFX_BUILD_HOST` to ON, when the consumer did not define them.
+  The shim does not build the editor `SharpCppRbfxEditor`: the option `RBFX_BUILD_EDITOR` (default `PROJECT_IS_TOP_LEVEL`) is OFF for a consumer. Set it to ON before `find_package()` to build it.
   The two examples options default to ON only for a top-level build of this repository. They are for CI and development. The installed SDK never has the examples.
   The consumer must call `find_package(Urho3D)` before `find_package(SharpCppRbfx)`. The desktop shared engine is the tested case.
   A static engine is accepted on iOS and Emscripten only.
@@ -278,6 +279,42 @@ rbfx_csharp_add_editor(MyEditor
 - `PLUGINS` and `LINK_LIBRARIES` are as in `rbfx_csharp_add_launcher()`. `EditorLibrary` is always linked. `CONSOLE` builds a console program on Windows.
 - If the SDK has no `EditorLibrary` target, the function prints a status message and does nothing. `eng/fetch-rbfx-sdk.sh` warns when the editor headers are missing.
   On Android, iOS and Emscripten CMake stops with an error.
+
+The target `SharpCppRbfxEditor` of this repository exists only when `RBFX_BUILD_EDITOR` is ON (default: a top-level build).
+
+### .NET hosting for the own editor of a project
+
+A project that builds its own editor target calls `rbfx_csharp_host_editor()` for it. The editor stays the project code.
+
+```cmake
+add_executable(MyProjectEditor Editor.cpp)
+target_link_libraries(MyProjectEditor PUBLIC EditorLibrary)
+target_link_plugins(MyProjectEditor "${APP_PLUGIN_LIST}")
+rbfx_csharp_host_editor(MyProjectEditor)
+```
+
+- The function links `SharpCpp::RbfxHost`, defines `SHARPCPP_RBFX_EDITOR_NAME` and `SHARPCPP_RBFX_EDITOR_HOST_NAME`, and adds the folder
+  `cmake/launcher` to the include folders. It builds the bootstrap plugin as `rbfx_csharp_add_editor()` does, into the folder of the executable
+  (`RUNTIME_OUTPUT_DIRECTORY` of the target, else its binary folder, with the configuration folder for a multi-config generator).
+  It does not call `target_link_plugins()`.
+- The editor code uses the header-only class `Urho3D::RbfxEditorDotNetHost`:
+
+```cpp
+#include "RbfxCSharpEditorHost.h"
+
+class MyEditor : public EditorApplication
+{
+    void Start() override
+    {
+        ea::string error;
+        if (!dotNet_.Start(context_, SHARPCPP_RBFX_EDITOR_HOST_NAME, error)) { ErrorExit(error); return; }
+        EditorApplication::Start();
+        dotNet_.OnEditorStarted();
+    }
+    void Stop() override { EditorApplication::Stop(); dotNet_.Stop(); }
+    RbfxEditorDotNetHost dotNet_;
+};
+```
 
 ### Data in one call
 

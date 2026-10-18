@@ -14,6 +14,9 @@
 #   find_package() to change the defaults below. The examples (RBFX_BUILD_USERCODE and
 #   RBFX_BUILD_EXAMPLES) are for CI and for development of this repository. They are OFF by default
 #   for a consumer.
+# - The default editor SharpCppRbfxEditor is not built here (RBFX_BUILD_EDITOR is OFF in a consumer tree). Set
+#   RBFX_BUILD_EDITOR to ON before find_package() to build it. An own editor of the project uses
+#   rbfx_csharp_host_editor().
 # - The first call adds the source tree. A later call, also from a sibling directory, only sets the
 #   variables of the package.
 

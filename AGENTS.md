@@ -19,7 +19,7 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
 - `SharpCpp.Rbfx.Tests.E2E/` - round-trip tests against the generated rbfx bindings.
 - `include/SharpCpp/detail/Rbfx*.hpp` - rbfx marshaller configuration headers.
 - `native/SharpCpp.Rbfx.Native/` - MSBuild project that drives the CMake native build.
-- `cmake/RbfxCSharpEditor.cmake`, `cmake/launcher/RbfxCSharpEditor.cpp` and `SharpCpp.Rbfx.EditorHost/` - the editor target `rbfx_csharp_add_editor()` (desktop only, skipped without `EditorLibrary`). The bootstrap plugin registers `ManagedPlugins/*.dll` of the editor folder.
+- `cmake/RbfxCSharpEditor.cmake`, `cmake/launcher/RbfxCSharpEditor.cpp`, `cmake/launcher/RbfxCSharpEditorHost.h` and `SharpCpp.Rbfx.EditorHost/` - the editor target `rbfx_csharp_add_editor()` (desktop only, skipped without `EditorLibrary`). The root `CMakeLists.txt` makes `SharpCppRbfxEditor` only with the option `RBFX_BUILD_EDITOR` (default `PROJECT_IS_TOP_LEVEL`, so OFF for a consumer; the shim does not change it). `rbfx_csharp_host_editor(<target>)` gives the .NET hosting to the own editor executable of a project (it does not call `target_link_plugins`). Both functions use one internal helper. The header-only class `Urho3D::RbfxEditorDotNetHost` (`Start`, `OnEditorStarted`, `Stop`) holds the host and the registrar, and the function adds its folder to the include folders of the target. The bootstrap plugin registers `ManagedPlugins/*.dll` of the editor folder.
 - `packaging/nuget/` - NuGet packaging for the generated bindings.
 
 ## Inputs

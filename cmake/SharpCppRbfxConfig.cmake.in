@@ -43,6 +43,7 @@ include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpPlugin.cmake")
 # rbfx_csharp_add_launcher() links SharpCpp::RbfxHost, so it needs an SDK that has the host library.
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpLauncher.cmake")
 # rbfx_csharp_add_editor() makes the editor that hosts the .NET runtime. It needs rbfx_csharp_add_launcher().
+# rbfx_csharp_host_editor() gives the .NET hosting to an editor executable of the project.
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpEditor.cmake")
 # rbfx_csharp_add_data() makes the data target of an application (the paks on mobile and Web).
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpData.cmake")

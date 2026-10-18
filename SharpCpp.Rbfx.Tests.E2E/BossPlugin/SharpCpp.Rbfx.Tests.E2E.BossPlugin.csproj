@@ -11,11 +11,5 @@
     <ProjectReference Include="../../SharpCpp.Ea/SharpCpp.Ea.csproj" />
     <ProjectReference Include="../../SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
     <ProjectReference Include="../AttributePlugin/SharpCpp.Rbfx.Tests.E2E.AttributePlugin.csproj" />
-    <ProjectReference Include="../../SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
-    <ProjectReference Include="$(SharpCppRoot)/src/SharpCpp.Support.SourceGenerator/SharpCpp.Support.SourceGenerator.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

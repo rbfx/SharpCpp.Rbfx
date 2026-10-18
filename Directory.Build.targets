@@ -1,3 +1,51 @@
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)eng/SharpCpp.Rbfx.Build.targets" />
+
+  <!-- Source generators of the projects of this repository.
+       A project that has a ProjectReference to SharpCpp.Rbfx.Bindings gets the two generators as analyzers
+       (SharpCpp.Rbfx.SourceGenerator and SharpCpp.Support.SourceGenerator). Analyzer items do not flow through a
+       ProjectReference, so each consumer needs its own. A project that already has a generator keeps it, and the rule
+       adds only the other one (for example, the E2E tests reference the Rbfx generator to run it in process).
+       The rule does not apply to:
+         - SharpCpp.Rbfx.Bindings itself (it lists the generators in its own project file),
+         - generated projects (RbfxConsumedGeneratedDir is set), and
+         - a project with SharpCppRbfxSkipGeneratorCheck=true.
+       The head templates and cmake/sdk/SharpCppRbfxPlugin.props list the generators themselves: they are outside this build. -->
+  <!-- MSBuild does not allow an item list in the condition of a property or an item outside a target, so the rule
+       derives the new references from the Bindings reference (one transformed item for each) and removes the ones that
+       the project has already (Exclude). -->
+  <ItemGroup Condition="'$(SharpCppRbfxSkipGeneratorCheck)' != 'true' and '$(RbfxConsumedGeneratedDir)' == '' and '$(MSBuildProjectName)' != 'SharpCpp.Rbfx.Bindings'">
+    <_RbfxBindingsReference Include="@(ProjectReference->WithMetadataValue('Filename', 'SharpCpp.Rbfx.Bindings'))" />
+    <ProjectReference Include="@(_RbfxBindingsReference->'$(SharpCppRbfxRoot)/SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj')"
+                      Exclude="@(ProjectReference)"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="@(_RbfxBindingsReference->'$(SharpCppRoot)/src/SharpCpp.Support.SourceGenerator/SharpCpp.Support.SourceGenerator.csproj')"
+                      Exclude="@(ProjectReference)"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <_RbfxBindingsReference Remove="@(_RbfxBindingsReference)" />
+  </ItemGroup>
+
+  <!-- Guard against a missing generator. Without it a project compiles without errors, but it has no managed type
+       registry and no trimmer roots, and the failure appears only at run time. The guard applies to a project that
+       references SharpCpp.Rbfx.Bindings (a ProjectReference or a Reference Include="SharpCpp.Rbfx.Bindings"), except a generated project
+       (RbfxConsumedGeneratedDir is set) and the Bindings project. A project that has no
+       generator on purpose (for example, a plugin with hand-written RTTI) sets SharpCppRbfxSkipGeneratorCheck=true. -->
+  <Target Name="RbfxCheckSourceGenerators"
+          BeforeTargets="CoreCompile"
+          Condition="'$(SharpCppRbfxSkipGeneratorCheck)' != 'true' and '$(RbfxConsumedGeneratedDir)' == '' and '$(DesignTimeBuild)' != 'true' and '$(MSBuildProjectName)' != 'SharpCpp.Rbfx.Bindings'">
+    <ItemGroup>
+      <_RbfxBindingsUse Include="@(ProjectReference->WithMetadataValue('Filename', 'SharpCpp.Rbfx.Bindings'))" />
+      <_RbfxBindingsUse Include="@(Reference->WithMetadataValue('Identity', 'SharpCpp.Rbfx.Bindings'))" />
+      <_RbfxRbfxGeneratorFound Include="@(Analyzer->WithMetadataValue('Filename', 'SharpCpp.Rbfx.SourceGenerator'))" />
+      <_RbfxSupportGeneratorFound Include="@(Analyzer->WithMetadataValue('Filename', 'SharpCpp.Support.SourceGenerator'))" />
+    </ItemGroup>
+    <Error Condition="'@(_RbfxBindingsUse)' != '' and '@(_RbfxRbfxGeneratorFound)' == ''"
+           Code="SCPPSG002"
+           Text="$(MSBuildProjectName) uses SharpCpp.Rbfx.Bindings, but SharpCpp.Rbfx.SourceGenerator.dll is not in the analyzers. Without it the assembly has no managed type registry and no trimmer roots. Add the generator as an analyzer. Set SharpCppRbfxSkipGeneratorCheck=true only if the project has no generator on purpose." />
+    <Error Condition="'@(_RbfxBindingsUse)' != '' and '@(_RbfxSupportGeneratorFound)' == ''"
+           Code="SCPPSG002"
+           Text="$(MSBuildProjectName) uses SharpCpp.Rbfx.Bindings, but SharpCpp.Support.SourceGenerator.dll is not in the analyzers. Add the generator as an analyzer. Set SharpCppRbfxSkipGeneratorCheck=true only if the project has no generator on purpose." />
+  </Target>
 </Project>

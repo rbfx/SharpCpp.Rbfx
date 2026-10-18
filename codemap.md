@@ -104,7 +104,7 @@ SharpCpp.Tool ───────────┘             |
 | `Example.UserCode` (native bindings target, `Example.UserCode.Native` library) | `SharpCpp::NativeSupport`, `Urho3D`, `Example.UserCode.Impl` (user `.cpp` files), generated `.g.cpp` | CMake `target_link_libraries` + Unity build |
 | `Example.Common` (source mode) | `SharpCpp.Rbfx.Bindings`, `Example.UserCode.Bindings.dll` | `RbfxUserCodeReference` + project reference |
 | `Example.Common` (package mode, `RbfxBindingsPackageVersion` set) | `SharpCpp.Rbfx.Bindings` NuGet package, `Example.UserCode.Bindings.dll` | `RbfxUserCodeReference` + package reference |
-| `Rbfx.NativeHost.Managed` | `SharpCpp.Rbfx.Bindings`, `SharpCpp.Rbfx.SourceGenerator`, `SharpCpp.Support.SourceGenerator` | .NET project references |
+| `Rbfx.NativeHost.Managed` | `SharpCpp.Rbfx.Bindings` (the two source generators come from the rule in `Directory.Build.targets`) | .NET project references |
 | `SharpCpp.Rbfx.Tests.E2E` | `SharpCpp.Rbfx.Bindings`, xUnit, .NET Test SDK | .NET project + package references |
 | `rbfx/CMakeLists.txt` | `rbfx-sdk` installed at the `CMAKE_PREFIX_PATH` entry | `find_package(Urho3D CONFIG)` |
 

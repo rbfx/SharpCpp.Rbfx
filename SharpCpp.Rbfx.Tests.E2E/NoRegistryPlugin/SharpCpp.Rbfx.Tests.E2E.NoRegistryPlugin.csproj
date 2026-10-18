@@ -5,6 +5,8 @@
     <AssemblyName>SharpCpp.Rbfx.Tests.E2E.NoRegistryPlugin</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
+    <!-- No generator on purpose: the repository rule that adds the generators and the check for a missing generator skip this project. -->
+    <SharpCppRbfxSkipGeneratorCheck>true</SharpCppRbfxSkipGeneratorCheck>
   </PropertyGroup>
 
   <ItemGroup>

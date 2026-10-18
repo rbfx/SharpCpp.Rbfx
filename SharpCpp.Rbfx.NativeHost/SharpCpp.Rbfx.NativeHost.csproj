@@ -7,6 +7,8 @@
     <DisableRuntimeMarshalling>true</DisableRuntimeMarshalling>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- This assembly has no generated registry or trimmer roots: the repository rule that adds the generators skips it. -->
+    <SharpCppRbfxSkipGeneratorCheck>true</SharpCppRbfxSkipGeneratorCheck>
   </PropertyGroup>
 
   <ItemGroup>

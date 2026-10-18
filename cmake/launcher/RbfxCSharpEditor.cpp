@@ -3,6 +3,7 @@
 
 #include <Urho3D/CSharp/DotNetHost.h>
 #include <Urho3D/Core/CoreEvents.h>
+#include <Urho3D/Engine/EngineDefs.h>
 #include <Urho3D/IO/FileSystem.h>
 #include <Urho3D/IO/Log.h>
 #include <Urho3D/Plugins/PluginManager.h>
@@ -63,6 +64,9 @@ public:
         EditorApplication::Setup();
         // The static plugins register here. The macro below names this class, so this function runs.
         LinkedPlugins::RegisterStaticPlugins();
+        // The editor turns the lookup of ResourceRoot.ini off. A build tree turns it on again. The user puts
+        // ResourceRoot.ini in the project or build folder. Without the file the engine uses its normal lookup.
+        engineParameters_[EP_RESOURCE_ROOT_FILE] = "ResourceRoot.ini";
     }
 
     void Start() override

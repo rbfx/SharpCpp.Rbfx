@@ -23,6 +23,14 @@
 # LINK_LIBRARIES Other libraries that the editor links with (PRIVATE). EditorLibrary is always linked.
 # CONSOLE       Windows only. Build a console program.
 #
+# Resources: the default editor looks for CoreData and EditorData in the folder of the executable. It also reads
+# ResourceRoot.ini, which the engine looks for in the folder of the executable and then in the parent folders. A build tree
+# has no resource folders next to the executable, so put a ResourceRoot.ini in the project folder (or in the build folder).
+# Each line is <folder>=<path>, and the path is relative to the file. Example for an rbfx SDK:
+#   CoreData=<path to the SDK>/bin/CoreData
+#   EditorData=<path to the SDK>/bin/EditorData
+# The function does not write this file.
+#
 # The function builds SharpCpp.Rbfx.EditorHost.dll and its runtimeconfig.json with dotnet, into the folder of the
 # executable, before the executable links (the target <name>.Plugin).
 #

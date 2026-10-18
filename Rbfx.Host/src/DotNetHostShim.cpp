@@ -3,6 +3,9 @@
 
 #include "Urho3D/CSharp/DotNetHost.h"
 #include "Urho3D/CSharp/DotNetHostShim.h"
+#include "HostPaths.h"
+
+#include <Urho3D/Container/Str.h>
 
 #include <exception>
 #include <mutex>
@@ -67,19 +70,19 @@ SharpCppRbfxManagedHost CopyTable()
 void AppendManagedError(void* state, const char* text, int length)
 {
     if (state && text && length > 0)
-        static_cast<std::string*>(state)->append(text, static_cast<std::size_t>(length));
+        static_cast<ea::string*>(state)->append(text, static_cast<std::size_t>(length));
 }
 
 #if defined(SHARPCPP_RBFX_SHIM_LOAD_HEAD)
 using HeadAttachFunction = int (*)();
 using HeadDetachFunction = void (*)();
 
-void* LoadHeadLibrary(const std::filesystem::path& path, std::string& reason)
+void* LoadHeadLibrary(const ea::string& path, ea::string& reason)
 {
 #if defined(_WIN32)
-    void* library = reinterpret_cast<void*>(LoadLibraryW(path.c_str()));
+    void* library = reinterpret_cast<void*>(LoadLibraryW(MultiByteToWide(path).c_str()));
     if (!library)
-        reason = "LoadLibrary failed with error code " + std::to_string(static_cast<unsigned long>(GetLastError()));
+        reason = ea::string(ea::string::CtorSprintf{}, "LoadLibrary failed with error code %lu", static_cast<unsigned long>(GetLastError()));
     return library;
 #else
     void* library = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
@@ -102,25 +105,24 @@ void* FindHeadExport(void* library, const char* name)
 }
 
 // Loads the head library and calls its attach export. The handle stays loaded: a NativeAOT runtime cannot unload.
-bool AttachHead(const std::filesystem::path& path, void*& handle, std::string& error)
+bool AttachHead(const ea::string& path, void*& handle, ea::string& error)
 {
-    const std::string pathText = path.generic_string();
-    std::string reason;
+    ea::string reason;
     void* library = LoadHeadLibrary(path, reason);
     if (!library)
     {
-        error = "Cannot load the NativeAOT head library '" + pathText + "': " + reason;
+        error = "Cannot load the NativeAOT head library '" + path + "': " + reason;
         return false;
     }
     const auto attach = reinterpret_cast<HeadAttachFunction>(FindHeadExport(library, "sharpcpp_rbfx_head_attach"));
     if (!attach)
     {
-        error = "The NativeAOT head library '" + pathText + "' has no export 'sharpcpp_rbfx_head_attach'.";
+        error = "The NativeAOT head library '" + path + "' has no export 'sharpcpp_rbfx_head_attach'.";
         return false;
     }
     if (attach() != 1)
     {
-        error = "The export 'sharpcpp_rbfx_head_attach' of '" + pathText + "' failed.";
+        error = "The export 'sharpcpp_rbfx_head_attach' of '" + path + "' failed.";
         return false;
     }
     handle = library;
@@ -148,7 +150,7 @@ bool DotNetHost::IsInitialized() const
     return shimInitialized_;
 }
 
-bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error)
+bool DotNetHost::Initialize(const DotNetHostOptions& options, ea::string& error)
 {
     error.clear();
     const AttachFunction keepAttachExport = KeepAttachExport;
@@ -170,7 +172,7 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
             attached = IsAttachedLocked();
             if (!attached)
             {
-                error = "The NativeAOT head library '" + options.headLibraryPath.generic_string()
+                error = "The NativeAOT head library '" + options.headLibraryPath
                     + "' did not attach the managed host table.";
                 return false;
             }
@@ -188,7 +190,7 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
     }
     catch (const std::exception& exception)
     {
-        error = std::string("Initialize failed: ") + exception.what();
+        error = ea::string("Initialize failed: ") + exception.what();
         return false;
     }
     catch (...)
@@ -199,11 +201,11 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
 }
 
 void* DotNetHost::GetFunctionPointer(
-    const std::filesystem::path& assemblyPath,
-    std::string_view typeName,
-    std::string_view methodName,
-    std::string_view delegateTypeName,
-    std::string& error)
+    const ea::string& assemblyPath,
+    ea::string_view typeName,
+    ea::string_view methodName,
+    ea::string_view delegateTypeName,
+    ea::string& error)
 {
     error.clear();
     try
@@ -226,24 +228,22 @@ void* DotNetHost::GetFunctionPointer(
             return nullptr;
         }
 
-        const std::u8string path = assemblyPath.u8string();
-        const std::string utf8Path(path.begin(), path.end());
-        const std::string type(typeName);
-        const std::string method(methodName);
-        std::string managedError;
+        const ea::string type(typeName.data(), typeName.size());
+        const ea::string method(methodName.data(), methodName.size());
+        ea::string managedError;
         void* result = table.getFunctionPointer(
-            utf8Path.c_str(), type.c_str(), method.c_str(), "", &AppendManagedError, &managedError);
+            assemblyPath.c_str(), type.c_str(), method.c_str(), "", &AppendManagedError, &managedError);
         if (result == nullptr)
         {
-            error = "Cannot get the function pointer of '" + type + "." + method + "' in '" + assemblyPath.generic_string()
-                + "': " + (managedError.empty() ? std::string("unknown error.") : managedError);
+            error = "Cannot get the function pointer of '" + type + "." + method + "' in '" + assemblyPath
+                + "': " + (managedError.empty() ? ea::string("unknown error.") : managedError);
             return nullptr;
         }
         return result;
     }
     catch (const std::exception& exception)
     {
-        error = std::string("GetFunctionPointer failed: ") + exception.what();
+        error = ea::string("GetFunctionPointer failed: ") + exception.what();
         return nullptr;
     }
     catch (...)
@@ -253,7 +253,7 @@ void* DotNetHost::GetFunctionPointer(
     }
 }
 
-bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error)
+bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const ea::string& assemblyPath, ea::string& error)
 {
     error.clear();
     try
@@ -276,20 +276,19 @@ bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem:
             return false;
         }
 
-        const std::u8string path = std::filesystem::absolute(assemblyPath).u8string();
-        const std::string utf8Path(path.begin(), path.end());
-        std::string managedError;
+        const ea::string utf8Path = MakeAbsoluteHostPath(assemblyPath);
+        ea::string managedError;
         if (table.loadPlugin(pluginManager, utf8Path.c_str(), &AppendManagedError, &managedError) == 0)
         {
-            error = "Cannot load the managed plugin '" + assemblyPath.generic_string() + "': "
-                + (managedError.empty() ? std::string("unknown error.") : managedError);
+            error = "Cannot load the managed plugin '" + assemblyPath + "': "
+                + (managedError.empty() ? ea::string("unknown error.") : managedError);
             return false;
         }
         return true;
     }
     catch (const std::exception& exception)
     {
-        error = std::string("LoadPlugin failed: ") + exception.what();
+        error = ea::string("LoadPlugin failed: ") + exception.what();
         return false;
     }
     catch (...)
@@ -299,14 +298,14 @@ bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem:
     }
 }
 
-bool DotNetHost::RegisterPlugin(PluginManager*, const std::filesystem::path&, std::string& error)
+bool DotNetHost::RegisterPlugin(PluginManager*, const ea::string&, ea::string& error)
 {
     // The managed host table of the shim has no register entry. Only the desktop editor uses RegisterPlugin.
     error = "RegisterPlugin is not available in the DotNetHost shim.";
     return false;
 }
 
-bool DotNetHost::LoadPluginEntryPoint(std::string& error)
+bool DotNetHost::LoadPluginEntryPoint(ea::string& error)
 {
     // The hostfxr class layout has this member. The shim never uses it.
     error = "LoadPluginEntryPoint is not available in the DotNetHost shim.";

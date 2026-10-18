@@ -6,9 +6,10 @@
 
 #if !SHARPCPP_RBFX_SCRIPT_RUNTIME
 #include <Urho3D/Container/Ptr.h>
+#include <EASTL/unordered_map.h>
+#include <EASTL/vector.h>
+
 #include <mutex>
-#include <unordered_map>
-#include <vector>
 
 namespace sharpcpp::interop::rbfx
 {
@@ -20,8 +21,8 @@ struct ScriptObject
     void* handle{};
 };
 std::mutex scriptObjectMutex;
-std::unordered_map<Urho3D::RefCounted*, ScriptObject> scriptObjects;
-std::vector<void*> expiredScriptObjects;
+ea::unordered_map<Urho3D::RefCounted*, ScriptObject> scriptObjects;
+ea::vector<void*> expiredScriptObjects;
 }
 
 void* GetScriptObject(Urho3D::RefCounted* instance) noexcept

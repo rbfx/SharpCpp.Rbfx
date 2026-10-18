@@ -9,9 +9,6 @@
 
 #include <Tools/Editor/EditorApplication.h>
 
-#include <filesystem>
-#include <string>
-
 using namespace Urho3D;
 
 // Registers the managed plugins for each PluginManager of the editor.
@@ -26,10 +23,10 @@ class ManagedPluginRegistrar : public Object
     URHO3D_OBJECT(ManagedPluginRegistrar, Object);
 
 public:
-    ManagedPluginRegistrar(Context* context, DotNetHost& host, std::filesystem::path assemblyPath)
+    ManagedPluginRegistrar(Context* context, DotNetHost& host, ea::string assemblyPath)
         : Object(context)
         , host_(host)
-        , assemblyPath_(std::move(assemblyPath))
+        , assemblyPath_(ea::move(assemblyPath))
     {
         SubscribeToEvent(E_ENDFRAME, [this](StringHash, VariantMap&) { Poll(); });
     }
@@ -43,16 +40,16 @@ public:
         if (!current || current == pluginManager_.Get())
             return;
         pluginManager_ = current;
-        std::string error;
+        ea::string error;
         if (!host_.RegisterPlugin(current, assemblyPath_, error))
-            URHO3D_LOGERROR("{}", ea::string(error.c_str()));
+            URHO3D_LOGERROR("{}", error);
         else if (!current->IsReloadPending())
             current->Reload();
     }
 
 private:
     DotNetHost& host_;
-    std::filesystem::path assemblyPath_;
+    ea::string assemblyPath_;
     WeakPtr<PluginManager> pluginManager_;
 };
 
@@ -73,15 +70,15 @@ public:
         // The engine creates the first plugin manager before Start(). The bootstrap plugin SharpCpp.Rbfx.EditorHost
         // registers the managed plugins of the folder ManagedPlugins. The runtime config is
         // SharpCpp.Rbfx.EditorHost.runtimeconfig.json in the folder of the executable.
-        directory_ = std::filesystem::path(GetSubsystem<FileSystem>()->GetProgramDir().c_str());
+        directory_ = AddTrailingSlash(GetSubsystem<FileSystem>()->GetProgramDir());
         // StartDotNetPlugin would add the bootstrap plugin to the loaded plugins of the manager, and the project saves
         // that list. So the editor starts the runtime and only registers the plugin.
         DotNetHostOptions options;
-        options.runtimeConfigPath = directory_ / (std::string(SHARPCPP_RBFX_EDITOR_HOST_NAME) + ".runtimeconfig.json");
-        std::string error;
+        options.runtimeConfigPath = directory_ + SHARPCPP_RBFX_EDITOR_HOST_NAME + ".runtimeconfig.json";
+        ea::string error;
         if (!host_.Initialize(options, error))
         {
-            const ea::string message(("Cannot start the .NET runtime: " + error).c_str());
+            const ea::string message = "Cannot start the .NET runtime: " + error;
             URHO3D_LOGERROR("{}", message);
             ErrorExit(message);
             return;
@@ -89,7 +86,7 @@ public:
         EditorApplication::Start();
         // The helper subscribes to E_ENDFRAME after the editor did, so its handler runs after UpdateProjectStatus.
         registrar_ = MakeShared<ManagedPluginRegistrar>(
-            context_, host_, directory_ / (std::string(SHARPCPP_RBFX_EDITOR_HOST_NAME) + ".dll"));
+            context_, host_, directory_ + SHARPCPP_RBFX_EDITOR_HOST_NAME + ".dll");
         registrar_->Poll();
     }
 
@@ -102,7 +99,7 @@ public:
 
 private:
     DotNetHost host_;
-    std::filesystem::path directory_;
+    ea::string directory_;
     SharedPtr<ManagedPluginRegistrar> registrar_;
 };
 

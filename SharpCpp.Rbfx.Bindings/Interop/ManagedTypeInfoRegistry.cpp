@@ -1,15 +1,16 @@
 #include <SharpCpp/Export.hpp>
 
+#include <Urho3D/Container/Str.h>
 #include <Urho3D/Core/TypeInfo.h>
 
-#include <memory>
+#include <EASTL/unique_ptr.h>
+#include <EASTL/unordered_map.h>
+
 #include <mutex>
-#include <string>
-#include <unordered_map>
 
 namespace
 {
-using ManagedTypeInfoMap = std::unordered_map<std::string, std::unique_ptr<Urho3D::TypeInfo>>;
+using ManagedTypeInfoMap = ea::unordered_map<ea::string, ea::unique_ptr<Urho3D::TypeInfo>>;
 
 ManagedTypeInfoMap& GetManagedTypeInfos()
 {
@@ -40,7 +41,7 @@ SHARPCPP_EXPORT void* sharpcpp_rbfx_get_or_create_managed_type_info(const char* 
     auto [iterator, inserted] = typeInfos.try_emplace(typeName, nullptr);
     if (inserted || iterator->second == nullptr)
     {
-        iterator->second = std::make_unique<Urho3D::TypeInfo>(iterator->first.c_str(), baseTypeInfo);
+        iterator->second = ea::make_unique<Urho3D::TypeInfo>(iterator->first.c_str(), baseTypeInfo);
     }
 
     return iterator->second.get();

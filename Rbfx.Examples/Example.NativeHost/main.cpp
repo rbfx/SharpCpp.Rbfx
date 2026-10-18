@@ -21,9 +21,6 @@
 #include <Urho3D/Scene/Node.h>
 #include <Urho3D/Scene/Scene.h>
 
-#include <filesystem>
-#include <string>
-
 /// Plain rbfx application. It starts the .NET runtime and uses a C# component as a script.
 class NativeHostApp : public Urho3D::Application
 {
@@ -43,15 +40,15 @@ public:
 
     void Start() override
     {
-        const std::filesystem::path directory = std::filesystem::path(GetSubsystem<Urho3D::FileSystem>()->GetProgramDir().c_str());
+        const ea::string directory = GetSubsystem<Urho3D::FileSystem>()->GetProgramDir();
 
         // The engine creates the plugin manager in Engine::Initialize, before Start().
         // The plugin registers the C# Spinner component, so the code below can create it by name.
-        std::string error;
+        ea::string error;
         if (!Urho3D::StartDotNetPlugin(
                 host_, GetSubsystem<Urho3D::PluginManager>(), directory, "Rbfx.NativeHost.Net", error))
         {
-            Fail(error.c_str());
+            Fail(error);
             return;
         }
 

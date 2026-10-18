@@ -2,27 +2,25 @@
 
 #include "Urho3D/CSharp/DotNetHostExport.h"
 
-#include <filesystem>
-#include <string>
-#include <string_view>
+#include <Urho3D/Container/Str.h>
 
 namespace Urho3D
 {
 
 class PluginManager;
 
-/// Options of DotNetHost::Initialize.
+/// Options of DotNetHost::Initialize. All paths are UTF-8 strings, like the paths of the FileSystem subsystem.
 struct DotNetHostOptions
 {
-    /// Path of the <Assembly>.runtimeconfig.json file. Required.
-    std::filesystem::path runtimeConfigPath;
+    /// Path of the <Assembly>.runtimeconfig.json file in UTF-8. Required.
+    ea::string runtimeConfigPath;
     /// Root directory of the .NET installation. Optional. Empty means automatic lookup.
-    std::filesystem::path dotnetRoot;
+    ea::string dotnetRoot;
     /// Path of SharpCpp.Rbfx.Bindings.dll. Optional. Empty means the file next to the runtime config.
     /// LoadPlugin loads this assembly once, into the default load context of the runtime.
-    std::filesystem::path bindingsAssemblyPath;
+    ea::string bindingsAssemblyPath;
     /// Shim mode on desktop: native library of the NativeAOT head. Empty on other platforms.
-    std::filesystem::path headLibraryPath;
+    ea::string headLibraryPath;
 };
 
 /// Hosts the .NET runtime in the current process through hostfxr.
@@ -41,26 +39,26 @@ public:
 
     /// Loads hostfxr and starts the runtime that the runtime config describes.
     /// Returns false and fills error on failure.
-    bool Initialize(const DotNetHostOptions& options, std::string& error);
+    bool Initialize(const DotNetHostOptions& options, ea::string& error);
 
     /// Returns a native function pointer to a managed static method. Returns nullptr on failure.
     /// typeName is assembly qualified: "Ns.Type, AssemblyName".
     /// The method must have [UnmanagedCallersOnly] when delegateTypeName is empty.
     void* GetFunctionPointer(
-        const std::filesystem::path& assemblyPath,
-        std::string_view typeName,
-        std::string_view methodName,
-        std::string_view delegateTypeName,
-        std::string& error);
+        const ea::string& assemblyPath,
+        ea::string_view typeName,
+        ea::string_view methodName,
+        ea::string_view delegateTypeName,
+        ea::string& error);
 
     /// Typed variant of GetFunctionPointer.
     template <typename Fn>
     Fn GetFunction(
-        const std::filesystem::path& assemblyPath,
-        std::string_view typeName,
-        std::string_view methodName,
-        std::string_view delegateTypeName,
-        std::string& error)
+        const ea::string& assemblyPath,
+        ea::string_view typeName,
+        ea::string_view methodName,
+        ea::string_view delegateTypeName,
+        ea::string& error)
     {
         return reinterpret_cast<Fn>(GetFunctionPointer(assemblyPath, typeName, methodName, delegateTypeName, error));
     }
@@ -77,13 +75,13 @@ public:
     /// 4. Create the managed types by name.
     /// A later call to PluginManager::SetPluginsLoaded must keep the plugin name, else the plugin unloads.
     /// A plugin name can be loaded only once. Returns false and fills error on failure.
-    bool LoadPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error);
+    bool LoadPlugin(PluginManager* pluginManager, const ea::string& assemblyPath, ea::string& error);
 
     /// Registers a managed rbfx plugin assembly in the plugin manager without loading it. It does the first part of
     /// LoadPlugin only: the plugin manager adds the plugin as a static plugin, and PluginManager::SetPluginsLoaded and
     /// Commit are not called, so the list of the loaded plugins does not change. A plugin name can be registered only
     /// once for a plugin manager. Not available in the shim mode (returns false). Returns false and fills error on failure.
-    bool RegisterPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error);
+    bool RegisterPlugin(PluginManager* pluginManager, const ea::string& assemblyPath, ea::string& error);
 
     bool IsInitialized() const;
 
@@ -91,7 +89,7 @@ public:
     void Close();
 
 private:
-    bool LoadPluginEntryPoint(std::string& error);
+    bool LoadPluginEntryPoint(ea::string& error);
 
     void* hostfxrLibrary_{};
     void* hostContext_{};
@@ -101,7 +99,7 @@ private:
     void* getFunctionPointerFunction_{};
     void* loadPluginFunction_{};
     void* registerPluginFunction_{};
-    std::filesystem::path bindingsAssemblyPath_;
+    ea::string bindingsAssemblyPath_;
     /// Used only in shim mode. The layout is the same in both modes.
     bool shimInitialized_{};
 };

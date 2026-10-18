@@ -513,6 +513,8 @@ The iOS, web and Android heads are not built in CI. The hostfxr mode on desktop 
 ### DotNetHost modes
 
 `Urho3D::DotNetHost` has the same public API in two modes. The cache variable `RBFX_HOST_MODE` selects the mode.
+The API uses the types of the engine: paths are UTF-8 `ea::string` (like in `FileSystem`), names are `ea::string_view`, and errors are `ea::string&`.
+The host library links the `Urho3D` target in both modes.
 
 - `hostfxr` is the default on desktop. `DotNetHost` loads hostfxr and starts the .NET runtime. This mode needs nethost.
 - `shim` is the default on Android, iOS and Emscripten. `DotNetHost` never starts a runtime. The .NET head starts the runtime.
@@ -520,7 +522,7 @@ The iOS, web and Android heads are not built in CI. The hostfxr mode on desktop 
   host library through `sharpcpp_rbfx_attach_managed_host`. The managed side of this attach is `SharpCpp.Rbfx.NativeHost` (see below). The shim code is in `SharpCpp.Rbfx.Host` on every platform
   (source `Rbfx.Host/src/DotNetHostShim.cpp`), not in `SharpCpp.Rbfx.Native`. The NuGet runtime packages do not pack the host library.
   `SharpCpp::RbfxHost` is a real library of the type `RBFX_NATIVE_LIBRARY_TYPE` (shared on Android, static on iOS and Emscripten).
-  It has no link dependency and the interface definition `URHO3D_DOTNETHOST_SHIM`. A static library also has `URHO3D_DOTNETHOST_STATIC`.
+  It links `Urho3D` PUBLIC, because `ea::string` needs the engine allocator. It has the interface definition `URHO3D_DOTNETHOST_SHIM`. A static library also has `URHO3D_DOTNETHOST_STATIC`.
   `DotNetHost::Initialize` refers to the attach export, so the linker keeps it in a static program. No whole-archive link is needed.
   `DotNetHost::Initialize` returns false and gives an error text while no table is attached.
   `RBFX_INSTALL_SDK` works in both modes. The shim SDK has `SharpCpp::RbfxHost` (the host library and the headers `DotNetHost.h`,

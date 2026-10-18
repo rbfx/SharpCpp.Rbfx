@@ -3,7 +3,7 @@ include(GNUInstallDirs)
 if(RBFX_HOST_MODE STREQUAL "shim")
   # Shim mode: DotNetHost starts no runtime. It reads function pointers that the managed side
   # attached to this library (see include/Urho3D/CSharp/DotNetHostShim.h). The library needs no
-  # NetHost and no engine library: the class header only forward-declares PluginManager.
+  # NetHost.
   set(_rbfx_host_sources src/DotNetHostShim.cpp)
 else()
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
@@ -15,6 +15,8 @@ add_library(sharpcpp-rbfx-host ${RBFX_NATIVE_LIBRARY_TYPE} ${_rbfx_host_sources}
 add_library(SharpCpp::RbfxHost ALIAS sharpcpp-rbfx-host)
 
 target_compile_features(sharpcpp-rbfx-host PUBLIC cxx_std_20)
+# The public API uses the EASTL types of the engine (ea::string), so the host library links the engine.
+target_link_libraries(sharpcpp-rbfx-host PUBLIC ${RBFX_URHO3D_TARGET})
 target_include_directories(
   sharpcpp-rbfx-host
   PUBLIC
@@ -37,8 +39,7 @@ endif()
 
 if(EMSCRIPTEN)
   # The final link of the web application uses shared memory (threads). wasm-ld needs atomics and bulk memory in
-  # every object file, so the host library and its consumers compile with -pthread. The host library does not link
-  # the engine, so it does not get this option from the engine.
+  # every object file, so the host library and its consumers compile with -pthread.
   target_compile_options(sharpcpp-rbfx-host PUBLIC -pthread)
 endif()
 
@@ -95,7 +96,7 @@ endif()
 # Install rules. They run only for "cmake --install" and do not change the build.
 # The hostfxr host links NetHost::NetHost privately. A shared host needs nothing from the consumer.
 # A static hostfxr host exports "$<LINK_ONLY:NetHost::NetHost>", so SharpCppRbfxConfig.cmake finds NetHost.
-# The shim host has no link dependency. A static shim host needs no whole-archive link: the
+# The shim host links Urho3D PUBLIC (ea::string needs the engine allocator). A static shim host needs no whole-archive link: the
 # application calls DotNetHost::Initialize, so the linker keeps the object file with the attach export.
 if(RBFX_INSTALL_SDK)
   install(

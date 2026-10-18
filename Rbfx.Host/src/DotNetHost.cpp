@@ -1,13 +1,16 @@
 #include "Urho3D/CSharp/DotNetHost.h"
+#include "HostPaths.h"
+
+#include <Urho3D/Container/Str.h>
+#include <Urho3D/IO/FileSystem.h>
+
+#include <EASTL/vector.h>
 
 #include <coreclr_delegates.h>
 #include <hostfxr.h>
 #include <nethost.h>
 
-#include <cstdio>
-#include <cstdlib>
 #include <exception>
-#include <vector>
 
 #if defined(_WIN32)
 #ifndef NOMINMAX
@@ -27,23 +30,24 @@ namespace Urho3D
 namespace
 {
 
-using HostString = std::basic_string<char_t>;
+// char_t is the character type of hostfxr: char, or wchar_t on Windows.
+using HostString = ea::basic_string<char_t>;
 
 // The managed entry point of LoadPlugin. It is in SharpCpp.Rbfx.Bindings/Plugins/NativeHostEntryPoints.cs.
-constexpr std::string_view LoadPluginTypeName = "Urho3D.Plugins.NativeHostEntryPoints, SharpCpp.Rbfx.Bindings";
-constexpr std::string_view LoadPluginMethodName = "LoadPlugin";
-constexpr std::string_view RegisterPluginMethodName = "RegisterPlugin";
+constexpr ea::string_view LoadPluginTypeName = "Urho3D.Plugins.NativeHostEntryPoints, SharpCpp.Rbfx.Bindings";
+constexpr ea::string_view LoadPluginMethodName = "LoadPlugin";
+constexpr ea::string_view RegisterPluginMethodName = "RegisterPlugin";
 using ManagedErrorWriter = void (*)(void* state, const char* text, int length);
 using LoadPluginFunction = int (*)(void* pluginManager, const char* assemblyPath, ManagedErrorWriter writeError, void* state);
 
 void AppendManagedError(void* state, const char* text, int length)
 {
     if (state && text && length > 0)
-        static_cast<std::string*>(state)->append(text, static_cast<std::size_t>(length));
+        static_cast<ea::string*>(state)->append(text, static_cast<std::size_t>(length));
 }
 
 #if defined(_WIN32)
-HostString ToHostString(std::string_view utf8)
+HostString ToHostString(ea::string_view utf8)
 {
     if (utf8.empty())
         return {};
@@ -53,30 +57,30 @@ HostString ToHostString(std::string_view utf8)
     return result;
 }
 
-std::string FromHostString(const char_t* text)
+ea::string FromHostString(const char_t* text)
 {
     if (!text)
         return {};
     const int length = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
     if (length <= 1)
         return {};
-    std::string result(static_cast<size_t>(length - 1), '\0');
+    ea::string result(static_cast<size_t>(length - 1), '\0');
     WideCharToMultiByte(CP_UTF8, 0, text, -1, result.data(), length, nullptr, nullptr);
     return result;
 }
 
-HostString PathToHostString(const std::filesystem::path& path) { return path.native(); }
 #else
-HostString ToHostString(std::string_view utf8) { return HostString(utf8); }
-std::string FromHostString(const char_t* text) { return text ? std::string(text) : std::string(); }
-HostString PathToHostString(const std::filesystem::path& path) { return path.native(); }
+HostString ToHostString(ea::string_view utf8) { return HostString(utf8.data(), utf8.size()); }
+ea::string FromHostString(const char_t* text) { return text ? ea::string(text) : ea::string(); }
 #endif
 
-std::string FormatCode(int code)
+ea::string ToString(ea::string_view text) { return ea::string(text.data(), text.size()); }
+
+HostString PathToHostString(const ea::string& path) { return ToHostString(ea::string_view(path.data(), path.size())); }
+
+ea::string FormatCode(int code)
 {
-    char buffer[32];
-    std::snprintf(buffer, sizeof(buffer), "0x%08X", static_cast<unsigned>(code));
-    return buffer;
+    return ea::string(ea::string::CtorSprintf(), "0x%08X", static_cast<unsigned>(code));
 }
 
 void* LoadNativeLibrary(const HostString& path)
@@ -97,7 +101,7 @@ void* FindExport(void* library, const char* name)
 #endif
 }
 
-std::string LastLoadError()
+ea::string LastLoadError()
 {
 #if defined(_WIN32)
     return "error code " + FormatCode(static_cast<int>(GetLastError()));
@@ -108,7 +112,7 @@ std::string LastLoadError()
 }
 
 // hostfxr reports detailed errors through a writer that is local to the calling thread.
-thread_local std::string* g_errorSink = nullptr;
+thread_local ea::string* g_errorSink = nullptr;
 
 void HOSTFXR_CALLTYPE HostErrorWriter(const char_t* message)
 {
@@ -123,7 +127,7 @@ void HOSTFXR_CALLTYPE HostErrorWriter(const char_t* message)
 class ErrorCapture
 {
 public:
-    ErrorCapture(void* hostfxrLibrary, std::string& sink)
+    ErrorCapture(void* hostfxrLibrary, ea::string& sink)
         : previousSink_(g_errorSink)
     {
         setErrorWriter_ = reinterpret_cast<hostfxr_set_error_writer_fn>(FindExport(hostfxrLibrary, "hostfxr_set_error_writer"));
@@ -145,10 +149,10 @@ public:
 private:
     hostfxr_set_error_writer_fn setErrorWriter_{};
     hostfxr_error_writer_fn previousWriter_{};
-    std::string* previousSink_{};
+    ea::string* previousSink_{};
 };
 
-void AppendError(std::string& error, const std::string& text)
+void AppendError(ea::string& error, const ea::string& text)
 {
     if (text.empty())
         return;
@@ -158,10 +162,10 @@ void AppendError(std::string& error, const std::string& text)
 }
 
 // Finds hostfxr: explicit root, then the default lookup (DOTNET_ROOT and global install), then the build-time root.
-bool FindHostfxrPath(const std::filesystem::path& explicitRoot, HostString& result, std::string& error)
+bool FindHostfxrPath(const ea::string& explicitRoot, HostString& result, ea::string& error)
 {
-    std::vector<HostString> roots;
-    std::vector<bool> useRoot;
+    ea::vector<HostString> roots;
+    ea::vector<bool> useRoot;
     if (!explicitRoot.empty())
     {
         roots.push_back(PathToHostString(explicitRoot));
@@ -180,7 +184,7 @@ bool FindHostfxrPath(const std::filesystem::path& explicitRoot, HostString& resu
         parameters.size = sizeof(get_hostfxr_parameters);
         parameters.dotnet_root = useRoot[i] ? roots[i].c_str() : nullptr;
 
-        std::vector<char_t> buffer(1024);
+        ea::vector<char_t> buffer(1024);
         size_t size = buffer.size();
         int rc = get_hostfxr_path(buffer.data(), &size, useRoot[i] ? &parameters : nullptr);
         if (rc != 0 && size > buffer.size())
@@ -196,7 +200,7 @@ bool FindHostfxrPath(const std::filesystem::path& explicitRoot, HostString& resu
         AppendError(
             error,
             "get_hostfxr_path failed (" + FormatCode(rc) + ")"
-                + (useRoot[i] ? " for dotnet root '" + FromHostString(roots[i].c_str()) + "'" : std::string(" for the default lookup")));
+                + (useRoot[i] ? " for dotnet root '" + FromHostString(roots[i].c_str()) + "'" : ea::string(" for the default lookup")));
     }
     return false;
 }
@@ -215,7 +219,7 @@ bool DotNetHost::IsInitialized() const
     return hostContext_ != nullptr && loadAssemblyFunction_ != nullptr;
 }
 
-bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error)
+bool DotNetHost::Initialize(const DotNetHostOptions& options, ea::string& error)
 {
     error.clear();
     try
@@ -263,7 +267,7 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
         if (rc < 0 || context == nullptr)
         {
             AppendError(error, "hostfxr_initialize_for_runtime_config failed (" + FormatCode(rc) + ") for '"
-                + options.runtimeConfigPath.generic_string() + "'.");
+                + options.runtimeConfigPath + "'.");
             if (context)
                 close(context);
             return false;
@@ -292,14 +296,14 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
         loadAssemblyIntoDefaultFunction_ = loadAssemblyIntoDefault;
         getFunctionPointerFunction_ = getFunctionPointer;
         bindingsAssemblyPath_ = options.bindingsAssemblyPath.empty()
-            ? options.runtimeConfigPath.parent_path() / "SharpCpp.Rbfx.Bindings.dll"
+            ? GetPath(options.runtimeConfigPath) + "SharpCpp.Rbfx.Bindings.dll"
             : options.bindingsAssemblyPath;
         error.clear();
         return true;
     }
     catch (const std::exception& exception)
     {
-        error = std::string("Initialize failed: ") + exception.what();
+        error = ea::string("Initialize failed: ") + exception.what();
         return false;
     }
     catch (...)
@@ -310,11 +314,11 @@ bool DotNetHost::Initialize(const DotNetHostOptions& options, std::string& error
 }
 
 void* DotNetHost::GetFunctionPointer(
-    const std::filesystem::path& assemblyPath,
-    std::string_view typeName,
-    std::string_view methodName,
-    std::string_view delegateTypeName,
-    std::string& error)
+    const ea::string& assemblyPath,
+    ea::string_view typeName,
+    ea::string_view methodName,
+    ea::string_view delegateTypeName,
+    ea::string& error)
 {
     error.clear();
     try
@@ -339,7 +343,7 @@ void* DotNetHost::GetFunctionPointer(
         if (rc != 0 || result == nullptr)
         {
             AppendError(error, "load_assembly_and_get_function_pointer failed (" + FormatCode(rc) + ") for '"
-                + std::string(typeName) + "." + std::string(methodName) + "' in '" + assemblyPath.generic_string() + "'.");
+                + ToString(typeName) + "." + ToString(methodName) + "' in '" + assemblyPath + "'.");
             return nullptr;
         }
         error.clear();
@@ -347,7 +351,7 @@ void* DotNetHost::GetFunctionPointer(
     }
     catch (const std::exception& exception)
     {
-        error = std::string("GetFunctionPointer failed: ") + exception.what();
+        error = ea::string("GetFunctionPointer failed: ") + exception.what();
         return nullptr;
     }
     catch (...)
@@ -361,17 +365,16 @@ namespace
 {
 
 // Calls LoadPlugin or RegisterPlugin of NativeHostEntryPoints. Both have the same signature.
-bool CallPluginEntryPoint(void* function, std::string_view action, PluginManager* pluginManager,
-    const std::filesystem::path& assemblyPath, std::string& error)
+bool CallPluginEntryPoint(void* function, const char* action, PluginManager* pluginManager,
+    const ea::string& assemblyPath, ea::string& error)
 {
-    const std::u8string path = std::filesystem::absolute(assemblyPath).u8string();
-    const std::string utf8Path(path.begin(), path.end());
-    std::string managedError;
+    const ea::string utf8Path = MakeAbsoluteHostPath(assemblyPath);
+    ea::string managedError;
     const auto entryPoint = reinterpret_cast<LoadPluginFunction>(function);
     if (entryPoint(pluginManager, utf8Path.c_str(), &AppendManagedError, &managedError) == 0)
     {
-        error = "Cannot " + std::string(action) + " the managed plugin '" + assemblyPath.generic_string() + "': "
-            + (managedError.empty() ? std::string("unknown error.") : managedError);
+        error = ea::string("Cannot ") + action + " the managed plugin '" + assemblyPath + "': "
+            + (managedError.empty() ? ea::string("unknown error.") : managedError);
         return false;
     }
     return true;
@@ -379,7 +382,7 @@ bool CallPluginEntryPoint(void* function, std::string_view action, PluginManager
 
 } // namespace
 
-bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error)
+bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const ea::string& assemblyPath, ea::string& error)
 {
     error.clear();
     try
@@ -400,7 +403,7 @@ bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem:
     }
     catch (const std::exception& exception)
     {
-        error = std::string("LoadPlugin failed: ") + exception.what();
+        error = ea::string("LoadPlugin failed: ") + exception.what();
         return false;
     }
     catch (...)
@@ -410,7 +413,7 @@ bool DotNetHost::LoadPlugin(PluginManager* pluginManager, const std::filesystem:
     }
 }
 
-bool DotNetHost::RegisterPlugin(PluginManager* pluginManager, const std::filesystem::path& assemblyPath, std::string& error)
+bool DotNetHost::RegisterPlugin(PluginManager* pluginManager, const ea::string& assemblyPath, ea::string& error)
 {
     error.clear();
     try
@@ -431,7 +434,7 @@ bool DotNetHost::RegisterPlugin(PluginManager* pluginManager, const std::filesys
     }
     catch (const std::exception& exception)
     {
-        error = std::string("RegisterPlugin failed: ") + exception.what();
+        error = ea::string("RegisterPlugin failed: ") + exception.what();
         return false;
     }
     catch (...)
@@ -441,7 +444,7 @@ bool DotNetHost::RegisterPlugin(PluginManager* pluginManager, const std::filesys
     }
 }
 
-bool DotNetHost::LoadPluginEntryPoint(std::string& error)
+bool DotNetHost::LoadPluginEntryPoint(ea::string& error)
 {
     if (!loadAssemblyIntoDefaultFunction_ || !getFunctionPointerFunction_)
     {
@@ -453,27 +456,27 @@ bool DotNetHost::LoadPluginEntryPoint(std::string& error)
 
     // The default load context holds the bindings. Plugin load contexts share this copy, so the plugin and the
     // entry point use the same wrapper types.
-    const HostString bindingsPath = PathToHostString(std::filesystem::absolute(bindingsAssemblyPath_));
+    const HostString bindingsPath = PathToHostString(MakeAbsoluteHostPath(bindingsAssemblyPath_));
     const auto loadAssembly = reinterpret_cast<load_assembly_fn>(loadAssemblyIntoDefaultFunction_);
     int rc = loadAssembly(bindingsPath.c_str(), nullptr, nullptr);
     if (rc != 0)
     {
-        AppendError(error, "load_assembly failed (" + FormatCode(rc) + ") for '" + bindingsAssemblyPath_.generic_string() + "'.");
+        AppendError(error, "load_assembly failed (" + FormatCode(rc) + ") for '" + bindingsAssemblyPath_ + "'.");
         return false;
     }
 
     const HostString type = ToHostString(LoadPluginTypeName);
     const auto getFunctionPointer = reinterpret_cast<get_function_pointer_fn>(getFunctionPointerFunction_);
     void* functions[2] = {};
-    const std::string_view methods[2] = {LoadPluginMethodName, RegisterPluginMethodName};
+    const ea::string_view methods[2] = {LoadPluginMethodName, RegisterPluginMethodName};
     for (int index = 0; index < 2; ++index)
     {
         const HostString method = ToHostString(methods[index]);
         rc = getFunctionPointer(type.c_str(), method.c_str(), UNMANAGEDCALLERSONLY_METHOD, nullptr, nullptr, &functions[index]);
         if (rc != 0 || functions[index] == nullptr)
         {
-            AppendError(error, "get_function_pointer failed (" + FormatCode(rc) + ") for '" + std::string(LoadPluginTypeName)
-                + "." + std::string(methods[index]) + "'.");
+            AppendError(error, "get_function_pointer failed (" + FormatCode(rc) + ") for '" + ToString(LoadPluginTypeName)
+                + "." + ToString(methods[index]) + "'.");
             return false;
         }
     }

@@ -9,9 +9,6 @@
 
 #include <Player/PlayerApplication.h>
 
-#include <filesystem>
-#include <string>
-
 using namespace Urho3D;
 
 class RbfxCSharpLauncher : public PlayerApplication
@@ -41,13 +38,12 @@ public:
     void Start() override
     {
         // The engine creates the plugin manager before Start().
-        const std::filesystem::path directory(GetSubsystem<FileSystem>()->GetProgramDir().c_str());
-        std::string error;
+        const ea::string directory = GetSubsystem<FileSystem>()->GetProgramDir();
+        ea::string error;
         if (!StartDotNetPlugin(host_, GetSubsystem<PluginManager>(), directory, SHARPCPP_RBFX_PLUGIN_NAME, error))
         {
-            const ea::string message(error.c_str());
-            URHO3D_LOGERROR("{}", message);
-            ErrorExit(message);
+            URHO3D_LOGERROR("{}", error);
+            ErrorExit(error);
             return;
         }
         PlayerApplication::Start();

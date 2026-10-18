@@ -47,20 +47,20 @@
 # The function does these steps on all platforms:
 # - It defines SHARPCPP_RBFX_PLUGIN_NAME for the launcher. The value is the string with the assembly name of the plugin.
 #   The launcher finds <plugin>.dll and <plugin>.runtimeconfig.json of the plugin in the folder of the executable.
-# - It reads the wrapper targets from the property SHARPCPP_RBFX_PLUGIN_REFERENCES of the plugin and the native plugin
+# - It reads the bindings targets from the property SHARPCPP_RBFX_PLUGIN_REFERENCES of the plugin and the native plugin
 #   targets from the property SHARPCPP_RBFX_PLUGINS of the launcher.
 #
 # Desktop (Linux, Windows, macOS):
 # - Builds the plugin project with dotnet into the folder of the executable
-#   (rbfx_csharp_add_plugin_build, the target <launcher>.Plugin) and copies the native wrapper of the C# bindings to the
+#   (rbfx_csharp_add_plugin_build, the target <launcher>.Plugin) and copies the native bindings library to the
 #   same folder (the target <launcher>.Native). On Windows it also copies the host library and nethost.dll, the DLLs that
-#   the launcher needs at load time (the engine library Urho3D.dll) and the DLLs next to the native wrapper (the run-time
+#   the launcher needs at load time (the engine library Urho3D.dll) and the DLLs next to the native bindings (the run-time
 #   files of the engine, for example the C++ runtime). Windows has no run-time path.
-#   The function also copies each shared library of the wrapper targets and the shared and module libraries of the
+#   The function also copies each shared library of the bindings targets and the shared and module libraries of the
 #   native plugins to the folder of the executable. On macOS the executable is a plain executable, because the .NET
 #   runtime cannot be hosted inside an application bundle.
 # - The plugin target depends on the executable, so the executable cannot depend on the plugin.
-#   The target <launcher>.CSharp is part of the default build and builds the plugin and the wrapper.
+#   The target <launcher>.CSharp is part of the default build and builds the plugin and the bindings.
 #   Build it (or the target "all") to get a complete application.
 #
 # Desktop in shim mode (RBFX_HOST_MODE=shim, or SharpCppRbfx_HOST_MODE of the installed SDK):
@@ -69,7 +69,7 @@
 #   has the plugin and the bindings in it. The target <launcher>.Native copies the native libraries as in hostfxr mode.
 #
 # On Android the head packs each shared or module target of the native plugins, in the given order, and then each shared
-# library of the wrapper targets. The packing is before lib<launcher>.so and without duplicates.
+# library of the bindings targets. The packing is before lib<launcher>.so and without duplicates.
 #
 # Target properties set on <launcher>: SHARPCPP_RBFX_PACKAGED_PLUGIN (the plugin target), SHARPCPP_RBFX_PACKAGED_DATA (the
 # data target, or empty) and SHARPCPP_RBFX_APPLICATION_OUTPUT (the product of the application: <launcher>.apk on Android,
@@ -79,7 +79,7 @@
 # - The launcher is the shared library <name> (lib<name>.so). URHO3D_DEFINE_APPLICATION_MAIN exports SDL_main from it.
 # - Generates the .NET Android head project in <build>/heads/<name>/ from the templates in heads/android/
 #   next to this file. The head references the plugin project, packs the native libraries (the C++ runtime, Urho3D,
-#   the wrapper, the host library, the shared libraries in LINK_LIBRARIES of the launcher and lib<name>.so) and the
+#   the bindings, the host library, the shared libraries in LINK_LIBRARIES of the launcher and lib<name>.so) and the
 #   RESOURCES and the paks of DATA as assets. A file in RESOURCES becomes an asset with its file name. A folder becomes a folder
 #   of assets with its name.
 # - The application class of the head runs the module initializer of the bindings before the activity
@@ -95,7 +95,7 @@
 #   (org/libsdl/app). The default is the folder in the engine SDK.
 #
 # Emscripten (single-configuration generator, Emscripten toolchain, static engine and SharpCpp.Rbfx in shim mode):
-# - The browser has no hostfxr. The .NET WebAssembly head is the entry. The application, the engine, the wrapper
+# - The browser has no hostfxr. The .NET WebAssembly head is the entry. The application, the engine, the bindings
 #   and the host library are static code in dotnet.native.wasm (NativeFileReference items of the head).
 # - The launcher is the object library <name>. The .NET runtime has its own main, so its sources compile with
 #   main=rbfx_application_main. RbfxWebMain.cpp exports it as the C function rbfx_application_start.
@@ -114,15 +114,15 @@
 # iOS (CMAKE_SYSTEM_NAME iOS, device arm64, single-configuration generator, static engine SDK ios-clang-arm64-lib,
 # SharpCpp.Rbfx in shim mode):
 # - An iOS app has one executable, and the .NET iOS SDK links it. So the .NET iOS head is the entry. The application,
-#   the engine, the wrapper and the host library are static code in the executable (NativeReference items of the head).
+#   the engine, the bindings and the host library are static code in the executable (NativeReference items of the head).
 # - The launcher is the static library <name> (lib<name>.a). On iOS URHO3D_DEFINE_APPLICATION_MAIN defines SDL_main.
 #   RbfxIosMain.cpp exports the C function rbfx_application_start. It gives SDL_main to SDL_UIKitRunApp.
 # - Generates the head project in <build>/heads/<name>/ from the templates in heads/ios/ next to this file. At the end
 #   of the configure step, CMake collects the static libraries and the link flags of the link closure of <name>, of
-#   SharpCpp::RbfxNative and of the wrapper targets into NativeItems.props of the head. The head references the plugin project.
+#   SharpCpp::RbfxNative and of the bindings targets into NativeItems.props of the head. The head references the plugin project.
 # - Program.Main of the head runs the module initializer of the bindings, so DotNetHost::Initialize finds the runtime.
 #   Then it calls rbfx_application_start. SDL starts UIKit and calls SDL_main when the application is ready.
-# - The application library, the wrapper, the host library and the libraries of the wrapper targets are force-loaded: the managed
+# - The application library, the bindings, the host library and the libraries of the bindings targets are force-loaded: the managed
 #   side finds their exports with __Internal. The other libraries are not force-loaded. The engine library has the
 #   main of SDL, and the executable has the main of .NET.
 # - A file in RESOURCES becomes a file in the root folder of the app bundle with its file name. A folder becomes a
@@ -180,16 +180,16 @@ function(rbfx_csharp_package_application launcher)
     endif()
   endif()
 
-  # The wrapper targets that the plugin build waits for. The Android, Web and iOS parts also read them.
-  # arg_WRAPPER_TARGETS are the wrapper targets (they have the managed assembly). arg_WRAPPERS are the targets that
-  # hold their native code: the wrapper itself (separate library) or the IMPLEMENTATION target (integration).
-  set(arg_WRAPPER_TARGETS ${plugin_references})
-  set(arg_WRAPPERS)
-  foreach(wrapper IN LISTS arg_WRAPPER_TARGETS)
-    rbfx_csharp_wrapper_native_target(${wrapper} wrapper_native)
-    list(APPEND arg_WRAPPERS ${wrapper_native})
+  # The bindings targets that the plugin build waits for. The Android, Web and iOS parts also read them.
+  # arg_BINDINGS_TARGETS are the bindings targets (they have the managed assembly). arg_BINDINGS_NATIVE_TARGETS are the targets that
+  # hold their native code: the bindings itself (separate library) or the IMPLEMENTATION target (integration).
+  set(arg_BINDINGS_TARGETS ${plugin_references})
+  set(arg_BINDINGS_NATIVE_TARGETS)
+  foreach(bindings IN LISTS arg_BINDINGS_TARGETS)
+    rbfx_csharp_bindings_native_target(${bindings} bindings_native)
+    list(APPEND arg_BINDINGS_NATIVE_TARGETS ${bindings_native})
   endforeach()
-  list(REMOVE_DUPLICATES arg_WRAPPERS)
+  list(REMOVE_DUPLICATES arg_BINDINGS_NATIVE_TARGETS)
   # The native plugins and the libraries of the launcher.
   get_target_property(arg_PLUGINS ${launcher} SHARPCPP_RBFX_PLUGINS)
   get_target_property(launcher_libraries ${launcher} SHARPCPP_RBFX_LAUNCHER_LINK_LIBRARIES)
@@ -287,8 +287,8 @@ function(_rbfx_csharp_add_desktop_application name)
     PROJECT "${plugin_project}"
     HOST ${name}
     PROPERTIES ${plugin_properties})
-  if(arg_WRAPPERS)
-    add_dependencies(${name}.Plugin ${arg_WRAPPERS})
+  if(arg_BINDINGS_NATIVE_TARGETS)
+    add_dependencies(${name}.Plugin ${arg_BINDINGS_NATIVE_TARGETS})
   endif()
 
   _rbfx_csharp_add_desktop_native_copy(${name})
@@ -298,11 +298,11 @@ function(_rbfx_csharp_add_desktop_application name)
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Plugin ${name}.Native)
 endfunction()
 
-# The target <name>.Native of a desktop application. It copies the native wrapper of the C# bindings, the host library
-# (Windows), and the shared libraries of the wrapper targets and of the native plugins to the folder of the executable.
-# It reads the variables arg_WRAPPERS, arg_PLUGINS and host_mode of the caller.
+# The target <name>.Native of a desktop application. It copies the native bindings library, the host library
+# (Windows), and the shared libraries of the bindings targets and of the native plugins to the folder of the executable.
+# It reads the variables arg_BINDINGS_NATIVE_TARGETS, arg_PLUGINS and host_mode of the caller.
 function(_rbfx_csharp_add_desktop_native_copy name)
-  # The C# bindings load the native wrapper from the folder of the executable. The folder must exist
+  # The C# bindings load the native bindings from the folder of the executable. The folder must exist
   # before the copy.
   set(copy_commands
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
@@ -325,16 +325,16 @@ function(_rbfx_csharp_add_desktop_native_copy name)
   if(WIN32)
     # Windows has no run-time path: the loader finds Urho3D.dll and its dependencies only in the folder of the
     # executable. The step copies the DLLs of the link closure of the launcher (TARGET_RUNTIME_DLLS: the engine library
-    # and the shared host library) and every DLL next to the native wrapper. The build or the install of the wrapper
+    # and the shared host library) and every DLL next to the native bindings. The build or the install of the bindings
     # puts the run-time files of the engine there (CopyRbfxRuntimeDependencies.cmake.in). The script is a file of the
     # build folder, because it needs a glob at build time. The list uses '|' as separator, so no ';' goes into
     # the command line.
     set(copy_dlls_script "${CMAKE_CURRENT_BINARY_DIR}/${name}.CopyRuntimeDlls.cmake")
     file(CONFIGURE OUTPUT "${copy_dlls_script}" NEWLINE_STYLE UNIX @ONLY CONTENT [[
 string(REPLACE "|" ";" dll_files "${dll_files}")
-file(GLOB wrapper_dll_files "${wrapper_directory}/*.dll")
+file(GLOB bindings_dll_files "${bindings_directory}/*.dll")
 file(MAKE_DIRECTORY "${destination_directory}")
-foreach(dll_file IN LISTS dll_files wrapper_dll_files)
+foreach(dll_file IN LISTS dll_files bindings_dll_files)
   if(EXISTS "${dll_file}")
     get_filename_component(dll_name "${dll_file}" NAME)
     file(COPY_FILE "${dll_file}" "${destination_directory}/${dll_name}" ONLY_IF_DIFFERENT)
@@ -344,34 +344,34 @@ endforeach()
     list(APPEND copy_commands
       COMMAND "${CMAKE_COMMAND}"
         "-Ddll_files=$<JOIN:$<TARGET_RUNTIME_DLLS:${name}>,|>"
-        "-Dwrapper_directory=$<TARGET_FILE_DIR:SharpCpp::RbfxNative>"
+        "-Dbindings_directory=$<TARGET_FILE_DIR:SharpCpp::RbfxNative>"
         "-Ddestination_directory=$<TARGET_FILE_DIR:${name}>"
         -P "${copy_dlls_script}")
   endif()
-  # The shared libraries of the wrapper targets and the shared or module libraries of the native plugin targets also go
+  # The shared libraries of the bindings targets and the shared or module libraries of the native plugin targets also go
   # to the folder of the executable.
-  set(wrapper_libraries)
-  foreach(wrapper IN LISTS arg_WRAPPERS arg_PLUGINS)
-    get_target_property(wrapper_type ${wrapper} TYPE)
-    # arg_WRAPPERS has native targets: a wrapper library or the (shared or module) IMPLEMENTATION target of a wrapper.
-    if(wrapper_type STREQUAL "SHARED_LIBRARY" OR wrapper_type STREQUAL "MODULE_LIBRARY")
-      list(APPEND wrapper_libraries ${wrapper})
+  set(bindings_libraries)
+  foreach(bindings IN LISTS arg_BINDINGS_NATIVE_TARGETS arg_PLUGINS)
+    get_target_property(bindings_type ${bindings} TYPE)
+    # arg_BINDINGS_NATIVE_TARGETS has native targets: the bindings library or the (shared or module) IMPLEMENTATION target of the bindings.
+    if(bindings_type STREQUAL "SHARED_LIBRARY" OR bindings_type STREQUAL "MODULE_LIBRARY")
+      list(APPEND bindings_libraries ${bindings})
       list(APPEND copy_commands
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-          "$<TARGET_FILE:${wrapper}>" "$<TARGET_FILE_DIR:${name}>")
+          "$<TARGET_FILE:${bindings}>" "$<TARGET_FILE_DIR:${name}>")
     endif()
   endforeach()
   add_custom_target(
     ${name}.Native
     ${copy_commands}
-    COMMENT "Copying the native wrapper of the C# bindings"
+    COMMENT "Copying the native bindings library"
     VERBATIM)
-  add_dependencies(${name}.Native ${name} ${wrapper_libraries})
+  add_dependencies(${name}.Native ${name} ${bindings_libraries})
   if(NOT SharpCppRbfx_IS_SDK)
     add_dependencies(${name}.Native SharpCpp::RbfxNative SharpCpp::RbfxHost)
   endif()
   if(WIN32 AND TARGET sharpcpp-rbfx-runtime)
-    # The target puts the run-time files of the engine next to the native wrapper. The step above copies them.
+    # The target puts the run-time files of the engine next to the native bindings. The step above copies them.
     add_dependencies(${name}.Native sharpcpp-rbfx-runtime)
   endif()
 endfunction()
@@ -470,8 +470,8 @@ function(_rbfx_csharp_add_desktop_shim_application name)
     add_custom_target(${name}.Head)
   endif()
   add_dependencies(${name}.Head ${name})
-  if(arg_WRAPPERS)
-    add_dependencies(${name}.Head ${arg_WRAPPERS})
+  if(arg_BINDINGS_NATIVE_TARGETS)
+    add_dependencies(${name}.Head ${arg_BINDINGS_NATIVE_TARGETS})
   endif()
   foreach(dependency IN ITEMS sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
     if(TARGET ${dependency})
@@ -592,10 +592,10 @@ function(_rbfx_csharp_add_android_application name)
       endif()
     endif()
   endforeach()
-  # The native plugins and the shared libraries of the wrapper targets. The Java activity loads them before the
+  # The native plugins and the shared libraries of the bindings targets. The Java activity loads them before the
   # application library.
   set(plugin_targets)
-  foreach(library IN LISTS arg_PLUGINS arg_WRAPPERS)
+  foreach(library IN LISTS arg_PLUGINS arg_BINDINGS_NATIVE_TARGETS)
     if(TARGET ${library} AND NOT library IN_LIST library_targets)
       get_target_property(library_type ${library} TYPE)
       if(library_type MATCHES "^(SHARED|MODULE)_LIBRARY$")
@@ -692,8 +692,8 @@ function(_rbfx_csharp_add_android_application name)
     add_custom_target(${name}.Head)
   endif()
   add_dependencies(${name}.Head ${name})
-  if(arg_WRAPPERS)
-    add_dependencies(${name}.Head ${arg_WRAPPERS})
+  if(arg_BINDINGS_NATIVE_TARGETS)
+    add_dependencies(${name}.Head ${arg_BINDINGS_NATIVE_TARGETS})
   endif()
   # The head packs the shared libraries of the plugins, so they must be built first.
   if(plugin_targets)
@@ -799,8 +799,8 @@ function(_rbfx_csharp_add_wasm_application name)
     add_custom_target(${name}.Head)
   endif()
   add_dependencies(${name}.Head ${name})
-  if(arg_WRAPPERS)
-    add_dependencies(${name}.Head ${arg_WRAPPERS})
+  if(arg_BINDINGS_NATIVE_TARGETS)
+    add_dependencies(${name}.Head ${arg_BINDINGS_NATIVE_TARGETS})
   endif()
   foreach(dependency IN ITEMS sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
     if(TARGET ${dependency})
@@ -881,8 +881,8 @@ function(_rbfx_csharp_add_ios_application name)
 
   # The native items need the complete link closure (see the Emscripten part).
   set(defer_code "cmake_language(DEFER DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}]==] CALL _rbfx_csharp_write_ios_native_items [==[${name}]==] [==[${head_dir}/NativeItems.props]==]")
-  foreach(wrapper IN LISTS arg_WRAPPERS)
-    string(APPEND defer_code " [==[${wrapper}]==]")
+  foreach(bindings IN LISTS arg_BINDINGS_NATIVE_TARGETS)
+    string(APPEND defer_code " [==[${bindings}]==]")
   endforeach()
   cmake_language(EVAL CODE "${defer_code})")
 
@@ -922,8 +922,8 @@ function(_rbfx_csharp_add_ios_application name)
     add_custom_target(${name}.Head)
   endif()
   add_dependencies(${name}.Head ${name})
-  if(arg_WRAPPERS)
-    add_dependencies(${name}.Head ${arg_WRAPPERS})
+  if(arg_BINDINGS_NATIVE_TARGETS)
+    add_dependencies(${name}.Head ${arg_BINDINGS_NATIVE_TARGETS})
   endif()
   foreach(dependency IN ITEMS sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
     if(TARGET ${dependency})
@@ -959,7 +959,7 @@ function(_rbfx_csharp_collect_native_link_items name kind files_var flags_var)
   if(NOT queue)
     set(queue)
   endif()
-  # The wrapper is not a link dependency of the application. The bindings call it through P/Invoke.
+  # The bindings is not a link dependency of the application. The bindings call it through P/Invoke.
   list(APPEND queue SharpCpp::RbfxNative ${ARGN})
   set(visited ${name})
   list(LENGTH queue count)
@@ -1078,12 +1078,12 @@ function(_rbfx_csharp_write_wasm_native_items name output)
   file(GENERATE OUTPUT "${output}" CONTENT "${content}" TARGET ${name})
 endfunction()
 
-# Writes NativeItems.props of the iOS head of <name> (see above). ARGN has the wrapper targets. Every static library
-# of the link closure becomes a static NativeReference. The archives of <name>, of the wrapper, of the host library and
-# of the wrapper targets are force-loaded: the managed side finds their exports with __Internal. The other archives
+# Writes NativeItems.props of the iOS head of <name> (see above). ARGN has the bindings targets. Every static library
+# of the link closure becomes a static NativeReference. The archives of <name>, of the bindings, of the host library and
+# of the bindings targets are force-loaded: the managed side finds their exports with __Internal. The other archives
 # are not force-loaded: the engine archive has the main of SDL (SDL_uikit_main.c), and the executable has the main of
 # .NET. The flags go to LinkerFlags of <name>. The frameworks and the flags -lc++ -liconv are the same as for the
-# wrapper in eng/SharpCpp.Rbfx.NativeItems.targets. Generator expressions are evaluated in the context of <name>.
+# bindings in eng/SharpCpp.Rbfx.NativeItems.targets. Generator expressions are evaluated in the context of <name>.
 function(_rbfx_csharp_write_ios_native_items name output)
   _rbfx_csharp_collect_native_link_items(${name} ios files flags ${ARGN})
 

@@ -1,7 +1,7 @@
 # @NAME@
 
 This is a C# application for the rbfx engine. The C++ launcher starts the .NET runtime and loads the C# plugin
-`@NAME@.Managed`.
+`@NAME@.Net`.
 
 ## Folders
 
@@ -29,7 +29,7 @@ cmake --build build
 ## Run
 
 Start the executable `@NAME@` in the folder `build/bin`.
-The log shows the line `C# plugin @NAME@.Managed is loaded.`
+The log shows the line `C# plugin @NAME@.Net is loaded.`
 
 ## Install
 

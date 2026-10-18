@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <!-- A consumer project declares <RbfxUserCodeReference Include="<CMake target>" /> for each target of
-       rbfx_csharp_add_wrapper(). The native project reference makes the native build and the generation
+       rbfx_csharp_add_bindings(). The native project reference makes the native build and the generation
        run first. They also write the managed bindings project below $(RbfxGeneratedRoot)/usercode/<target>/. -->
   <ItemGroup Condition="'@(RbfxUserCodeReference)' != '' and '$(RbfxConsumedGeneratedDir)' == ''">
     <ProjectReference Include="$(SharpCppRbfxRoot)/native/SharpCpp.Rbfx.Native/SharpCpp.Rbfx.Native.csproj"
@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <!-- Each RbfxUserCodeReference also names a native library. The metadata LibraryName is the native
-       library name without prefix and suffix. It is the LIBRARY_NAME of rbfx_csharp_add_wrapper(),
+       library name without prefix and suffix. It is the LIBRARY_NAME of rbfx_csharp_add_bindings(),
        default <CMake target>.Native. At evaluation, each reference adds one RbfxNativeRuntimeFile item.
        The metadata RbfxNativeRid and RbfxNativeKind are the input of SharpCpp.Rbfx.NativeItems.targets.
        The RID is RbfxTargetRid, or else RuntimeIdentifier, or else the host RID. -->
@@ -124,7 +124,7 @@
                               RbfxUserCodeId="%(RbfxUserCodeReference.Identity)" />
     </ItemGroup>
     <Error Condition="'$(DesignTimeBuild)' != 'true' and !Exists('$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)')"
-           Text="The managed project directory of RbfxUserCodeReference '%(RbfxUserCodeReference.Identity)' is missing: '$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)'. Check that the CMake target calls rbfx_csharp_add_wrapper()." />
+           Text="The managed project directory of RbfxUserCodeReference '%(RbfxUserCodeReference.Identity)' is missing: '$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)'. Check that the CMake target calls rbfx_csharp_add_bindings()." />
     <Error Condition="'$(DesignTimeBuild)' != 'true' and $([System.IO.Directory]::GetFiles('$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)', '*.csproj').Length) != 1"
            Text="Expected exactly one *.csproj for RbfxUserCodeReference '%(RbfxUserCodeReference.Identity)' in '$(RbfxGeneratedRoot)/usercode/%(RbfxUserCodeReference.Identity)'." />
 

@@ -8,7 +8,7 @@ set(_sharpcpp_rbfx_include_dir "@PACKAGE__rbfx_sdk_include_dir@")
 
 include(CMakeFindDependencyMacro)
 
-# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpPlugin.cmake, RbfxCSharpLauncher.cmake, RbfxCSharpEditor.cmake, RbfxCSharpData.cmake, RbfxCSharpApplication.cmake, RbfxCSharpProject.cmake, RbfxCSharpAddWrapper.cmake and their helpers).
+# The installed modules (FindNetHost.cmake, RbfxCSharpDotNet.cmake, RbfxCSharpPlugin.cmake, RbfxCSharpLauncher.cmake, RbfxCSharpEditor.cmake, RbfxCSharpData.cmake, RbfxCSharpApplication.cmake, RbfxCSharpProject.cmake, RbfxCSharpAddBindings.cmake and their helpers).
 set(_sharpcpp_rbfx_module_dir "@PACKAGE__rbfx_sdk_module_dir@")
 list(PREPEND CMAKE_MODULE_PATH "${_sharpcpp_rbfx_module_dir}")
 
@@ -51,7 +51,7 @@ include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpApplication.cmake")
 # rbfx_csharp_add_project(), rbfx_csharp_install_application() and rbfx_csharp_find_core_data().
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpProject.cmake")
 
-# rbfx_csharp_add_wrapper(). The inputs come from this SDK and from the rbfx SDK of the consumer.
+# rbfx_csharp_add_bindings(). The inputs come from this SDK and from the rbfx SDK of the consumer.
 if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
   set(RBFX_METADATA_FILE "${_sharpcpp_rbfx_data_dir}/metadata/SharpCpp.Rbfx.Bindings.json")
   set(RBFX_ENGINE_UMBRELLA_DIRECTORY "${_sharpcpp_rbfx_data_dir}/metadata")
@@ -130,18 +130,18 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
   endif()
 
   include("${_sharpcpp_rbfx_module_dir}/SharpCppOutput.cmake")
-  include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpAddWrapper.cmake")
+  include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpAddBindings.cmake")
 
   unset(_sharpcpp_rbfx_flags_written)
 else()
   # A package-version SDK has no managed assemblies and no generator inputs.
-  function(rbfx_csharp_add_wrapper target)
-    message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): this SharpCppRbfx SDK was built with a bindings package version. It has no managed assemblies and no user-code generator. Use an SDK from a build without RBFX_CSHARP_BINDINGS_PACKAGE_VERSION.")
+  function(rbfx_csharp_add_bindings target)
+    message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): this SharpCppRbfx SDK was built with the bindings package version. It has no managed assemblies and no user-code generator. Use an SDK from a build without RBFX_CSHARP_BINDINGS_PACKAGE_VERSION.")
   endfunction()
 endif()
 
 # Provide path to package root and to the managed assemblies. The source-tree package sets the same variables.
-# The managed assemblies are in the SDK only when it was built without a bindings package version.
+# The managed assemblies are in the SDK only when it was built without the bindings package version.
 set(SharpCppRbfx_PACKAGE_ROOT "${_sharpcpp_rbfx_prefix}")
 if(@SHARPCPP_RBFX_SDK_HAS_MANAGED@)
   set(SharpCppRbfx_MANAGED_DIR "${_sharpcpp_rbfx_data_dir}/managed")

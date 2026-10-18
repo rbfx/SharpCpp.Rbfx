@@ -36,5 +36,5 @@ if(CORE_DATA_DIR)
 endif()
 
 # One call makes the launcher, the C# plugin (the folder CSharp), the data and the install rules.
-# The default launcher starts the .NET runtime and loads the plugin @NAME@.Managed.
+# The default launcher starts the .NET runtime and loads the plugin @NAME@.Net.
 rbfx_csharp_add_project(@NAME@ DATA Data INSTALL)

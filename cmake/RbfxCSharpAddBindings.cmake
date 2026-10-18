@@ -1,14 +1,14 @@
-# rbfx_csharp_add_wrapper(<target> HEADERS <header>... [keywords])
+# rbfx_csharp_add_bindings(<target> HEADERS <header>... [keywords])
 #
-# Generates a C# wrapper over user C++ headers that use the rbfx SDK. The function also writes the managed bindings
+# Generates a C# bindings over user C++ headers that use the rbfx SDK. The function also writes the managed bindings
 # project at configure time. It never runs MSBuild. See build/PLAN-dotnet-hosting.md, section 3.3.
 # The implementation of the wrapped headers is a separate target that the caller passes in IMPLEMENTATION.
 # There are two modes:
 #   Integration (default, with one IMPLEMENTATION target): the generated C++ glue is a source of the IMPLEMENTATION
 #     target itself (target_sources of a small file that includes the generated file, the include directories, cxx_std_20
 #     and a dependency on the generation).
-#     <target> is an INTERFACE library that holds the properties of the wrapper. There is no native library of the
-#     wrapper: the C# code imports the entry points from the library of the IMPLEMENTATION target. Its name is the
+#     <target> is an INTERFACE library that holds the properties of the bindings. There is no native library of the
+#     bindings: the C# code imports the entry points from the library of the IMPLEMENTATION target. Its name is the
 #     OUTPUT_NAME of that target (or the target name), so set OUTPUT_NAME before this call. The IMPLEMENTATION target
 #     must be a SHARED, MODULE, STATIC or OBJECT library of the project (not imported, not an alias). A static or
 #     object library needs RBFX_NATIVE_LIBRARY_TYPE STATIC (iOS, Emscripten): the code is in the executable and the
@@ -20,7 +20,7 @@
 #   Separate library (keyword SEPARATE_LIBRARY, or no IMPLEMENTATION): <target> is a native library with the
 #     generated code. It links the IMPLEMENTATION targets PUBLIC.
 # The property SHARPCPP_RBFX_NATIVE_TARGET of <target> names the target that holds the native code (the IMPLEMENTATION
-# target, or <target> itself). Use rbfx_csharp_wrapper_native_target(<target> <out_var>) to read it.
+# target, or <target> itself). Use rbfx_csharp_bindings_native_target(<target> <out_var>) to read it.
 #
 # Keywords with one value:
 #   NAMESPACE            C# namespace of the bindings. Default: <target> without "." and "-".
@@ -29,7 +29,7 @@
 #                        the callback entry points. Two assemblies that share a namespace need different names, or
 #                        the compiler reports CS0436 in the code that references both. Default: <target> with every
 #                        character that is not a letter, a digit or "_" replaced by "_", followed by "Bindings"
-#                        (for example Plugin_Core_SamplePlugin_WrapperBindings).
+#                        unless the result already ends with "Bindings" (for example Plugin_Core_SamplePlugin_Bindings).
 #   LIBRARY_NAME         Name of the native library without prefix and suffix. Default: <target>.Native.
 #                        Only for the separate-library mode. The integration mode takes the name from the
 #                        IMPLEMENTATION target and stops with an error when LIBRARY_NAME is present.
@@ -72,7 +72,7 @@
 #   SHARPCPP_RBFX_STALENESS_SCRIPT (SharpCppGeneratedStaleness.cmake),
 #   DOTNET_EXECUTABLE, SHARPCPP_CLANG_RESOURCE_DIRECTORY,
 #   RBFX_ENGINE_ROOT, RBFX_SDK_FLAGS_FILE, RBFX_METADATA_FILE,
-#   RBFX_ENGINE_UMBRELLA_DIRECTORY (the folder of SharpCpp.Rbfx.ParseUmbrella.hpp, which the wrapper includes),
+#   RBFX_ENGINE_UMBRELLA_DIRECTORY (the folder of SharpCpp.Rbfx.ParseUmbrella.hpp, which the bindings includes),
 #   RBFX_GENERATED_STAMP (empty in package mode, which has no engine generator),
 #   RBFX_SDK_INPUT_HEADERS, RBFX_NATIVE_LIBRARY_TYPE, RBFX_RUNTIME_RPATH, RBFX_URHO3D_TARGET,
 #   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL.
@@ -101,18 +101,18 @@ set_property(GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_OPTIONAL_VARIABLES
   RBFX_CSHARP_BINDINGS_PROJECTS RBFX_CSHARP_BINDINGS_PACKAGE_VERSION
   RBFX_CSHARP_MSBUILD_PROPS RBFX_CSHARP_MSBUILD_TARGETS RBFX_CSHARP_MSBUILD_PROPERTIES)
 
-define_property(GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS
-  BRIEF_DOCS "Targets created by rbfx_csharp_add_wrapper()"
-  FULL_DOCS "Targets created by rbfx_csharp_add_wrapper(). The top-level CMakeLists.txt adds them to the aggregate targets.")
+define_property(GLOBAL PROPERTY SHARPCPP_RBFX_BINDINGS_TARGETS
+  BRIEF_DOCS "Targets created by rbfx_csharp_add_bindings()"
+  FULL_DOCS "Targets created by rbfx_csharp_add_bindings(). The top-level CMakeLists.txt adds them to the aggregate targets.")
 
-# rbfx_csharp_wrapper_native_target(<wrapper target> <out_var>)
-# Sets <out_var> to the target that holds the native code of a wrapper target of rbfx_csharp_add_wrapper(): the
-# IMPLEMENTATION target (integration mode) or the wrapper target itself (separate-library mode). For another target
+# rbfx_csharp_bindings_native_target(<bindings target> <out_var>)
+# Sets <out_var> to the target that holds the native code of the bindings target of rbfx_csharp_add_bindings(): the
+# IMPLEMENTATION target (integration mode) or the bindings target itself (separate-library mode). For another target
 # <out_var> is the target itself.
-function(rbfx_csharp_wrapper_native_target wrapper out_var)
-  set(native "${wrapper}")
-  if(TARGET ${wrapper})
-    get_target_property(host ${wrapper} SHARPCPP_RBFX_NATIVE_TARGET)
+function(rbfx_csharp_bindings_native_target bindings out_var)
+  set(native "${bindings}")
+  if(TARGET ${bindings})
+    get_target_property(host ${bindings} SHARPCPP_RBFX_NATIVE_TARGET)
     if(host)
       set(native "${host}")
     endif()
@@ -120,7 +120,7 @@ function(rbfx_csharp_wrapper_native_target wrapper out_var)
   set(${out_var} "${native}" PARENT_SCOPE)
 endfunction()
 
-function(rbfx_csharp_add_wrapper target)
+function(rbfx_csharp_add_bindings target)
   cmake_parse_arguments(
     WRAP
     "SEPARATE_LIBRARY"
@@ -129,17 +129,17 @@ function(rbfx_csharp_add_wrapper target)
     ${ARGN})
 
   if(WRAP_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): unknown arguments: ${WRAP_UNPARSED_ARGUMENTS}")
+    message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): unknown arguments: ${WRAP_UNPARSED_ARGUMENTS}")
   endif()
   if(NOT WRAP_HEADERS)
-    message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): HEADERS is required.")
+    message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): HEADERS is required.")
   endif()
 
   get_property(_required_variables GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_INPUT_VARIABLES)
   foreach(_required_variable IN LISTS _required_variables)
     if(NOT DEFINED ${_required_variable})
       message(FATAL_ERROR
-        "rbfx_csharp_add_wrapper(${target}): the variable ${_required_variable} is not defined. "
+        "rbfx_csharp_add_bindings(${target}): the variable ${_required_variable} is not defined. "
         "Call find_package(SharpCppRbfx CONFIG REQUIRED) in this directory or above it first.")
     endif()
   endforeach()
@@ -153,10 +153,12 @@ function(rbfx_csharp_add_wrapper target)
   endif()
   if(NOT WRAP_BINDINGS_CLASS)
     string(MAKE_C_IDENTIFIER "${target}" WRAP_BINDINGS_CLASS)
-    string(APPEND WRAP_BINDINGS_CLASS "Bindings")
+    if(NOT WRAP_BINDINGS_CLASS MATCHES "Bindings$")
+      string(APPEND WRAP_BINDINGS_CLASS "Bindings")
+    endif()
   endif()
   if(NOT WRAP_BINDINGS_CLASS MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
-    message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): BINDINGS_CLASS '${WRAP_BINDINGS_CLASS}' is not a C# identifier.")
+    message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): BINDINGS_CLASS '${WRAP_BINDINGS_CLASS}' is not a C# identifier.")
   endif()
 
   # The mode. Integration is the default with one IMPLEMENTATION target.
@@ -167,14 +169,14 @@ function(rbfx_csharp_add_wrapper target)
   if(WRAP_INTEGRATION)
     list(LENGTH WRAP_IMPLEMENTATION implementation_count)
     if(NOT implementation_count EQUAL 1)
-      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION has ${implementation_count} items. The default mode needs one target. Use SEPARATE_LIBRARY for a list.")
+      message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): IMPLEMENTATION has ${implementation_count} items. The default mode needs one target. Use SEPARATE_LIBRARY for a list.")
     endif()
     if(WRAP_LIBRARY_NAME OR WRAP_LIBRARY_TYPE)
-      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): LIBRARY_NAME and LIBRARY_TYPE belong to the library of IMPLEMENTATION '${WRAP_IMPLEMENTATION}'. Remove them, or add SEPARATE_LIBRARY.")
+      message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): LIBRARY_NAME and LIBRARY_TYPE belong to the library of IMPLEMENTATION '${WRAP_IMPLEMENTATION}'. Remove them, or add SEPARATE_LIBRARY.")
     endif()
     set(implementation "${WRAP_IMPLEMENTATION}")
     if(NOT TARGET ${implementation})
-      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is not a target. Make it before this call, or add SEPARATE_LIBRARY.")
+      message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): IMPLEMENTATION '${implementation}' is not a target. Make it before this call, or add SEPARATE_LIBRARY.")
     endif()
     get_target_property(aliased ${implementation} ALIASED_TARGET)
     if(aliased)
@@ -183,7 +185,7 @@ function(rbfx_csharp_add_wrapper target)
     get_target_property(implementation_imported ${implementation} IMPORTED)
     get_target_property(implementation_type ${implementation} TYPE)
     if(implementation_imported OR NOT implementation_type MATCHES "^(SHARED_LIBRARY|MODULE_LIBRARY|STATIC_LIBRARY|OBJECT_LIBRARY)$")
-      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is not a SHARED, MODULE, STATIC or OBJECT library of this project (type ${implementation_type}). Add SEPARATE_LIBRARY.")
+      message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): IMPLEMENTATION '${implementation}' is not a SHARED, MODULE, STATIC or OBJECT library of this project (type ${implementation_type}). Add SEPARATE_LIBRARY.")
     endif()
     if(implementation_type MATCHES "^(SHARED|MODULE)_LIBRARY$")
       set(WRAP_LIBRARY_TYPE "SHARED")
@@ -191,11 +193,11 @@ function(rbfx_csharp_add_wrapper target)
       # The iOS head force-loads $<TARGET_FILE:...>, which an object library does not have. The wasm head uses
       # $<TARGET_OBJECTS:...>.
       if(implementation_type STREQUAL "OBJECT_LIBRARY" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
-        message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is an object library. Only Emscripten supports it in the default mode. Add SEPARATE_LIBRARY, or make '${implementation}' a static library.")
+        message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): IMPLEMENTATION '${implementation}' is an object library. Only Emscripten supports it in the default mode. Add SEPARATE_LIBRARY, or make '${implementation}' a static library.")
       endif()
       set(WRAP_LIBRARY_TYPE "STATIC")
     else()
-      message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): IMPLEMENTATION '${implementation}' is a static or object library, but RBFX_NATIVE_LIBRARY_TYPE is not STATIC. The C# code cannot load it. Add SEPARATE_LIBRARY, or make '${implementation}' a shared library.")
+      message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): IMPLEMENTATION '${implementation}' is a static or object library, but RBFX_NATIVE_LIBRARY_TYPE is not STATIC. The C# code cannot load it. Add SEPARATE_LIBRARY, or make '${implementation}' a shared library.")
     endif()
     get_target_property(WRAP_LIBRARY_NAME ${implementation} OUTPUT_NAME)
     if(NOT WRAP_LIBRARY_NAME)
@@ -208,7 +210,7 @@ function(rbfx_csharp_add_wrapper target)
   # Two calls with the same assembly name share MSBuild obj and output paths.
   get_property(_existing_assemblies GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_ASSEMBLIES)
   if("${WRAP_ASSEMBLY_NAME}" IN_LIST _existing_assemblies)
-    message(FATAL_ERROR "rbfx_csharp_add_wrapper(${target}): ASSEMBLY_NAME '${WRAP_ASSEMBLY_NAME}' is already used by another call.")
+    message(FATAL_ERROR "rbfx_csharp_add_bindings(${target}): ASSEMBLY_NAME '${WRAP_ASSEMBLY_NAME}' is already used by another call.")
   endif()
   set_property(GLOBAL APPEND PROPERTY SHARPCPP_RBFX_WRAP_ASSEMBLIES "${WRAP_ASSEMBLY_NAME}")
   if(NOT WRAP_SYMBOL_PREFIX)
@@ -325,7 +327,7 @@ function(rbfx_csharp_add_wrapper target)
   else()
     set(umbrella_directory "${CMAKE_CURRENT_BINARY_DIR}/${target}.wrap")
     set(parse_header "${umbrella_directory}/${target}.wrap.hpp")
-    set(umbrella_content "// Generated by rbfx_csharp_add_wrapper(${target}). Do not edit.\n#pragma once\n")
+    set(umbrella_content "// Generated by rbfx_csharp_add_bindings(${target}). Do not edit.\n#pragma once\n")
     foreach(header IN LISTS headers)
       string(APPEND umbrella_content "#include \"${header}\"\n")
     endforeach()
@@ -406,7 +408,7 @@ function(rbfx_csharp_add_wrapper target)
   # of the native target on the generate target.
   set(glue_directory "${CMAKE_CURRENT_BINARY_DIR}/${target}.glue")
   set(glue_cpp "${glue_directory}/${file_stem}.Bindings.glue.cpp")
-  set(glue_content "// Generated by rbfx_csharp_add_wrapper(${target}). Do not edit.\n#include \"${file_stem}.Bindings.g.cpp\"\n")
+  set(glue_content "// Generated by rbfx_csharp_add_bindings(${target}). Do not edit.\n#include \"${file_stem}.Bindings.g.cpp\"\n")
   set(existing_content "")
   if(EXISTS "${glue_cpp}")
     file(READ "${glue_cpp}" existing_content)
@@ -425,11 +427,11 @@ function(rbfx_csharp_add_wrapper target)
 
   set(generated_cpp_options
       "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-attributes>"
-      # A unity source of the generated wrappers exceeds the section limit of the default object format.
+      # A unity source of the generated bindings exceeds the section limit of the default object format.
       "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/bigobj;/wd5030>")
-  set(wrapper_properties
+  set(bindings_properties
       SHARPCPP_RBFX_GENERATED_DIR "${generated_root}"
-      SHARPCPP_RBFX_WRAPPER_ASSEMBLY "${WRAP_ASSEMBLY_NAME}"
+      SHARPCPP_RBFX_BINDINGS_ASSEMBLY "${WRAP_ASSEMBLY_NAME}"
       SHARPCPP_RBFX_GENERATED_STAMP "${generated_stamp}"
       SHARPCPP_RBFX_ASSEMBLY_NAME "${WRAP_ASSEMBLY_NAME}"
       SHARPCPP_RBFX_LIBRARY_NAME "${WRAP_LIBRARY_NAME}"
@@ -440,7 +442,7 @@ function(rbfx_csharp_add_wrapper target)
   if(WRAP_INTEGRATION)
     # Integration mode: the glue is a source of the IMPLEMENTATION target. <target> only holds the properties.
     add_library(${target} INTERFACE)
-    set_target_properties(${target} PROPERTIES ${wrapper_properties} SHARPCPP_RBFX_NATIVE_TARGET "${implementation}")
+    set_target_properties(${target} PROPERTIES ${bindings_properties} SHARPCPP_RBFX_NATIVE_TARGET "${implementation}")
     set_source_files_properties(
       "${glue_cpp}"
       TARGET_DIRECTORY ${implementation}
@@ -480,7 +482,7 @@ function(rbfx_csharp_add_wrapper target)
     endif()
     target_compile_features(${target} PRIVATE cxx_std_20)
     if(MSVC)
-      # A unity source of the generated wrappers exceeds the section limit of the default object format.
+      # A unity source of the generated bindings exceeds the section limit of the default object format.
       target_compile_options(${target} PRIVATE /bigobj /wd5030)
     endif()
     if(CMAKE_GENERATOR MATCHES "Visual Studio")
@@ -497,7 +499,7 @@ function(rbfx_csharp_add_wrapper target)
         BUILD_RPATH "${RBFX_RUNTIME_RPATH}"
         INSTALL_RPATH "${RBFX_RUNTIME_RPATH}"
         SHARPCPP_RBFX_NATIVE_TARGET "${target}"
-        ${wrapper_properties})
+        ${bindings_properties})
     target_include_directories(
       ${target}
       PRIVATE
@@ -523,5 +525,5 @@ function(rbfx_csharp_add_wrapper target)
     add_dependencies(sharpcpp-generate-${target} sharpcpp-rbfx-build-usercode-generator)
   endif()
 
-  set_property(GLOBAL APPEND PROPERTY SHARPCPP_RBFX_WRAP_TARGETS "${target}")
+  set_property(GLOBAL APPEND PROPERTY SHARPCPP_RBFX_BINDINGS_TARGETS "${target}")
 endfunction()

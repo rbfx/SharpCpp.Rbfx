@@ -3,7 +3,7 @@
 # rbfx_csharp_add_plugin(<plugin>
 #   [CSHARP_DIR <dir>]
 #   [CSPROJ <csproj>]
-#   [REFERENCES <wrapper targets...>]
+#   [REFERENCES <bindings targets...>]
 #   [PROPERTIES <Name=Value>...])
 #
 # The function makes the target <plugin> (add_custom_target). It is the handle of the plugin. The name of the target is
@@ -16,7 +16,7 @@
 #               have the line <Import Project="$(SharpCppRbfxPluginProps)" />. CSPROJ and CSHARP_DIR together are
 #               an error. The name <plugin> must be the name of the project file without the extension. Another
 #               name is an error, because the project sets the assembly name.
-# REFERENCES    Targets (from rbfx_csharp_add_wrapper) that the plugin references. The plugin references the
+# REFERENCES    Targets (from rbfx_csharp_add_bindings) that the plugin references. The plugin references the
 #               managed project of each target (the target property SHARPCPP_RBFX_MANAGED_PROJECT).
 # PROPERTIES    MSBuild properties for the plugin project, as Name=Value. They come after the properties
 #               that this function sets for the package of SharpCpp.Rbfx.
@@ -50,9 +50,9 @@ function(rbfx_csharp_add_plugin plugin)
       message(FATAL_ERROR "rbfx_csharp_add_plugin(${plugin}): with CSPROJ the name of the plugin must be the name of the project file without the extension ('${csproj_name}'), because the project sets the assembly name. Use rbfx_csharp_add_plugin(${csproj_name} CSPROJ ...), or rename the project file.")
     endif()
   endif()
-  foreach(wrapper IN LISTS arg_REFERENCES)
-    if(NOT TARGET ${wrapper})
-      message(FATAL_ERROR "rbfx_csharp_add_plugin(${plugin}): REFERENCES target '${wrapper}' does not exist. Call rbfx_csharp_add_wrapper first.")
+  foreach(bindings IN LISTS arg_REFERENCES)
+    if(NOT TARGET ${bindings})
+      message(FATAL_ERROR "rbfx_csharp_add_plugin(${plugin}): REFERENCES target '${bindings}' does not exist. Call rbfx_csharp_add_bindings first.")
     endif()
   endforeach()
 
@@ -79,12 +79,12 @@ function(rbfx_csharp_add_plugin plugin)
   set(RBFX_PLUGIN_DIR "${csharp_dir}")
   set(RBFX_PLUGIN_SDK_PROPS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sdk/SharpCppRbfxPlugin.props")
   set(RBFX_PLUGIN_PROJECT_REFERENCES)
-  foreach(wrapper IN LISTS arg_REFERENCES)
-    get_target_property(wrapper_project ${wrapper} SHARPCPP_RBFX_MANAGED_PROJECT)
-    if(NOT wrapper_project)
-      message(FATAL_ERROR "rbfx_csharp_add_plugin(${plugin}): REFERENCES target '${wrapper}' has no SHARPCPP_RBFX_MANAGED_PROJECT property.")
+  foreach(bindings IN LISTS arg_REFERENCES)
+    get_target_property(bindings_project ${bindings} SHARPCPP_RBFX_MANAGED_PROJECT)
+    if(NOT bindings_project)
+      message(FATAL_ERROR "rbfx_csharp_add_plugin(${plugin}): REFERENCES target '${bindings}' has no SHARPCPP_RBFX_MANAGED_PROJECT property.")
     endif()
-    string(APPEND RBFX_PLUGIN_PROJECT_REFERENCES "    <ProjectReference Include=\"${wrapper_project}\" />\n")
+    string(APPEND RBFX_PLUGIN_PROJECT_REFERENCES "    <ProjectReference Include=\"${bindings_project}\" />\n")
   endforeach()
   set(templates_directory "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/templates")
   set(plugin_files "Plugin.props.in|${plugin_props}")

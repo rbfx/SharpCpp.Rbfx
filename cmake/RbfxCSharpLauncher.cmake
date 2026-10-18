@@ -89,7 +89,7 @@ function(rbfx_csharp_add_launcher name)
       set(output_dir "${output_dir}/$<CONFIG>")
     endif()
     set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
-    # The installed executable finds the host library and the native wrapper in its own folder.
+    # The installed executable finds the host library and the native bindings in its own folder.
     if(APPLE)
       set_property(TARGET ${name} APPEND PROPERTY INSTALL_RPATH "@loader_path")
     elseif(UNIX)

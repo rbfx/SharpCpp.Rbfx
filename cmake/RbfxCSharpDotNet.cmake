@@ -121,9 +121,9 @@ function(rbfx_csharp_add_plugin_build target)
   if(NOT host_directory)
     message(FATAL_ERROR "rbfx_csharp_add_plugin_build(${target}): HOST '${arg_HOST}' has no RUNTIME_OUTPUT_DIRECTORY.")
   endif()
-  # The engine bindings project reads the generated sources and the plugin loads the native wrapper.
+  # The engine bindings project reads the generated sources and the plugin loads the native bindings.
   # The target sharpcpp-rbfx-runtime exists only in the build tree of this repository. A consumer of the
-  # installed SDK has the wrapper already.
+  # installed SDK has the bindings already.
   set(plugin_dependencies ${arg_HOST})
   if(TARGET sharpcpp-rbfx-runtime)
     list(APPEND plugin_dependencies sharpcpp-rbfx-runtime)

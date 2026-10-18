@@ -30,7 +30,7 @@ target_include_directories(Greeter.Impl PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(Greeter.Impl PUBLIC Urho3D SharpCpp::RbfxHost)
 set_target_properties(Greeter.Impl PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-rbfx_csharp_add_wrapper(Greeter
+rbfx_csharp_add_bindings(Greeter
   HEADERS Greeter.hpp
   INCLUDE_DIRECTORIES .
   IMPLEMENTATION Greeter.Impl

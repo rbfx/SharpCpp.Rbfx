@@ -49,7 +49,7 @@ public:
         // The plugin registers the C# Spinner component, so the code below can create it by name.
         std::string error;
         if (!Urho3D::StartDotNetPlugin(
-                host_, GetSubsystem<Urho3D::PluginManager>(), directory, "Rbfx.NativeHost.Managed", error))
+                host_, GetSubsystem<Urho3D::PluginManager>(), directory, "Rbfx.NativeHost.Net", error))
         {
             Fail(error.c_str());
             return;

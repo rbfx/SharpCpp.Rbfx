@@ -4,7 +4,7 @@
 #   cmake -DNAME=<Name> -DDESTINATION=<dir> -P <path>/RbfxCSharpNewProject.cmake
 #
 # NAME          Name of the project and of the executable. It starts with a letter. It has only letters, digits
-#               and underscores. The C# plugin is <Name>.Managed and its class is <Name>Plugin.
+#               and underscores. The C# plugin is <Name>.Net and its class is <Name>Plugin.
 # DESTINATION   The folder for the project. It must not exist or it must be empty.
 #
 # Each file *.in of the template folder goes through configure_file (@ONLY) without the suffix .in.

@@ -1,5 +1,5 @@
 # One call per project: the C# application with its bindings, its data and its install rules.
-# The module calls rbfx_csharp_add_wrapper (RbfxCSharpAddWrapper.cmake), rbfx_csharp_add_plugin (RbfxCSharpPlugin.cmake),
+# The module calls rbfx_csharp_add_bindings (RbfxCSharpAddBindings.cmake), rbfx_csharp_add_plugin (RbfxCSharpPlugin.cmake),
 # rbfx_csharp_add_launcher (RbfxCSharpLauncher.cmake), rbfx_csharp_add_data (RbfxCSharpData.cmake) and
 # rbfx_csharp_package_application (RbfxCSharpApplication.cmake).
 #
@@ -13,11 +13,11 @@
 #   bin/$<CONFIG>. The function reads the properties SHARPCPP_RBFX_PACKAGED_PLUGIN and SHARPCPP_RBFX_PACKAGED_DATA of the
 #   launcher, the properties of the plugin target (rbfx_csharp_add_plugin) and the properties of the data target
 #   (rbfx_csharp_add_data).
-#   Desktop: the executable, the shared engine library, the native wrapper of the bindings, the shared host library
+#   Desktop: the executable, the shared engine library, the native bindings library, the shared host library
 #   with the shared nethost library, the folders of the data (SHARPCPP_RBFX_DATA_DIRECTORIES, with CoreData) and its
-#   files (SHARPCPP_RBFX_DATA_FILES: the ResourceRoot.ini that maps the folders), the shared libraries of the wrapper
+#   files (SHARPCPP_RBFX_DATA_FILES: the ResourceRoot.ini that maps the folders), the shared libraries of the bindings
 #   targets (SHARPCPP_RBFX_PLUGIN_REFERENCES of the plugin) and of the native plugins (SHARPCPP_RBFX_PLUGINS of the
-#   launcher), the plugin assembly with its runtimeconfig and deps files, the assemblies of the wrapper targets and the
+#   launcher), the plugin assembly with its runtimeconfig and deps files, the assemblies of the bindings targets and the
 #   SharpCpp assemblies, all in DESTINATION. In the shim mode the NativeAOT head library <plugin>.Head<suffix>
 #   (SHARPCPP_RBFX_HEAD_LIBRARY of the launcher) is in DESTINATION too, and the install has no nethost library.
 #   Android: the APK. Emscripten: the web folder, as DESTINATION/<name>. iOS: the app bundle.
@@ -32,7 +32,7 @@
 #   [IMPLEMENTATION <target>]
 #   [SEPARATE_LIBRARY]
 #   [NAMESPACE <namespace>]
-#   [WRAPPERS <targets...>]
+#   [BINDINGS_TARGETS <targets...>]
 #   [PLUGINS <targets...>]
 #   [LINK_LIBRARIES <libraries...>]
 #   [DATA <dirs...>]
@@ -45,24 +45,24 @@
 #
 #   A relative path is relative to CMAKE_CURRENT_SOURCE_DIR.
 #   The function calls these functions in this order:
-#   1. rbfx_csharp_add_wrapper(<name>.Wrapper), only with HEADERS.
-#   2. rbfx_csharp_add_plugin(<plugin>): CSHARP_DIR, CSPROJ, PROPERTIES, and the wrapper and WRAPPERS as REFERENCES. The plugin target
-#      is <name>.Managed, or the file name of CSPROJ without the extension.
+#   1. rbfx_csharp_add_bindings(<name>.Bindings), only with HEADERS.
+#   2. rbfx_csharp_add_plugin(<plugin>): CSHARP_DIR, CSPROJ, PROPERTIES, and the bindings and BINDINGS_TARGETS as REFERENCES. The plugin target
+#      is <name>.Net, or the file name of CSPROJ without the extension.
 #   3. rbfx_csharp_add_launcher(<name>): SOURCES, PLUGINS, LINK_LIBRARIES and CONSOLE.
 #   4. rbfx_csharp_add_data(<name>.Data): DATA as DIRECTORIES. The data target is always made, so CoreData is also
 #      packed without DATA.
 #   5. rbfx_csharp_package_application(<name>): the plugin, the data, RESOURCES and APPLICATION_ID.
-#   HEADERS         The C++ headers to bind to C#. The wrapper target is <name>.Wrapper.
+#   HEADERS         The C++ headers to bind to C#. The bindings target is <name>.Bindings.
 #   INCLUDE_DIRECTORIES  Include directories of HEADERS. The default is the folders of HEADERS.
 #   IMPLEMENTATION  The target that implements HEADERS. By default the generated C++ code is a source of this target
-#                   (integration mode, see rbfx_csharp_add_wrapper), so it must be a shared or module library, and it
+#                   (integration mode, see rbfx_csharp_add_bindings), so it must be a shared or module library, and it
 #                   must use the keyword signature of target_link_libraries.
-#   SEPARATE_LIBRARY  Passed to rbfx_csharp_add_wrapper: the generated code goes into the separate library
-#                   <name>.Wrapper.Native, and IMPLEMENTATION is linked to it (also a static library).
+#   SEPARATE_LIBRARY  Passed to rbfx_csharp_add_bindings: the generated code goes into the separate library
+#                   <name>.Bindings.Native, and IMPLEMENTATION is linked to it (also a static library).
 #   NAMESPACE       The C# namespace of the bindings.
-#   WRAPPERS        Targets that rbfx_csharp_add_wrapper already made, for example the wrapper of another plugin. They
-#                   are REFERENCES of the plugin after the wrapper of the project. The packaging and the install rules
-#                   handle them in the same way as the wrapper of the project. Wrappers in the same namespace need
+#   BINDINGS_TARGETS Targets that rbfx_csharp_add_bindings already made, for example the bindings of another plugin. They
+#                   are REFERENCES of the plugin after the bindings of the project. The packaging and the install rules
+#                   handle them in the same way as the bindings of the project. Bindings in the same namespace need
 #                   different BINDINGS_CLASS values (the default is different for each target name).
 #   DATA            Resource folders. They go to rbfx_csharp_add_data(<name>.Data) as DIRECTORIES. It packs the folders
 #                   and CoreData into paks on Emscripten, Android and iOS. On desktop the install rules copy the folders
@@ -116,19 +116,19 @@ function(rbfx_csharp_install_application name)
     return()
   endif()
 
-  get_target_property(wrapper ${plugin} SHARPCPP_RBFX_PLUGIN_REFERENCES)
+  get_target_property(bindings ${plugin} SHARPCPP_RBFX_PLUGIN_REFERENCES)
   get_target_property(plugins ${name} SHARPCPP_RBFX_PLUGINS)
-  foreach(list_name IN ITEMS wrapper plugins)
+  foreach(list_name IN ITEMS bindings plugins)
     if(NOT ${list_name})
       set(${list_name})
     endif()
   endforeach()
-  # The wrapper targets (they have the managed assembly) and the targets with their native code. In the integration
-  # mode the native code is in the IMPLEMENTATION target of the wrapper.
-  set(wrapper_natives)
-  foreach(wrapper_target IN LISTS wrapper)
-    rbfx_csharp_wrapper_native_target(${wrapper_target} wrapper_native)
-    list(APPEND wrapper_natives ${wrapper_native})
+  # The bindings targets (they have the managed assembly) and the targets with their native code. In the integration
+  # mode the native code is in the IMPLEMENTATION target of the bindings.
+  set(bindings_natives)
+  foreach(bindings_target IN LISTS bindings)
+    rbfx_csharp_bindings_native_target(${bindings_target} bindings_native)
+    list(APPEND bindings_natives ${bindings_native})
   endforeach()
 
   install(TARGETS ${name} RUNTIME DESTINATION "${arg_DESTINATION}" BUNDLE DESTINATION "${arg_DESTINATION}")
@@ -176,9 +176,9 @@ function(rbfx_csharp_install_application name)
     install(FILES "${head_library}" DESTINATION "${arg_DESTINATION}")
   endif()
 
-  # The shared libraries of the wrapper targets and of the native plugins. A static library is in the executable.
+  # The shared libraries of the bindings targets and of the native plugins. A static library is in the executable.
   set(patterns PATTERN "${plugin_name}.*" PATTERN "SharpCpp.*.dll")
-  set(libraries ${wrapper_natives} ${plugins})
+  set(libraries ${bindings_natives} ${plugins})
   list(REMOVE_DUPLICATES libraries)
   foreach(library IN LISTS libraries)
     get_target_property(library_type ${library} TYPE)
@@ -199,8 +199,8 @@ function(rbfx_csharp_install_application name)
       endif()
     endif()
   endforeach()
-  foreach(library IN LISTS wrapper)
-    get_target_property(assembly ${library} SHARPCPP_RBFX_WRAPPER_ASSEMBLY)
+  foreach(library IN LISTS bindings)
+    get_target_property(assembly ${library} SHARPCPP_RBFX_BINDINGS_ASSEMBLY)
     if(assembly)
       list(APPEND patterns PATTERN "${assembly}.*")
     endif()
@@ -217,7 +217,7 @@ function(rbfx_csharp_add_project name)
   cmake_parse_arguments(
     PARSE_ARGV 1 arg "CONSOLE;INSTALL;SEPARATE_LIBRARY"
     "CSHARP_DIR;CSPROJ;IMPLEMENTATION;NAMESPACE;APPLICATION_ID;INSTALL_DESTINATION"
-    "SOURCES;HEADERS;INCLUDE_DIRECTORIES;WRAPPERS;PLUGINS;LINK_LIBRARIES;DATA;RESOURCES;PROPERTIES")
+    "SOURCES;HEADERS;INCLUDE_DIRECTORIES;BINDINGS_TARGETS;PLUGINS;LINK_LIBRARIES;DATA;RESOURCES;PROPERTIES")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "rbfx_csharp_add_project(${name}): unknown arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
@@ -239,8 +239,8 @@ function(rbfx_csharp_add_project name)
 
   # The bindings of the C++ headers.
   if(arg_HEADERS)
-    if(NOT COMMAND rbfx_csharp_add_wrapper)
-      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): HEADERS needs rbfx_csharp_add_wrapper, which does not exist.")
+    if(NOT COMMAND rbfx_csharp_add_bindings)
+      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): HEADERS needs rbfx_csharp_add_bindings, which does not exist.")
     endif()
     set(include_directories ${arg_INCLUDE_DIRECTORIES})
     if(NOT include_directories)
@@ -250,44 +250,44 @@ function(rbfx_csharp_add_project name)
       endforeach()
       list(REMOVE_DUPLICATES include_directories)
     endif()
-    set(wrapper_options HEADERS ${arg_HEADERS} INCLUDE_DIRECTORIES ${include_directories})
+    set(bindings_options HEADERS ${arg_HEADERS} INCLUDE_DIRECTORIES ${include_directories})
     if(arg_IMPLEMENTATION)
-      list(APPEND wrapper_options IMPLEMENTATION ${arg_IMPLEMENTATION})
+      list(APPEND bindings_options IMPLEMENTATION ${arg_IMPLEMENTATION})
     endif()
     if(arg_SEPARATE_LIBRARY)
-      list(APPEND wrapper_options SEPARATE_LIBRARY)
+      list(APPEND bindings_options SEPARATE_LIBRARY)
     endif()
     if(arg_NAMESPACE)
-      list(APPEND wrapper_options NAMESPACE ${arg_NAMESPACE})
+      list(APPEND bindings_options NAMESPACE ${arg_NAMESPACE})
     endif()
-    rbfx_csharp_add_wrapper(${name}.Wrapper ${wrapper_options})
+    rbfx_csharp_add_bindings(${name}.Bindings ${bindings_options})
   endif()
 
-  # The plugin: <name>.Managed, or the project of the user.
+  # The plugin: <name>.Net, or the project of the user.
   set(plugin_options)
   if(arg_CSPROJ)
     get_filename_component(plugin "${arg_CSPROJ}" NAME_WLE)
-    foreach(suffix IN ITEMS "" .Plugin .Native .Data .Wrapper .Head .CSharp .Resources)
+    foreach(suffix IN ITEMS "" .Plugin .Native .Data .Bindings .Head .CSharp .Resources)
       if(plugin STREQUAL "${name}${suffix}")
         message(FATAL_ERROR "rbfx_csharp_add_project(${name}): the name of the project file '${arg_CSPROJ}' is '${plugin}'. The plugin target has this name. It clashes with the target '${name}${suffix}' that the function makes. Rename the project file (or the project).")
       endif()
     endforeach()
     list(APPEND plugin_options CSPROJ "${arg_CSPROJ}")
   else()
-    set(plugin ${name}.Managed)
+    set(plugin ${name}.Net)
     if(arg_CSHARP_DIR)
       list(APPEND plugin_options CSHARP_DIR "${arg_CSHARP_DIR}")
     endif()
   endif()
   set(plugin_references)
   if(arg_HEADERS)
-    list(APPEND plugin_references ${name}.Wrapper)
+    list(APPEND plugin_references ${name}.Bindings)
   endif()
-  foreach(wrapper IN LISTS arg_WRAPPERS)
-    if(NOT TARGET ${wrapper})
-      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): WRAPPERS item '${wrapper}' is not a target. Make it with rbfx_csharp_add_wrapper before this call.")
+  foreach(bindings IN LISTS arg_BINDINGS_TARGETS)
+    if(NOT TARGET ${bindings})
+      message(FATAL_ERROR "rbfx_csharp_add_project(${name}): BINDINGS_TARGETS item '${bindings}' is not a target. Make it with rbfx_csharp_add_bindings before this call.")
     endif()
-    list(APPEND plugin_references ${wrapper})
+    list(APPEND plugin_references ${bindings})
   endforeach()
   if(plugin_references)
     list(APPEND plugin_options REFERENCES ${plugin_references})

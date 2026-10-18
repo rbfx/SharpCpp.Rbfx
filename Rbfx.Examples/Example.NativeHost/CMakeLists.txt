@@ -20,6 +20,6 @@ sharpcpp_set_native_output(Rbfx.NativeHost)
 
 # The managed plugin is the C# project next to the executable. CMake builds it with dotnet.
 rbfx_csharp_add_plugin_build(
-  Rbfx.NativeHost.Managed
-  PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/Rbfx.NativeHost.Managed/Rbfx.NativeHost.Managed.csproj"
+  Rbfx.NativeHost.Net
+  PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/Rbfx.NativeHost.Net/Rbfx.NativeHost.Net.csproj"
   HOST Rbfx.NativeHost)

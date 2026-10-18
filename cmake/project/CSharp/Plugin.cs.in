@@ -17,6 +17,6 @@ public partial class @NAME@Plugin : ManagedPlugin
     protected override void Load()
     {
         base.Load();
-        Log.Info("C# plugin @NAME@.Managed is loaded.");
+        Log.Info("C# plugin @NAME@.Net is loaded.");
     }
 }

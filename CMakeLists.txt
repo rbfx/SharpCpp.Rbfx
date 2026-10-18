@@ -248,7 +248,7 @@ set(
   RBFX_ENGINE_METADATA_FILE
   ""
   CACHE FILEPATH
-  "Package mode: the engine binding metadata that the runtime package carries. When set, the engine wrapper is neither generated nor built.")
+  "Package mode: the engine binding metadata that the runtime package carries. When set, the engine bindings is neither generated nor built.")
 
 set(RBFX_GENERATED_ROOT "${SHARPCPP_GENERATED_ROOT}/rbfx")
 if(RBFX_ENGINE_METADATA_FILE OR RBFX_CSHARP_BINDINGS_PACKAGE_VERSION)
@@ -326,7 +326,7 @@ set(
   RBFX_CSHARP_BINDINGS_PROJECTS
   "${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Ea/SharpCpp.Ea.csproj;${SHARPCPP_ROOT}/src/SharpCpp.Std/SharpCpp.Std.csproj;${SHARPCPP_ROOT}/src/SharpCpp.Support/SharpCpp.Support.csproj;${CMAKE_CURRENT_SOURCE_DIR}/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj"
   CACHE STRING
-  "Managed projects that the bindings project written by rbfx_csharp_add_wrapper() references.")
+  "Managed projects that the bindings project written by rbfx_csharp_add_bindings() references.")
 set(
   RBFX_CSHARP_BINDINGS_PACKAGE_VERSION
   ""
@@ -343,12 +343,12 @@ set(
   CACHE FILEPATH
   "MSBuild targets file that the written Directory.Build.targets imports.")
 
-# Inputs of RbfxCSharpAddWrapper.cmake. SharpCppRbfxConfig.cmake sets them to the installed files.
+# Inputs of RbfxCSharpAddBindings.cmake. SharpCppRbfxConfig.cmake sets them to the installed files.
 set(SHARPCPP_RBFX_SHARPCPP_INCLUDE_DIRECTORY "${SHARPCPP_ROOT}/include")
 set(SHARPCPP_RBFX_RBFX_INCLUDE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(SHARPCPP_RBFX_STALENESS_SCRIPT "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake")
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddWrapper.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddBindings.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpDotNet.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpPlugin.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpLauncher.cmake")
@@ -418,7 +418,7 @@ if(TARGET sharpcpp-rbfx-build-usercode-generator AND TARGET sharpcpp-generate-rb
       "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>/SharpCpp.Rbfx.NativeHost.dll"
     DEPENDS sharpcpp-rbfx-build-usercode-generator sharpcpp-generate-rbfx
     PROPERTIES ${_managed_target_properties})
-  # The project checks that the native wrapper exists.
+  # The project checks that the native bindings library exists.
   if(TARGET sharpcpp-rbfx-runtime)
     add_dependencies(sharpcpp-rbfx-build-managed sharpcpp-rbfx-runtime)
   endif()
@@ -456,7 +456,7 @@ if(RBFX_INSTALL_SDK)
     set(SHARPCPP_RBFX_HOST_NEEDS_NETHOST ON)
   endif()
 
-  # rbfx_csharp_add_wrapper() needs the metadata and the generator. The SDK has them in a source-mode
+  # rbfx_csharp_add_bindings() needs the metadata and the generator. The SDK has them in a source-mode
   # build (see SharpCpp.Rbfx.Bindings/CMakeLists.txt), for each library type.
   set(SHARPCPP_RBFX_HOST_MODE "${RBFX_HOST_MODE}")
   set(SHARPCPP_RBFX_NATIVE_LIBRARY_TYPE "${RBFX_NATIVE_LIBRARY_TYPE}")
@@ -542,7 +542,7 @@ if(RBFX_INSTALL_SDK)
       "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
       "${SHARPCPP_ROOT}/cmake/SharpCppOutput.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ExportRbfxSdkParseFlags.cmake"
-      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddWrapper.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddBindings.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates"
@@ -586,11 +586,11 @@ if(TARGET sharpcpp-generate-rbfx)
   add_dependencies(sharpcpp-rbfx-generate sharpcpp-generate-rbfx)
 endif()
 add_custom_target(sharpcpp-rbfx-native DEPENDS sharpcpp-rbfx-runtime)
-get_property(_rbfx_csharp_add_wrapper_targets GLOBAL PROPERTY SHARPCPP_RBFX_WRAP_TARGETS)
-foreach(_wrap_target IN LISTS _rbfx_csharp_add_wrapper_targets)
+get_property(_rbfx_csharp_add_bindings_targets GLOBAL PROPERTY SHARPCPP_RBFX_BINDINGS_TARGETS)
+foreach(_wrap_target IN LISTS _rbfx_csharp_add_bindings_targets)
   add_dependencies(sharpcpp-rbfx-generate sharpcpp-generate-${_wrap_target})
   # In the integration mode the native code is in the IMPLEMENTATION target.
-  rbfx_csharp_wrapper_native_target(${_wrap_target} _wrap_native_target)
+  rbfx_csharp_bindings_native_target(${_wrap_target} _wrap_native_target)
   add_dependencies(sharpcpp-rbfx-native ${_wrap_native_target})
 endforeach()
 

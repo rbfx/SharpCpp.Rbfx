@@ -130,7 +130,7 @@ function(rbfx_csharp_add_editor name)
   set_property(GLOBAL PROPERTY SHARPCPP_RBFX_EDITOR_LAST_PLUGIN_BUILD ${name}.Plugin)
   add_dependencies(${name} ${name}.Plugin)
 
-  # The C# bindings load the native wrapper from the folder of the executable.
+  # The C# bindings load the native bindings from the folder of the executable.
   if(TARGET SharpCpp::RbfxNative)
     add_dependencies(${name} SharpCpp::RbfxNative)
     add_custom_command(

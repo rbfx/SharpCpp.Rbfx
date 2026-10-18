@@ -6,20 +6,20 @@ Like Example.Desktop and Example.Common, this example builds from source with th
 
 ## Parts
 
-- `main.cpp`: `NativeHostApp` derives from `Urho3D::Application`. `Start()` initializes `Urho3D::DotNetHost` (`SharpCpp::RbfxHost`) and calls `DotNetHost::LoadPlugin` with the plugin manager of the engine and `Rbfx.NativeHost.Managed.dll`. Then it creates a scene with a box node, calls `CreateComponent("Spinner")` and sets the `Speed` attribute to 90. The application runs until you close the window.
-- `Rbfx.NativeHost.Managed/NativeHostPlugin.cs`: the plugin of the assembly. It derives from `ManagedPlugin`, which registers `Spinner` and its `[SerializeField]` attributes when the plugin loads.
-- `Rbfx.NativeHost.Managed/Spinner.cs`: a C# `LogicComponent` that rotates its node around the Y axis in `Update`. `Speed` is a `[SerializeField]` property, so C++ sets it through the attribute API.
+- `main.cpp`: `NativeHostApp` derives from `Urho3D::Application`. `Start()` initializes `Urho3D::DotNetHost` (`SharpCpp::RbfxHost`) and calls `DotNetHost::LoadPlugin` with the plugin manager of the engine and `Rbfx.NativeHost.Net.dll`. Then it creates a scene with a box node, calls `CreateComponent("Spinner")` and sets the `Speed` attribute to 90. The application runs until you close the window.
+- `Rbfx.NativeHost.Net/NativeHostPlugin.cs`: the plugin of the assembly. It derives from `ManagedPlugin`, which registers `Spinner` and its `[SerializeField]` attributes when the plugin loads.
+- `Rbfx.NativeHost.Net/Spinner.cs`: a C# `LogicComponent` that rotates its node around the Y axis in `Update`. `Speed` is a `[SerializeField]` property, so C++ sets it through the attribute API.
 
 ## Call order
 
-1. `DotNetHost::Initialize` starts the runtime from `Rbfx.NativeHost.Managed.runtimeconfig.json`.
+1. `DotNetHost::Initialize` starts the runtime from `Rbfx.NativeHost.Net.runtimeconfig.json`.
 2. `Engine::Initialize` creates the `PluginManager`. `Application::Start()` runs after it.
 3. `DotNetHost::LoadPlugin` loads `SharpCpp.Rbfx.Bindings.dll` (next to the runtime config) and calls its entry point `Urho3D.Plugins.NativeHostEntryPoints.LoadPlugin`. The entry point installs the script runtime, registers the plugin, adds its name to the loaded plugins and commits.
 4. C++ creates the C# types by name.
 
 ## Build and run
 
-Build with CMake. The target `Rbfx.NativeHost.Managed` runs `dotnet build` for the plugin project and puts the plugin next to the executable. The call is `rbfx_csharp_add_plugin_build` (`cmake/RbfxCSharpDotNet.cmake`). The target `sharpcpp-rbfx-native` (part of the default build) includes it.
+Build with CMake. The target `Rbfx.NativeHost.Net` runs `dotnet build` for the plugin project and puts the plugin next to the executable. The call is `rbfx_csharp_add_plugin_build` (`cmake/RbfxCSharpDotNet.cmake`). The target `sharpcpp-rbfx-native` (part of the default build) includes it.
 
 ```
 export CMAKE_PREFIX_PATH=<path of the installed rbfx SDK>

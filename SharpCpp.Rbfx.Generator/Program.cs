@@ -115,13 +115,7 @@ internal static class Program
         {
             Logger.LogInformation("=== SharpCpp rbfx generator started ===");
             var mainSw = Stopwatch.StartNew();
-            var sdkRoot = Path.GetFullPath(options.SdkRoot);
-            var includeRoot = Path.Combine(sdkRoot, "include");
-            var urhoIncludeRoot = Path.Combine(includeRoot, "Urho3D");
-            if (!Directory.Exists(urhoIncludeRoot))
-            {
-                throw new InvalidOperationException($"rbfx SDK include directory was not found at '{urhoIncludeRoot}'.");
-            }
+            var layout = options.CreateHeaderLayout();
 
             var sharpCppIncludeRoot = Path.GetFullPath(options.SharpCppIncludeRoot);
             var rbfxIncludeRoot = Path.GetFullPath(options.RbfxIncludeRoot);
@@ -131,7 +125,14 @@ internal static class Program
                 Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp")
             };
 
-            Logger.LogInformation("rbfx SDK root: {SdkRoot}", sdkRoot);
+            if (options.SdkRoot is not null)
+            {
+                Logger.LogInformation("rbfx SDK root: {SdkRoot}", Path.GetFullPath(options.SdkRoot));
+            }
+            else
+            {
+                Logger.LogInformation("rbfx engine header roots: {Roots}", string.Join(", ", options.EngineHeaderRoots.Select(static root => $"{root.Key}={root.Value}")));
+            }
             Logger.LogInformation("SDK flags file: {FlagsFilePath}", options.FlagsFilePath);
             Logger.LogInformation("Generated output root: {GeneratedRoot}", options.GeneratedRoot);
 
@@ -146,10 +147,10 @@ internal static class Program
             Logger.LogInformation("Dear ImGui bindings: {State}", submodules.HasSystemUi ? "enabled" : "disabled");
 
             var clangArguments = BuildClangArguments(
-                [sharpCppIncludeRoot, rbfxIncludeRoot], includeRoot, sdkFlags, out var targetTriple);
-            var parseUmbrellaHeaderPath = submodules.WriteParseUmbrella(options.GeneratedRoot, urhoIncludeRoot);
+                [sharpCppIncludeRoot, rbfxIncludeRoot], layout.SdkIncludeRoot, sdkFlags, out var targetTriple);
+            var parseUmbrellaHeaderPath = submodules.WriteParseUmbrella(options.GeneratedRoot, layout);
 
-            Logger.LogInformation("Parsing umbrella header '{Header}' with owned declaration root '{Root}'.", parseUmbrellaHeaderPath, urhoIncludeRoot);
+            Logger.LogInformation("Parsing umbrella header '{Header}' with owned declaration root(s) '{Root}'.", parseUmbrellaHeaderPath, string.Join(", ", layout.UrhoRoots));
 
             var parseSw = Stopwatch.StartNew();
             var parser = new ClangSharpHeaderParser();
@@ -164,8 +165,8 @@ internal static class Program
                      clangArguments,
                      marshallerConfigurationFiles,
                      EntryPointPrefix,
-                     OwnedFileRoots: submodules.BuildOwnedFileRoots(includeRoot),
-                     OwnedFileRootIncludePrefixes: submodules.BuildOwnedFileRootIncludePrefixes(includeRoot),
+                     OwnedFileRoots: submodules.BuildOwnedFileRoots(layout),
+                     OwnedFileRootIncludePrefixes: submodules.BuildOwnedFileRootIncludePrefixes(layout),
                      DirectorRecordCppTypeNames: InheritableDirectorRecordCppTypeNames));
             foreach (var headerPath in submodules.EnabledHeaderPaths)
             {
@@ -231,7 +232,7 @@ internal static class Program
             var managedProjection = RbfxManagedNamespaceProjectionPass.Apply(compilation);
             Logger.LogInformation("Managed namespace projection complete: {NamespaceCount} namespace node(s).", managedProjection.Namespaces.Count);
 
-            var macroSurfaceCount = RbfxNamespaceMacroSurfacePass.Apply(compilation, includeRoot);
+            var macroSurfaceCount = RbfxNamespaceMacroSurfacePass.Apply(compilation, layout);
             Logger.LogInformation("Applied rbfx macro surface shaping to {Count} header class(es).", macroSurfaceCount);
 
             var propertyCount = GenerateAccessorPropertiesPass.Apply(
@@ -287,7 +288,7 @@ internal static class Program
 
     private static IReadOnlyList<string> BuildClangArguments(
         IReadOnlyList<string> projectIncludeRoots,
-        string includeRoot,
+        string? sdkIncludeRoot,
         SdkParseFlags sdkFlags,
         out string? targetTriple)
     {
@@ -299,9 +300,9 @@ internal static class Program
 
         arguments.AddRange(ParseWarningDisableArguments.Where(argument => !arguments.Contains(argument, StringComparer.Ordinal)));
 
-        if (!sdkFlags.IncludeDirectories.Contains(includeRoot, StringComparer.Ordinal))
+        if (sdkIncludeRoot is not null && !sdkFlags.IncludeDirectories.Contains(sdkIncludeRoot, StringComparer.Ordinal))
         {
-            arguments.Add($"-I{includeRoot}");
+            arguments.Add($"-I{sdkIncludeRoot}");
         }
 
         foreach (var includeDirectory in sdkFlags.IncludeDirectories)

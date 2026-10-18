@@ -33,6 +33,11 @@ function(sharpcpp_export_rbfx_sdk_parse_flags target_name output_file native_lib
     "${target_name}" INTERFACE_COMPILE_DEFINITIONS compile_definitions "")
   _sharpcpp_collect_rbfx_interface_property(
     "${target_name}" INTERFACE_COMPILE_OPTIONS compile_options "")
+  # A source mode target has $<INSTALL_INTERFACE:...> items. They are not valid for the parse. Imported targets have none.
+  foreach(filtered_list_name IN ITEMS include_directories compile_definitions compile_options)
+    list(FILTER ${filtered_list_name} EXCLUDE REGEX "^\\$<INSTALL_INTERFACE:")
+    list(FILTER ${filtered_list_name} EXCLUDE REGEX "^$")
+  endforeach()
   list(REMOVE_DUPLICATES include_directories)
   list(REMOVE_DUPLICATES compile_definitions)
   list(REMOVE_DUPLICATES compile_options)

@@ -3,7 +3,7 @@ if(POLICY CMP0207)
   cmake_policy(SET CMP0207 NEW)
 endif()
 
-set(sdk_root "@RBFX_ENGINE_ROOT@")
+set(sdk_root "@RBFX_ENGINE_RUNTIME_ROOT@")
 
 # The files go next to the target by default. The install rules set destination_dir to copy them to the install prefix.
 if(NOT DEFINED destination_dir OR destination_dir STREQUAL "")
@@ -14,6 +14,11 @@ endif()
 foreach(path_variable IN ITEMS target_file output_dir destination_dir urho_dir urho_library_file)
   cmake_path(SET ${path_variable} "${${path_variable}}")
 endforeach()
+
+# Source mode has no SDK folder. The engine library and its runtime files are in the folder of the Urho3D target file.
+if(sdk_root STREQUAL "")
+  set(sdk_root "${urho_dir}")
+endif()
 
 set(search_directories
   "${urho_dir}"
@@ -49,6 +54,9 @@ function(copy_runtime_dependency runtime_dependency_source)
   endif()
 
   get_filename_component(runtime_dependency_name "${runtime_dependency_source}" NAME)
+  if(runtime_dependency_source STREQUAL "${destination_dir}/${runtime_dependency_name}")
+    return()
+  endif()
   file(MAKE_DIRECTORY "${destination_dir}")
   file(COPY_FILE "${runtime_dependency_source}" "${destination_dir}/${runtime_dependency_name}" ONLY_IF_DIFFERENT)
 endfunction()

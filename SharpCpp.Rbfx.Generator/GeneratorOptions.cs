@@ -2,7 +2,11 @@ namespace SharpCpp.Rbfx.Generator;
 
 internal sealed class GeneratorOptions
 {
-    public required string SdkRoot { get; init; }
+    public string? SdkRoot { get; init; }
+
+    public IReadOnlyList<KeyValuePair<string, string>> EngineHeaderRoots { get; init; } = [];
+
+    public string? EngineHeaderListPath { get; init; }
 
     public required string FlagsFilePath { get; init; }
 
@@ -16,6 +20,11 @@ internal sealed class GeneratorOptions
 
     public string? LogFilePath { get; init; }
 
+    public RbfxEngineHeaderLayout CreateHeaderLayout() =>
+        SdkRoot is not null
+            ? RbfxEngineHeaderLayout.FromSdkRoot(SdkRoot)
+            : RbfxEngineHeaderLayout.FromHeaderRoots(EngineHeaderRoots, EngineHeaderListPath);
+
     public static GeneratorOptions Parse(IReadOnlyList<string> args)
     {
         if (args.Count == 0 || args.Any(static argument => argument is "--help" or "-h"))
@@ -24,7 +33,19 @@ internal sealed class GeneratorOptions
             Environment.Exit(0);
         }
 
-        var sdkRoot = GetRequiredPathOption(args, "--sdk-root", isDirectory: true);
+        var sdkRoot = GetOptionalPathOption(args, "--sdk-root", isDirectory: true);
+        var engineHeaderRoots = GetEngineHeaderRoots(args);
+        if ((sdkRoot is null) == (engineHeaderRoots.Count == 0))
+        {
+            throw new ArgumentException("Specify exactly one of '--sdk-root' or '--engine-header-root'.");
+        }
+
+        var engineHeaderListPath = GetOptionalPathOption(args, "--engine-header-list", isDirectory: false);
+        if (engineHeaderListPath is not null && sdkRoot is not null)
+        {
+            throw new ArgumentException("'--engine-header-list' is valid only with '--engine-header-root'.");
+        }
+
         var flagsFilePath = GetRequiredPathOption(args, "--flags-file", isDirectory: false);
         var generatedRoot = GetRequiredPathOption(args, "--generated-root", isDirectory: false, mustExist: false);
         var sharpCppIncludeRoot = GetRequiredPathOption(args, "--sharpcpp-include", isDirectory: true);
@@ -35,6 +56,8 @@ internal sealed class GeneratorOptions
         ValidateKnownOptions(args, new Dictionary<string, bool>(StringComparer.Ordinal)
         {
             ["--sdk-root"] = true,
+            ["--engine-header-root"] = true,
+            ["--engine-header-list"] = true,
             ["--flags-file"] = true,
             ["--generated-root"] = true,
             ["--sharpcpp-include"] = true,
@@ -46,6 +69,8 @@ internal sealed class GeneratorOptions
         return new GeneratorOptions
         {
             SdkRoot = sdkRoot,
+            EngineHeaderRoots = engineHeaderRoots,
+            EngineHeaderListPath = engineHeaderListPath,
             FlagsFilePath = flagsFilePath,
             GeneratedRoot = generatedRoot,
             SharpCppIncludeRoot = sharpCppIncludeRoot,
@@ -58,7 +83,11 @@ internal sealed class GeneratorOptions
     public static void PrintUsage()
     {
         Console.WriteLine(
-            "Usage: dotnet SharpCpp.Rbfx.Generator.dll --sdk-root <path> --flags-file <path> --generated-root <path> --sharpcpp-include <path> --rbfx-include <path> [--sdk-library <path>] [--log-file <path>]");
+            "Usage: dotnet SharpCpp.Rbfx.Generator.dll (--sdk-root <path> | --engine-header-root <Name>=<dir> [--engine-header-root <Name>=<dir> ...] [--engine-header-list <file>]) --flags-file <path> --generated-root <path> --sharpcpp-include <path> --rbfx-include <path> [--sdk-library <path>] [--log-file <path>]");
+        Console.WriteLine(
+            "Engine header root names: Urho3D (repeatable, at least one), RmlUi, RmlUiConfig, ImGui.");
+        Console.WriteLine(
+            "--engine-header-list: a file with one absolute header path per line. With engine header roots, the generator scans only these Urho3D headers (the umbrella fallback and the namespace macro pass), not the whole root. Use it to skip the headers of disabled engine modules.");
     }
 
     private static void ValidateKnownOptions(IReadOnlyList<string> args, IReadOnlyDictionary<string, bool> knownOptions)
@@ -88,6 +117,30 @@ internal sealed class GeneratorOptions
 
             index++;
         }
+    }
+
+    private static List<KeyValuePair<string, string>> GetEngineHeaderRoots(IReadOnlyList<string> args)
+    {
+        var roots = new List<KeyValuePair<string, string>>();
+        for (var index = 0; index < args.Count - 1; index++)
+        {
+            if (!string.Equals(args[index], "--engine-header-root", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var value = args[index + 1];
+            var separator = value.IndexOf('=');
+            if (separator <= 0 || separator == value.Length - 1)
+            {
+                throw new ArgumentException($"Invalid value '{value}' for option '--engine-header-root'. Expected <Name>=<dir>.");
+            }
+
+            roots.Add(new KeyValuePair<string, string>(value[..separator], value[(separator + 1)..]));
+            index++;
+        }
+
+        return roots;
     }
 
     private static string GetRequiredPathOption(IReadOnlyList<string> args, string optionName, bool isDirectory, bool mustExist = true)

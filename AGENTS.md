@@ -28,10 +28,12 @@ external SharpCpp consumer: it uses only SharpCpp's public projects, native head
   sibling `../SharpCpp`.
 - `RbfxSdkRoot` (MSBuild) / `CMAKE_PREFIX_PATH` (CMake or environment): installed
   shared-library rbfx SDK. CMake finds the engine only with `find_package(Urho3D)` through
-  `CMAKE_PREFIX_PATH`, and derives the internal SDK root `RBFX_ENGINE_ROOT` from `Urho3D_DIR`.
+  `CMAKE_PREFIX_PATH`. `cmake/RbfxEngineLayout.cmake` sets `RBFX_ENGINE_ROOT` and selects one of two modes.
+  Installed SDK mode: the `Urho3D` target is IMPORTED. `RBFX_ENGINE_ROOT` comes from `Urho3D_DIR`, and the generator gets `--sdk-root`.
+  Source engine mode: the `Urho3D` target is not IMPORTED. `RBFX_ENGINE_ROOT` is the rbfx checkout, and the generator gets
+  `--engine-header-root <Name>=<dir>` and `--engine-header-list <file>` (the headers that the `Urho3D` target compiles).
   MSBuild takes `RbfxSdkRoot` (default: the environment variable `CMAKE_PREFIX_PATH`, then
   `build/sdk/<rid>`, then `../../rbfx-sdk`) and passes it to CMake as `CMAKE_PREFIX_PATH`.
-  An engine target from source mode is not supported yet.
 
 ## Wrap user C++ code
 

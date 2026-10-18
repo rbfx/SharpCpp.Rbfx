@@ -24,7 +24,7 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E env
           "SHARPCPP_RBFX_CLANG_RESOURCE_DIRECTORY=${SHARPCPP_CLANG_RESOURCE_DIRECTORY}"
           "${DOTNET_EXECUTABLE}" "${SHARPCPP_RBFX_GENERATOR_DLL}"
-          --sdk-root "${RBFX_ENGINE_ROOT}"
+          ${RBFX_ENGINE_GENERATOR_ARGUMENTS}
           --flags-file "${RBFX_SDK_FLAGS_FILE}"
           --generated-root "${RBFX_GENERATED_ROOT}"
           --sharpcpp-include "${SHARPCPP_ROOT}/include"

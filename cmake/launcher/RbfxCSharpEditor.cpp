@@ -8,7 +8,12 @@
 #include <Urho3D/IO/Log.h>
 #include <Urho3D/Plugins/PluginManager.h>
 
+// The installed SDK has the editor headers in Tools/Editor. An engine in source mode has them in Source/Editor.
+#if __has_include(<Tools/Editor/EditorApplication.h>)
 #include <Tools/Editor/EditorApplication.h>
+#else
+#include <Editor/EditorApplication.h>
+#endif
 
 using namespace Urho3D;
 

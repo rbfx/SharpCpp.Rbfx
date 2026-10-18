@@ -53,11 +53,11 @@ SharpCpp.Tool ───────────┘             |
 
 ### End-to-End Generation Pipeline
 
-1. **SDK Discovery**: `CMAKE_PREFIX_PATH` points to an installed rbfx SDK. `find_package(Urho3D)` locates the SDK CMake config. Build flags, include directories, and compile definitions are recursively collected from the `Urho3D` CMake target into `RBFX_URHO3D_INCLUDE_DIRECTORIES`, `RBFX_URHO3D_COMPILE_DEFINITIONS`, `RBFX_URHO3D_COMPILE_OPTIONS`.
+1. **Engine Discovery**: `cmake/RbfxEngineLayout.cmake` selects one of two modes. In installed SDK mode, `CMAKE_PREFIX_PATH` points to an installed rbfx SDK and `find_package(Urho3D)` locates the SDK CMake config (the `Urho3D` target is IMPORTED). In source engine mode, the `Urho3D` target is not IMPORTED and the engine headers come from the rbfx source tree through `--engine-header-root`. `--engine-header-list` limits the engine headers to the files that the `Urho3D` target compiles (the headers of disabled modules are skipped). Build flags, include directories, and compile definitions are recursively collected from the `Urho3D` CMake target into `RBFX_URHO3D_INCLUDE_DIRECTORIES`, `RBFX_URHO3D_COMPILE_DEFINITIONS`, `RBFX_URHO3D_COMPILE_OPTIONS`.
 
 2. **Flags File Generation**: A per-config `urho3d-sdk-flags.txt` is written with `compiler_path`, `language_standard`, include directories, defines, and clang arguments. This file is consumed by both generators.
 
-3. **Phase 1 Generation**: `SharpCpp.Rbfx.Generator.dll` is invoked with `--sdk-root`, `--flags-file`, `--generated-root`, `--project-root`, `--sdk-library`, `--log-file`. It:
+3. **Phase 1 Generation**: `SharpCpp.Rbfx.Generator.dll` is invoked with `--sdk-root` (or repeatable `--engine-header-root <Name>=<dir>` with `--engine-header-list <file>`), `--flags-file`, `--generated-root`, `--project-root`, `--sdk-library`, `--log-file`. It:
    - Loads SDK parse flags
    - Discovers the host Clang toolchain (target triple, resource directory, system include paths)
    - Builds Clang arguments (standard, include dirs, defines, SIMD disable, warning suppress, toolchain flags)

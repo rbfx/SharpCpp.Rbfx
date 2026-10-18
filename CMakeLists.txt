@@ -129,10 +129,11 @@ option(
   "Use the target platform compiler's builtin Clang headers when parsing the rbfx SDK."
   ${_sharpcpp_parse_platform_includes_default})
 
-# The engine comes from CMAKE_PREFIX_PATH (CMAKE_FIND_ROOT_PATH for web builds, or Urho3D_DIR) through find_package(Urho3D). RBFX_ENGINE_ROOT is
-# the root of the installed SDK. The generator reads the engine headers from it. The variable is internal.
-# When the including project already has a target Urho3D, it must come from an installed SDK, because the
-# root derives from Urho3D_DIR. An engine in source mode is not supported yet.
+# The engine comes from CMAKE_PREFIX_PATH (CMAKE_FIND_ROOT_PATH for web builds, or Urho3D_DIR) through find_package(Urho3D). The
+# engine is an installed SDK (IMPORTED target Urho3D) or part of the including project (target Urho3D built from the engine
+# sources). sharpcpp_resolve_rbfx_engine_layout() finds the mode and sets the layout variables RBFX_ENGINE_MODE, RBFX_ENGINE_ROOT,
+# RBFX_ENGINE_GENERATOR_ARGUMENTS, RBFX_USERCODE_ENGINE_ARGUMENTS, RBFX_SDK_INPUT_HEADERS and RBFX_ENGINE_RUNTIME_ROOT.
+# The variables are internal.
 function(sharpcpp_find_rbfx_sdk)
   if(NOT TARGET Urho3D)
     if(RBFX_NATIVE_LIBRARY_TYPE STREQUAL "STATIC")
@@ -145,21 +146,20 @@ function(sharpcpp_find_rbfx_sdk)
     set(CMAKE_DISABLE_FIND_PACKAGE_Vulkan TRUE)
     # Web builds of rbfx-ci give the SDK in CMAKE_FIND_ROOT_PATH instead of CMAKE_PREFIX_PATH. Search both.
     find_package(Urho3D CONFIG REQUIRED PATHS ${CMAKE_FIND_ROOT_PATH} NO_CMAKE_FIND_ROOT_PATH)
-    if(NOT Urho3D_IS_SDK)
+    # A project that has the target already (find_package in a function scope) does not keep Urho3D_IS_SDK in this scope.
+    get_target_property(urho3d_imported Urho3D IMPORTED)
+    if(urho3d_imported AND NOT Urho3D_IS_SDK)
       message(FATAL_ERROR "SharpCpp.Rbfx: find_package(Urho3D) found '${Urho3D_DIR}', which is not an installed rbfx SDK.")
     endif()
   endif()
-  if(NOT Urho3D_DIR)
-    message(FATAL_ERROR
-      "SharpCpp.Rbfx: the target Urho3D exists, but it does not come from an installed rbfx SDK. "
-      "An engine in source mode is not supported yet. Add the installed SDK to CMAKE_PREFIX_PATH.")
-  endif()
-  # Urho3D_DIR is <SDK root>/share/Urho3D/CMake.
-  get_filename_component(engine_root "${Urho3D_DIR}/../../.." ABSOLUTE)
-  if(NOT EXISTS "${engine_root}/include/Urho3D")
-    message(FATAL_ERROR "SharpCpp.Rbfx: the rbfx SDK headers were not found at '${engine_root}/include/Urho3D'.")
-  endif()
-  set(RBFX_ENGINE_ROOT "${engine_root}" PARENT_SCOPE)
+  include("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/RbfxEngineLayout.cmake")
+  sharpcpp_resolve_rbfx_engine_layout(Urho3D)
+  # The layout function sets the variables in this scope. Forward them to the caller.
+  foreach(layout_variable
+      RBFX_ENGINE_MODE RBFX_ENGINE_ROOT RBFX_ENGINE_GENERATOR_ARGUMENTS RBFX_USERCODE_ENGINE_ARGUMENTS
+      RBFX_SDK_INPUT_HEADERS RBFX_ENGINE_RUNTIME_ROOT)
+    set(${layout_variable} "${${layout_variable}}" PARENT_SCOPE)
+  endforeach()
 endfunction()
 
 sharpcpp_find_rbfx_sdk()
@@ -172,9 +172,17 @@ if(RBFX_REMAP_SOURCE_PATHS)
   # The compiler matches a map as a string prefix, and the last matching map wins. A nested directory
   # comes after the directory that contains it. The SharpCpp directory comes first, because its name
   # is a string prefix of the name of this directory (SharpCpp and SharpCpp.Rbfx).
-  set(_rbfx_path_maps
-    "${SHARPCPP_ROOT}=SharpCpp"
-    "${RBFX_ENGINE_ROOT}=rbfx-sdk"
+  # In SOURCE mode the engine checkout can contain the SharpCpp directory. Then the engine map comes first.
+  if(RBFX_ENGINE_MODE STREQUAL "SOURCE")
+    set(_rbfx_path_maps
+      "${RBFX_ENGINE_ROOT}=rbfx-sdk"
+      "${SHARPCPP_ROOT}=SharpCpp")
+  else()
+    set(_rbfx_path_maps
+      "${SHARPCPP_ROOT}=SharpCpp"
+      "${RBFX_ENGINE_ROOT}=rbfx-sdk")
+  endif()
+  list(APPEND _rbfx_path_maps
     "${CMAKE_CURRENT_SOURCE_DIR}=."
     "${CMAKE_BINARY_DIR}=build")
   # The headers of the Android NDK name their own paths in assert strings and __FILE__.
@@ -315,14 +323,6 @@ sharpcpp_export_rbfx_sdk_parse_flags(
   "${RBFX_SDK_FLAGS_FILE}"
   "${RBFX_NATIVE_LIBRARY_TYPE}"
   "${RBFX_SDK_PARSE_LANGUAGE_STANDARD}")
-
-file(GLOB_RECURSE RBFX_SDK_INPUT_HEADERS CONFIGURE_DEPENDS
-  "${RBFX_ENGINE_ROOT}/include/Urho3D/*.h"
-  "${RBFX_ENGINE_ROOT}/include/Urho3D/*.hpp"
-  "${RBFX_ENGINE_ROOT}/include/RmlUi/*.h"
-  "${RBFX_ENGINE_ROOT}/include/RmlUi/*.hpp"
-  "${RBFX_ENGINE_ROOT}/include/ImGui/*.h"
-  "${RBFX_ENGINE_ROOT}/include/ImGui/*.hpp")
 
 set(
   RBFX_CSHARP_BINDINGS_PROJECTS
@@ -544,6 +544,7 @@ if(RBFX_INSTALL_SDK)
       "${SHARPCPP_ROOT}/cmake/SharpCppGeneratedStaleness.cmake"
       "${SHARPCPP_ROOT}/cmake/SharpCppOutput.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ExportRbfxSdkParseFlags.cmake"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxEngineLayout.cmake"
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpAddBindings.cmake"
     DESTINATION "${_rbfx_sdk_module_dir}")
   install(

@@ -33,13 +33,17 @@ internal static class RbfxNamespaceMacroSurfacePass
         "ToString"
     };
 
-    public static int Apply(BindingCompilation compilation, string includeRoot)
+    public static int Apply(BindingCompilation compilation, RbfxEngineHeaderLayout layout)
     {
         ArgumentNullException.ThrowIfNull(compilation);
-        ArgumentException.ThrowIfNullOrWhiteSpace(includeRoot);
+        ArgumentNullException.ThrowIfNull(layout);
 
-        var urhoIncludeRoot = Path.Combine(includeRoot, "Urho3D");
-        if (!Directory.Exists(urhoIncludeRoot))
+        // The headers of the CSharp directory are not scanned. A header list limits the scan to the compiled headers.
+        var headers = layout.EnumerateUrhoHeaders(".h")
+            .Select(static header => ("Urho3D/" + header.RelativePath, header.FullPath))
+            .ToList();
+
+        if (headers.Count == 0)
         {
             return 0;
         }
@@ -49,8 +53,7 @@ internal static class RbfxNamespaceMacroSurfacePass
         var eventParameterCount = 0;
         var constantCount = 0;
 
-        foreach (var headerPath in Directory.EnumerateFiles(urhoIncludeRoot, "*.h", SearchOption.AllDirectories)
-                     .OrderBy(static path => path, StringComparer.Ordinal))
+        foreach (var (relativeHeaderPath, headerPath) in headers)
         {
             var headerText = File.ReadAllText(headerPath);
             if (!headerText.Contains("URHO3D_EVENT(", StringComparison.Ordinal) &&
@@ -66,7 +69,6 @@ internal static class RbfxNamespaceMacroSurfacePass
                 continue;
             }
 
-            var relativeHeaderPath = Path.GetRelativePath(includeRoot, headerPath).Replace('\\', '/');
             var managedClass = GetOrCreateManagedClass(compilation, relativeHeaderPath);
 
             foreach (var descriptor in constants)

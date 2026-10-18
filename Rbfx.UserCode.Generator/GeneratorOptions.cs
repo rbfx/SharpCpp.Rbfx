@@ -2,7 +2,7 @@ namespace Rbfx.UserCode.Generator;
 
 internal sealed class GeneratorOptions
 {
-    public required string SdkRoot { get; init; }
+    public string? SdkRoot { get; init; }
 
     public required string FlagsFilePath { get; init; }
 
@@ -40,7 +40,7 @@ internal sealed class GeneratorOptions
             Environment.Exit(0);
         }
 
-        var sdkRoot = GetRequiredOption(args, "--sdk-root");
+        var sdkRoot = GetOptionalPathOption(args, "--sdk-root");
         var flagsFilePath = GetRequiredOption(args, "--flags-file");
         var headerPath = GetRequiredOption(args, "--header");
         var includeDirectories = GetRepeatedPathOption(args, "--include-directory");
@@ -56,7 +56,11 @@ internal sealed class GeneratorOptions
         var importedBindingMetadataFiles = GetRepeatedPathOption(args, "--import-binding-metadata");
         var logFilePath = GetOptionalPathOption(args, "--log-file");
 
-        ValidatePath(sdkRoot, isDirectory: true, "--sdk-root");
+        if (sdkRoot is not null)
+        {
+            ValidatePath(sdkRoot, isDirectory: true, "--sdk-root");
+        }
+
         ValidatePath(flagsFilePath, isDirectory: false, "--flags-file");
         ValidatePath(headerPath, isDirectory: false, "--header");
         ValidatePath(sharpCppIncludeRoot, isDirectory: true, "--sharpcpp-include");
@@ -97,7 +101,7 @@ internal sealed class GeneratorOptions
         Console.WriteLine(
             """
             Usage:
-              dotnet Rbfx.UserCode.Generator.dll --sdk-root <path> --flags-file <path> --header <path> [--include-directory <path> ...] --assembly-name <name> --namespace <ns> [--bindings-class <name>] --library-name <name> --file-stem <stem> --symbol-prefix <prefix> --sharpcpp-include <path> --rbfx-include <path> --generated-root <path> [--import-binding-metadata <path> ...] [--log-file <path>]
+              dotnet Rbfx.UserCode.Generator.dll [--sdk-root <path>] --flags-file <path> --header <path> [--include-directory <path> ...] --assembly-name <name> --namespace <ns> [--bindings-class <name>] --library-name <name> --file-stem <stem> --symbol-prefix <prefix> --sharpcpp-include <path> --rbfx-include <path> --generated-root <path> [--import-binding-metadata <path> ...] [--log-file <path>]
             """);
     }
 

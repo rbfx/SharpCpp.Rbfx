@@ -40,9 +40,10 @@ internal sealed record RbfxBindingSubmodules(bool HasRmlUi, bool HasSystemUi)
             sdkFlags.HasDefine("URHO3D_SYSTEMUI", "1"));
     }
 
-    public string WriteParseUmbrella(string generatedRoot, string urhoIncludeRoot)
+    public string WriteParseUmbrella(string generatedRoot, RbfxEngineHeaderLayout layout)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(generatedRoot);
+        ArgumentNullException.ThrowIfNull(layout);
         Directory.CreateDirectory(generatedRoot);
 
         var path = Path.Combine(generatedRoot, "SharpCpp.Rbfx.ParseUmbrella.hpp");
@@ -50,18 +51,18 @@ internal sealed record RbfxBindingSubmodules(bool HasRmlUi, bool HasSystemUi)
         {
             "#pragma once",
         };
-        if (File.Exists(Path.Combine(urhoIncludeRoot, "Urho3D.h")))
+        if (layout.UrhoRoots.Any(root => File.Exists(Path.Combine(root, "Urho3D.h"))))
             lines.Add("#include <Urho3D/Urho3D.h>");
-        if (File.Exists(Path.Combine(urhoIncludeRoot, "Urho3DAll.h")))
+        if (layout.UrhoRoots.Any(root => File.Exists(Path.Combine(root, "Urho3DAll.h"))))
             lines.Add("#include <Urho3D/Urho3DAll.h>");
         else
         {
             // Mobile/web SDKs omit the optional monolithic header. Installed subdirectories
             // contain only the engine modules enabled by that SDK's build.
-            lines.AddRange(Directory.GetFiles(urhoIncludeRoot, "*", SearchOption.AllDirectories)
-                .Where(path => Path.GetExtension(path) is ".h" or ".hpp")
-                .Select(path => Path.GetRelativePath(urhoIncludeRoot, path).Replace('\\', '/'))
+            lines.AddRange(layout.EnumerateUrhoHeaders(".h", ".hpp")
+                .Select(header => header.RelativePath)
                 .Where(path => path.Contains('/') && path is not ("Core/Main.h" or "Core/PE.h"))
+                .Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal).Select(path => $"#include <Urho3D/{path}>"));
             lines.Add("#include <Urho3D/DebugNew.h>");
         }
@@ -75,30 +76,42 @@ internal sealed record RbfxBindingSubmodules(bool HasRmlUi, bool HasSystemUi)
         return path;
     }
 
-    public IReadOnlyList<string> BuildOwnedFileRoots(string includeRoot)
+    public IReadOnlyList<string> BuildOwnedFileRoots(RbfxEngineHeaderLayout layout)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(includeRoot);
-        var roots = new List<string> { Path.Combine(includeRoot, "Urho3D") };
+        ArgumentNullException.ThrowIfNull(layout);
+        var roots = new List<string>(layout.UrhoRoots);
 
-        if (HasRmlUi)
-            roots.Add(Path.Combine(includeRoot, "RmlUi"));
+        if (HasRmlUi && layout.RmlUiRoot is not null)
+            roots.Add(layout.RmlUiRoot);
 
-        if (HasSystemUi)
-            roots.Add(Path.Combine(includeRoot, "ImGui"));
+        if (HasRmlUi && layout.RmlUiConfigRoot is not null)
+            roots.Add(layout.RmlUiConfigRoot);
+
+        if (HasSystemUi && layout.ImGuiRoot is not null)
+            roots.Add(layout.ImGuiRoot);
 
         return roots.Where(Directory.Exists).Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    public IReadOnlyDictionary<string, string> BuildOwnedFileRootIncludePrefixes(string includeRoot)
+    public IReadOnlyDictionary<string, string> BuildOwnedFileRootIncludePrefixes(RbfxEngineHeaderLayout layout)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(includeRoot);
+        ArgumentNullException.ThrowIfNull(layout);
         var prefixes = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        if (HasRmlUi)
-            prefixes[Path.Combine(includeRoot, "RmlUi")] = "RmlUi";
+        if (layout.UrhoIncludePrefix is not null)
+        {
+            foreach (var root in layout.UrhoRoots)
+                prefixes[root] = layout.UrhoIncludePrefix;
+        }
 
-        if (HasSystemUi)
-            prefixes[Path.Combine(includeRoot, "ImGui")] = "ImGui";
+        if (HasRmlUi && layout.RmlUiRoot is not null)
+            prefixes[layout.RmlUiRoot] = RbfxEngineHeaderLayout.RmlUiRootName;
+
+        if (HasRmlUi && layout.RmlUiConfigRoot is not null)
+            prefixes[layout.RmlUiConfigRoot] = RbfxEngineHeaderLayout.RmlUiConfigIncludePrefix;
+
+        if (HasSystemUi && layout.ImGuiRoot is not null)
+            prefixes[layout.ImGuiRoot] = RbfxEngineHeaderLayout.ImGuiRootName;
 
         return prefixes;
     }

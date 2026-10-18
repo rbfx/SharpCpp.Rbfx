@@ -76,7 +76,16 @@ The engine must come from an installed rbfx SDK. The two prefixes differ in how 
   The shim sets `RBFX_BUILD_USERCODE`, `RBFX_BUILD_EXAMPLES` and `RBFX_INSTALL_SDK` to OFF and `RBFX_BUILD_HOST` to ON, when the consumer did not define them.
   The two examples options default to ON only for a top-level build of this repository. They are for CI and development. The installed SDK never has the examples.
   The consumer must call `find_package(Urho3D)` before `find_package(SharpCppRbfx)`. The desktop shared engine is the tested case.
-  A static engine is accepted on iOS and Emscripten only. An engine in source mode is not supported.
+  A static engine is accepted on iOS and Emscripten only.
+  The package supports two engine modes. `cmake/RbfxEngineLayout.cmake` selects the mode from the `Urho3D` target.
+  In SDK mode, the `Urho3D` target is IMPORTED and comes from an installed SDK. In source mode, the `Urho3D` target is not IMPORTED
+  and the engine builds from the rbfx source tree. In source mode, the generator gets `--engine-header-root` options instead of `--sdk-root`.
+  The root names are `Urho3D` (repeatable), `RmlUi`, `RmlUiConfig` and `ImGui`. `RmlUiConfig` is the RmlUi configuration directory
+  (`RmlUi/Config/RbfxConfig.h`), which is outside the RmlUi include tree in a source checkout.
+  The source tree has also the headers of the disabled engine modules (for example `XR/OpenXR.h`). The library of the engine does not export their symbols.
+  Therefore `cmake/RbfxEngineLayout.cmake` writes the headers that the `Urho3D` target compiles (the property `SOURCES` and the header sets,
+  the root headers and the generated headers) to `SharpCppRbfxEngineHeaders.txt` in the binary directory. It passes the file with `--engine-header-list <file>`
+  (one absolute path per line). The umbrella fallback and the namespace macro pass of the generator then read only these headers. Headers in `CSharp/` are skipped.
   The first call adds the source tree. A second call (also from a sibling directory) only sets the variables below.
   The default `SHARPCPP_NATIVE_OUTPUT_ROOT` is `<build>/SharpCppRbfx/bin` and the default `SHARPCPP_MANAGED_OUTPUT_ROOT` is
   `<build>/SharpCppRbfx/managed`. A value from the consumer wins.

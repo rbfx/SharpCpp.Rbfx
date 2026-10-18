@@ -63,8 +63,10 @@ This ensures libclang sees a consistent set of built-in headers even when the SD
 ```
 Program.Main(args)
   ├── GeneratorOptions.Parse(args)
-  │     ├── Extracts --sdk-root, --flags-file, --generated-root, --project-root
+  │     ├── Extracts --sdk-root or --engine-header-root <Name>=<dir> (repeatable), --flags-file, --generated-root, --project-root
   │     ├── Extracts optional --sdk-library, --log-file
+  │     ├── Extracts optional --engine-header-list <file> (source mode only): one absolute Urho3D header path per line.
+  │     │   The umbrella fallback and the namespace macro pass scan only the listed headers (CSharp/ skipped)
   │     └── Validates all paths exist (or may-exist for generated-root)
   │
   ├── CreateLogWriter(options.LogFilePath)

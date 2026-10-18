@@ -68,8 +68,8 @@ internal static class Program
 
         try
         {
-            var sdkRoot = Path.GetFullPath(options.SdkRoot);
-            var includeRoot = Path.Combine(sdkRoot, "include");
+            var sdkRoot = options.SdkRoot is null ? null : Path.GetFullPath(options.SdkRoot);
+            var includeRoot = sdkRoot is null ? null : Path.Combine(sdkRoot, "include");
             var sharpCppIncludeRoot = Path.GetFullPath(options.SharpCppIncludeRoot);
             var rbfxIncludeRoot = Path.GetFullPath(options.RbfxIncludeRoot);
             var userIncludeRoots = options.IncludeDirectories.Select(Path.GetFullPath).ToArray();
@@ -95,7 +95,7 @@ internal static class Program
 
             var marshallerConfigurationFiles = marshallerHeaderPaths.Select(Path.GetFullPath).ToArray();
 
-            Logger.LogInformation("rbfx SDK root: {SdkRoot}", sdkRoot);
+            Logger.LogInformation("rbfx SDK root: {SdkRoot}", sdkRoot ?? "(flags file only)");
             Logger.LogInformation("Flags file: {FlagsFilePath}", options.FlagsFilePath);
             Logger.LogInformation("User code header: {HeaderPath}", headerPath);
             Logger.LogInformation("Generated output root: {GeneratedRoot}", options.GeneratedRoot);
@@ -178,7 +178,7 @@ internal static class Program
         throw new InvalidOperationException($"Header '{headerPath}' is not inside any --include-directory.");
     }
 
-    private static IReadOnlyList<string> BuildClangArguments(IReadOnlyList<string> projectIncludeRoots, string sdkIncludeRoot, IReadOnlyList<string> userIncludeRoots, SdkParseFlags sdkFlags)
+    private static IReadOnlyList<string> BuildClangArguments(IReadOnlyList<string> projectIncludeRoots, string? sdkIncludeRoot, IReadOnlyList<string> userIncludeRoots, SdkParseFlags sdkFlags)
     {
         var arguments = new List<string>
         {
@@ -193,7 +193,7 @@ internal static class Program
 
         arguments.AddRange(ParseWarningDisableArguments.Where(argument => !arguments.Contains(argument, StringComparer.Ordinal)));
 
-        if (!sdkFlags.IncludeDirectories.Contains(sdkIncludeRoot, StringComparer.Ordinal))
+        if (sdkIncludeRoot is not null && !sdkFlags.IncludeDirectories.Contains(sdkIncludeRoot, StringComparer.Ordinal))
         {
             arguments.Add($"-I{sdkIncludeRoot}");
         }

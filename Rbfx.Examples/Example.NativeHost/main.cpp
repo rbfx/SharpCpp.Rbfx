@@ -1,4 +1,4 @@
-#include <Urho3D/CSharp/DotNetPlugin.h>
+#include <Urho3D/CSharp/DotNetHost.h>
 
 #include <CLI11/CLI11.hpp>
 #include <Urho3D/Core/CoreEvents.h>
@@ -40,15 +40,12 @@ public:
 
     void Start() override
     {
-        const ea::string directory = GetSubsystem<Urho3D::FileSystem>()->GetProgramDir();
-
         // The engine creates the plugin manager in Engine::Initialize, before Start().
         // The plugin registers the C# Spinner component, so the code below can create it by name.
-        ea::string error;
-        if (!Urho3D::StartDotNetPlugin(
-                host_, GetSubsystem<Urho3D::PluginManager>(), directory, "Rbfx.NativeHost.Net", error))
+        host_ = Urho3D::MakeShared<Urho3D::DotNetHost>(context_);
+        if (!host_->Start("Rbfx.NativeHost.Net"))
         {
-            Fail(error);
+            ErrorExit(host_->GetLastError());
             return;
         }
 
@@ -93,7 +90,8 @@ public:
     {
         box_ = nullptr;
         scene_ = nullptr;
-        host_.Close();
+        if (host_)
+            host_->Stop();
     }
 
 private:
@@ -103,7 +101,7 @@ private:
         ErrorExit(message);
     }
 
-    Urho3D::DotNetHost host_;
+    Urho3D::SharedPtr<Urho3D::DotNetHost> host_;
     Urho3D::SharedPtr<Urho3D::Scene> scene_;
     Urho3D::SharedPtr<Urho3D::Node> box_;
 };

@@ -207,11 +207,9 @@ bool FindHostfxrPath(const ea::string& explicitRoot, HostString& result, ea::str
 
 } // namespace
 
-DotNetHost::DotNetHost() = default;
-
 DotNetHost::~DotNetHost()
 {
-    Close();
+    Stop();
 }
 
 bool DotNetHost::IsInitialized() const
@@ -487,7 +485,7 @@ bool DotNetHost::LoadPluginEntryPoint(ea::string& error)
     return true;
 }
 
-void DotNetHost::Close()
+void DotNetHost::Stop()
 {
     if (hostContext_ && closeFunction_)
         reinterpret_cast<hostfxr_close_fn>(closeFunction_)(static_cast<hostfxr_handle>(hostContext_));

@@ -118,7 +118,7 @@ The package gives the targets `SharpCpp::RbfxHost` and `SharpCpp::RbfxNative` an
 
 The installed SDK has these parts:
 
-- The host library `SharpCpp.Rbfx.Host` and the headers `Urho3D/CSharp/DotNetHost.h`, `Urho3D/CSharp/DotNetHostExport.h` and `Urho3D/CSharp/DotNetPlugin.h`.
+- The host library `SharpCpp.Rbfx.Host` and the headers `Urho3D/CSharp/DotNetHost.h` and `Urho3D/CSharp/DotNetHostExport.h`.
 - The imported target `SharpCpp::RbfxHost`.
 - The nethost runtime library next to the host library, when the host library is shared.
   On Linux and macOS the host library finds it through its own run-time path. On Windows the
@@ -327,8 +327,8 @@ rbfx_csharp_package_application(MyApp
   and adds `PlayerLibrary` to `LINK_LIBRARIES`. The target `PlayerLibrary` must exist. If it does not, CMake stops with an error.
   The launcher is a `PlayerApplication`. In `Setup` it sets the resource prefix paths and the orientation of mobile devices.
   It sets the engine plugins to the linked plugins and the managed plugin.
-  In `Start` it calls `StartDotNetPlugin()` (header `Urho3D/CSharp/DotNetPlugin.h`). If this call fails, the launcher logs the error and calls `ErrorExit`.
-  `Stop` closes the .NET host.
+  In `Start` it makes a `SharedPtr<DotNetHost>` and calls `DotNetHost::Start(SHARPCPP_RBFX_PLUGIN_NAME)` (header `Urho3D/CSharp/DotNetHost.h`). If this call fails, `DotNetHost` logs the error and the launcher calls `ErrorExit` with `GetLastError()`.
+  `Stop` calls `DotNetHost::Stop`, which closes the .NET host.
 - The source file uses `URHO3D_DEFINE_APPLICATION_MAIN(Class)` as in any rbfx application.
 - The target `MyApp.CSharp` is part of the default build. It builds the plugin with dotnet and copies the native bindings
   next to the executable. On Windows it also copies the host library and `nethost.dll`.
@@ -462,7 +462,7 @@ The native launcher keeps `main`. There is no hostfxr and no `runtimeconfig.json
 
 - The head project is `<build>/heads/MyApp/MyApp.Head.csproj`, from `cmake/heads/desktop/Head.Desktop.csproj.in` and `Program.cs`.
 - `dotnet publish` compiles the head, the plugin and the bindings into one shared library. The target `MyApp.Head` copies it next to the executable as `<plugin>.Head.so`, `.dylib` or `.dll` (no `lib` prefix).
-- `StartDotNetPlugin` gives that path to `DotNetHost::Initialize`. The host loads the library and calls the export `sharpcpp_rbfx_head_attach`, which calls `NativeHostBootstrap.Attach()`.
+- `DotNetHost::Start` gives that path to `DotNetHost::Initialize`. The host loads the library and calls the export `sharpcpp_rbfx_head_attach`, which calls `NativeHostBootstrap.Attach()`.
 - `Program.cs` has the partial hooks `OnManagedStartup` (before the attach) and `OnManagedShutdown` (in `sharpcpp_rbfx_head_detach`).
 - The head finds `SharpCpp.Rbfx.Host` and `SharpCpp.Rbfx.Native` in the folder of the executable with the default NativeAOT probing.
 - `eng/run-aot-test.sh --rid linux-x64` builds and runs the test project `SharpCpp.Rbfx.Tests.Aot` headless.
@@ -513,6 +513,7 @@ The iOS, web and Android heads are not built in CI. The hostfxr mode on desktop 
 ### DotNetHost modes
 
 `Urho3D::DotNetHost` has the same public API in two modes. The cache variable `RBFX_HOST_MODE` selects the mode.
+`DotNetHost` is an `Object`. Create it with `MakeShared<DotNetHost>(context)`. `Start(pluginName)` starts the runtime and loads the plugin from `SetDirectory` (default: the program directory). `GetLastError()` returns the error text and `Stop()` closes the host.
 The API uses the types of the engine: paths are UTF-8 `ea::string` (like in `FileSystem`), names are `ea::string_view`, and errors are `ea::string&`.
 The host library links the `Urho3D` target in both modes.
 
@@ -526,7 +527,7 @@ The host library links the `Urho3D` target in both modes.
   `DotNetHost::Initialize` refers to the attach export, so the linker keeps it in a static program. No whole-archive link is needed.
   `DotNetHost::Initialize` returns false and gives an error text while no table is attached.
   `RBFX_INSTALL_SDK` works in both modes. The shim SDK has `SharpCpp::RbfxHost` (the host library and the headers `DotNetHost.h`,
-  `DotNetHostExport.h`, `DotNetHostShim.h` and `DotNetPlugin.h`) and `SharpCpp::RbfxNative` (the bindings). It has no `FindNetHost.cmake`.
+  `DotNetHostExport.h` and `DotNetHostShim.h`) and `SharpCpp::RbfxNative` (the bindings). It has no `FindNetHost.cmake`.
   A native application links `SharpCpp::RbfxHost`. A .NET head loads `SharpCpp.Rbfx.Host` next to `SharpCpp.Rbfx.Native`.
   `SharpCppRbfxConfig.cmake` sets `SharpCppRbfx_HOST_MODE` and `SharpCppRbfx_LIBRARY_TYPE`. It stops when the target `Urho3D` has another library type than the SDK.
   `DotNetHost::GetFunctionPointer` accepts only an empty `delegateTypeName` (an `[UnmanagedCallersOnly]` method).

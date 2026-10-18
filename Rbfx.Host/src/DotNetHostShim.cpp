@@ -138,11 +138,9 @@ void DetachHead(void* handle)
 
 } // namespace
 
-DotNetHost::DotNetHost() = default;
-
 DotNetHost::~DotNetHost()
 {
-    Close();
+    Stop();
 }
 
 bool DotNetHost::IsInitialized() const
@@ -312,7 +310,7 @@ bool DotNetHost::LoadPluginEntryPoint(ea::string& error)
     return false;
 }
 
-void DotNetHost::Close()
+void DotNetHost::Stop()
 {
 #if defined(SHARPCPP_RBFX_SHIM_LOAD_HEAD)
     if (hostfxrLibrary_)

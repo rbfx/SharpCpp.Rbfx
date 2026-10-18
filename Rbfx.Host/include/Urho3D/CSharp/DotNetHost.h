@@ -3,6 +3,7 @@
 #include "Urho3D/CSharp/DotNetHostExport.h"
 
 #include <Urho3D/Container/Str.h>
+#include <Urho3D/Core/Object.h>
 
 namespace Urho3D
 {
@@ -28,14 +29,42 @@ struct DotNetHostOptions
 /// It reads function pointers that the managed side attached (see DotNetHostShim.h).
 /// The public API and the class layout are the same in both modes.
 /// No function throws across the library boundary. Errors are returned as text.
-/// The runtime stays loaded in the process after Close(). .NET cannot unload it.
-class URHO3D_DOTNETHOST_API DotNetHost
+/// The runtime stays loaded in the process after Stop(). .NET cannot unload it.
+///
+/// The class is an Object. Hold it as SharedPtr<DotNetHost> and create it with MakeShared<DotNetHost>(context).
+/// The host finds the FileSystem and the PluginManager through its Context.
+///
+/// Simple use, in Application::Start() after Engine::Initialize() created the PluginManager:
+///     host_ = MakeShared<DotNetHost>(context_);
+///     if (!host_->Start("MyPlugin")) { ErrorExit(host_->GetLastError()); return; }
+/// and host_->Stop() in Application::Stop().
+class URHO3D_DOTNETHOST_API DotNetHost : public Object
 {
+    URHO3D_OBJECT(DotNetHost, Object);
+
 public:
-    DotNetHost();
-    ~DotNetHost();
-    DotNetHost(const DotNetHost&) = delete;
-    DotNetHost& operator=(const DotNetHost&) = delete;
+    explicit DotNetHost(Context* context);
+    ~DotNetHost() override;
+
+    /// Sets the directory of the runtime config, the plugin assembly and the head library for Start().
+    /// The default is FileSystem::GetProgramDir().
+    void SetDirectory(const ea::string& directory);
+    const ea::string& GetDirectory() const { return directory_; }
+
+    /// Starts the .NET runtime and loads a C# plugin. Call it after Engine::Initialize() created the PluginManager.
+    /// pluginName is the assembly name of the plugin. It must not be empty.
+    /// The runtime config is <directory>/<pluginName>.runtimeconfig.json.
+    /// The plugin assembly is <directory>/<pluginName>.dll.
+    /// In the desktop shim mode the head library is <directory>/<pluginName>.Head with the shared library suffix.
+    /// Runs Initialize() and then LoadPlugin(). Returns false on failure. The error is logged and kept in GetLastError().
+    /// A failure leaves the host stopped. Start() returns false when the host is already started.
+    bool Start(const ea::string& pluginName);
+
+    /// Returns the text of the last error of Start(). Empty after a successful Start().
+    const ea::string& GetLastError() const { return lastError_; }
+
+    /// Closes the host context. The runtime itself stays loaded. Use it after Start() or Initialize().
+    void Stop();
 
     /// Loads hostfxr and starts the runtime that the runtime config describes.
     /// Returns false and fills error on failure.
@@ -85,9 +114,6 @@ public:
 
     bool IsInitialized() const;
 
-    /// Closes the host context. The runtime itself stays loaded.
-    void Close();
-
 private:
     bool LoadPluginEntryPoint(ea::string& error);
 
@@ -100,6 +126,8 @@ private:
     void* loadPluginFunction_{};
     void* registerPluginFunction_{};
     ea::string bindingsAssemblyPath_;
+    ea::string directory_;
+    ea::string lastError_;
     /// Used only in shim mode. The layout is the same in both modes.
     bool shimInitialized_{};
 };

@@ -7,7 +7,7 @@ namespace Rbfx.Head;
 /// <summary>
 /// The exports of the NativeAOT desktop head. The native launcher keeps main. DotNetHost::Initialize loads this
 /// shared library and calls sharpcpp_rbfx_head_attach. The export gives the managed function table to the host
-/// library (SharpCpp.Rbfx.Host). DotNetHost::Close calls sharpcpp_rbfx_head_detach. The host does not unload the head.
+/// library (SharpCpp.Rbfx.Host). DotNetHost::Stop calls sharpcpp_rbfx_head_detach. The host does not unload the head.
 /// </summary>
 internal static partial class Program
 {

@@ -1,11 +1,9 @@
 // The default launcher of rbfx_csharp_package_application. It starts the .NET runtime and loads the C# plugin.
 // The compile definition SHARPCPP_RBFX_PLUGIN_NAME is the assembly name of the plugin.
 
-#include <Urho3D/CSharp/DotNetPlugin.h>
+#include <Urho3D/CSharp/DotNetHost.h>
 #include <Urho3D/Engine/EngineDefs.h>
 #include <Urho3D/IO/FileSystem.h>
-#include <Urho3D/IO/Log.h>
-#include <Urho3D/Plugins/PluginManager.h>
 
 #include <Player/PlayerApplication.h>
 
@@ -38,12 +36,10 @@ public:
     void Start() override
     {
         // The engine creates the plugin manager before Start().
-        const ea::string directory = GetSubsystem<FileSystem>()->GetProgramDir();
-        ea::string error;
-        if (!StartDotNetPlugin(host_, GetSubsystem<PluginManager>(), directory, SHARPCPP_RBFX_PLUGIN_NAME, error))
+        host_ = MakeShared<DotNetHost>(context_);
+        if (!host_->Start(SHARPCPP_RBFX_PLUGIN_NAME))
         {
-            URHO3D_LOGERROR("{}", error);
-            ErrorExit(error);
+            ErrorExit(host_->GetLastError());
             return;
         }
         PlayerApplication::Start();
@@ -52,11 +48,12 @@ public:
     void Stop() override
     {
         PlayerApplication::Stop();
-        host_.Close();
+        if (host_)
+            host_->Stop();
     }
 
 private:
-    DotNetHost host_;
+    SharedPtr<DotNetHost> host_;
 };
 
 URHO3D_DEFINE_APPLICATION_MAIN(RbfxCSharpLauncher);

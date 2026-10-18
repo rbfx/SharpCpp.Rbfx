@@ -380,7 +380,7 @@ endfunction()
 # plugin_project and plugin_properties of the caller.
 #
 # The native launcher keeps main. The head is a NativeAOT shared library <plugin_name>.Head<suffix> next to the
-# executable. It has the plugin and the bindings in it. StartDotNetPlugin (Urho3D/CSharp/DotNetPlugin.h) gives its path
+# executable. It has the plugin and the bindings in it. DotNetHost::Start (Urho3D/CSharp/DotNetHost.h) gives its path
 # to DotNetHost::Initialize, which loads it and calls sharpcpp_rbfx_head_attach. There is no hostfxr and no runtimeconfig.
 function(_rbfx_csharp_add_desktop_shim_application name)
   # The RID of the head. NativeAOT does not cross-compile to another operating system.

@@ -6,15 +6,15 @@ Like Example.Desktop and Example.Common, this example builds from source with th
 
 ## Parts
 
-- `main.cpp`: `NativeHostApp` derives from `Urho3D::Application`. `Start()` initializes `Urho3D::DotNetHost` (`SharpCpp::RbfxHost`) and calls `DotNetHost::LoadPlugin` with the plugin manager of the engine and `Rbfx.NativeHost.Net.dll`. Then it creates a scene with a box node, calls `CreateComponent("Spinner")` and sets the `Speed` attribute to 90. The application runs until you close the window.
+- `main.cpp`: `NativeHostApp` derives from `Urho3D::Application`. `Start()` makes a `SharedPtr<Urho3D::DotNetHost>` (`SharpCpp::RbfxHost`) and calls `DotNetHost::Start("Rbfx.NativeHost.Net")`. `Start` runs `Initialize` and `LoadPlugin` with the plugin manager of the engine and `Rbfx.NativeHost.Net.dll`. Then it creates a scene with a box node, calls `CreateComponent("Spinner")` and sets the `Speed` attribute to 90. The application runs until you close the window.
 - `Rbfx.NativeHost.Net/NativeHostPlugin.cs`: the plugin of the assembly. It derives from `ManagedPlugin`, which registers `Spinner` and its `[SerializeField]` attributes when the plugin loads.
 - `Rbfx.NativeHost.Net/Spinner.cs`: a C# `LogicComponent` that rotates its node around the Y axis in `Update`. `Speed` is a `[SerializeField]` property, so C++ sets it through the attribute API.
 
 ## Call order
 
-1. `DotNetHost::Initialize` starts the runtime from `Rbfx.NativeHost.Net.runtimeconfig.json`.
-2. `Engine::Initialize` creates the `PluginManager`. `Application::Start()` runs after it.
-3. `DotNetHost::LoadPlugin` loads `SharpCpp.Rbfx.Bindings.dll` (next to the runtime config) and calls its entry point `Urho3D.Plugins.NativeHostEntryPoints.LoadPlugin`. The entry point installs the script runtime, registers the plugin, adds its name to the loaded plugins and commits.
+1. `Engine::Initialize` creates the `PluginManager`. `Application::Start()` runs after it.
+2. `DotNetHost::Start` runs `DotNetHost::Initialize`. It starts the runtime from `Rbfx.NativeHost.Net.runtimeconfig.json`.
+3. `DotNetHost::Start` runs `DotNetHost::LoadPlugin`. It loads `SharpCpp.Rbfx.Bindings.dll` (next to the runtime config) and calls its entry point `Urho3D.Plugins.NativeHostEntryPoints.LoadPlugin`. The entry point installs the script runtime, registers the plugin, adds its name to the loaded plugins and commits.
 4. C++ creates the C# types by name.
 
 ## Build and run

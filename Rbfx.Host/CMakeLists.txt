@@ -4,11 +4,11 @@ if(RBFX_HOST_MODE STREQUAL "shim")
   # Shim mode: DotNetHost starts no runtime. It reads function pointers that the managed side
   # attached to this library (see include/Urho3D/CSharp/DotNetHostShim.h). The library needs no
   # NetHost.
-  set(_rbfx_host_sources src/DotNetHostShim.cpp)
+  set(_rbfx_host_sources src/DotNetHostShim.cpp src/DotNetHostStart.cpp)
 else()
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
   find_package(NetHost REQUIRED)
-  set(_rbfx_host_sources src/DotNetHost.cpp)
+  set(_rbfx_host_sources src/DotNetHost.cpp src/DotNetHostStart.cpp)
 endif()
 
 add_library(sharpcpp-rbfx-host ${RBFX_NATIVE_LIBRARY_TYPE} ${_rbfx_host_sources})
@@ -23,8 +23,8 @@ target_include_directories(
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 if(RBFX_HOST_MODE STREQUAL "shim")
-  # A consumer of the shim host sees the definition URHO3D_DOTNETHOST_SHIM.
-  target_compile_definitions(sharpcpp-rbfx-host INTERFACE URHO3D_DOTNETHOST_SHIM)
+  # The shim host and its consumers see the definition URHO3D_DOTNETHOST_SHIM.
+  target_compile_definitions(sharpcpp-rbfx-host PUBLIC URHO3D_DOTNETHOST_SHIM)
   if(NOT ANDROID AND NOT EMSCRIPTEN)
     # The shim host loads the head library on desktop with dlopen.
     target_link_libraries(sharpcpp-rbfx-host PRIVATE ${CMAKE_DL_LIBS})
@@ -107,8 +107,7 @@ if(RBFX_INSTALL_SDK)
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
   set(_rbfx_host_headers
     include/Urho3D/CSharp/DotNetHost.h
-    include/Urho3D/CSharp/DotNetHostExport.h
-    include/Urho3D/CSharp/DotNetPlugin.h)
+    include/Urho3D/CSharp/DotNetHostExport.h)
   if(RBFX_HOST_MODE STREQUAL "shim")
     list(APPEND _rbfx_host_headers include/Urho3D/CSharp/DotNetHostShim.h)
   endif()

@@ -23,7 +23,7 @@
 #               launcher/RbfxCSharpLauncher.cpp of this module folder and adds PlayerLibrary to the linked libraries.
 #               The target PlayerLibrary must exist. The default launcher is a PlayerApplication. It sets the
 #               engine plugins to the linked plugins and the managed plugin, starts the .NET runtime and loads the
-#               managed plugin with StartDotNetPlugin (Urho3D/CSharp/DotNetPlugin.h). It stops the runtime in Stop.
+#               managed plugin with DotNetHost::Start (Urho3D/CSharp/DotNetHost.h). It stops the runtime in Stop.
 # PLUGINS       Targets of the native engine plugins that the launcher loads. The function calls
 #               target_link_plugins(<name> <PLUGINS>). The call is also made with an empty list for the default launcher.
 # LINK_LIBRARIES Libraries that the launcher links with (PRIVATE).

@@ -41,10 +41,12 @@ public abstract partial class ManagedPlugin : Plugin
     public IReadOnlyList<StringHash> RegisteredTypes => _registeredTypes;
 
     /// <summary>
-    /// The reflection category of the registered types. The default is the simple name of the plugin assembly.
+    /// The default reflection category of the registered types, like <c>Plugin::GetDefaultCategory</c> in the engine.
+    /// The editor lists a component type only when its category starts with <c>Component/</c>.
+    /// The default is the simple name of the plugin assembly.
     /// <see cref="FactoryReflectionAttribute.Category"/> of a type overrides it for that type.
     /// </summary>
-    protected virtual string FactoryCategory => ((object)this).GetType().Assembly.GetName().Name ?? string.Empty;
+    protected virtual string DefaultCategory => ((object)this).GetType().Assembly.GetName().Name ?? string.Empty;
 
     /// <summary>Returns the message of the error for an assembly without a registry.</summary>
     internal static string NoRegistryMessage(Assembly assembly) =>
@@ -82,7 +84,7 @@ public abstract partial class ManagedPlugin : Plugin
         // GetContext returns a borrowed wrapper. The Context property returns an owning wrapper, and the engine caches
         // it in the native context. That wrapper keeps the context alive, so the engine never shuts down.
         var context = GetContext();
-        var category = FactoryCategory;
+        var category = DefaultCategory;
         var assembly = ((object)this).GetType().Assembly;
 
         var registry = ManagedTypeRegistries.Find(assembly);

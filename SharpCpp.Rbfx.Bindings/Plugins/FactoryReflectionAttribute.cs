@@ -15,7 +15,7 @@ public sealed class FactoryReflectionAttribute : Attribute
 {
     /// <summary>
     /// The reflection category of the type in the engine. When null, the type uses the category of the plugin
-    /// (<c>ManagedPlugin.FactoryCategory</c>). An empty or white-space string is an error (RBFXSG006).
+    /// (<c>ManagedPlugin.DefaultCategory</c>). An empty or white-space string is an error (RBFXSG006).
     /// </summary>
     public string? Category { get; set; }
 }

@@ -153,6 +153,8 @@ function(rbfx_csharp_add_plugin plugin)
   # referenced projects do not get them.
   rbfx_csharp_package_properties(package_properties)
   rbfx_csharp_msbuild_property_elements(RBFX_PLUGIN_PROPERTIES ${package_properties} ${arg_PROPERTIES})
+  # Older versions wrote empty Directory.Build files to this folder. They hide the files of the build folder.
+  file(REMOVE "${plugin_directory}/Directory.Build.props" "${plugin_directory}/Directory.Build.targets")
   set(templates_directory "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/templates")
   set(plugin_files "Plugin.props.in|${plugin_props}")
   if(NOT arg_CSPROJ)

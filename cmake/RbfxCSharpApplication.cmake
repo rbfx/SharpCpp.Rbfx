@@ -454,6 +454,8 @@ function(_rbfx_csharp_add_desktop_shim_application name)
   rbfx_csharp_msbuild_property_elements(RBFX_HEAD_PROPERTIES ${head_properties})
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Desktop.csproj.in" "${head_project}" @ONLY)
+  # Older versions wrote empty Directory.Build files to this folder. They hide the files of the build folder.
+  file(REMOVE "${head_dir}/Directory.Build.props" "${head_dir}/Directory.Build.targets")
 
   _rbfx_csharp_add_desktop_native_copy(${name})
 

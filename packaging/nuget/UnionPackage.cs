@@ -484,7 +484,9 @@ static class UnionPackage
         : "SharpCpp.Rbfx.Bindings.runtime." + rid;
     static void CreateEmptyDirectory(string path)
     {
-        if (Directory.Exists(path)) throw new InvalidOperationException($"Use an empty output directory: {path}");
+        // UseBuildRoot already wrote the settings file into the output directory.
+        if (Directory.Exists(path) && Directory.EnumerateFileSystemEntries(path).Any(entry => Path.GetFileName(entry) != "BuildOutput.Settings.props"))
+            throw new InvalidOperationException($"Use an empty output directory: {path}");
         Directory.CreateDirectory(path);
     }
     static void IsolateProjects(string path)

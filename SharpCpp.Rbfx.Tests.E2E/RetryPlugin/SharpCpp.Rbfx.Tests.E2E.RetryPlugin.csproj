@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- A managed plugin for ManagedPluginLoadFailureTests. The test project copies only this assembly to plugins/RetryPlugin/. -->
+  <!-- A managed plugin for ManagedPluginLoadFailureTests. It builds into plugins/RetryPlugin/. -->
   <PropertyGroup>
     <AssemblyName>SharpCpp.Rbfx.Tests.E2E.RetryPlugin</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
+    <!-- The test host must not find the plugin next to the test assemblies. Thus the plugin has its own folder. -->
+    <BuildOutputPartition>plugins/RetryPlugin</BuildOutputPartition>
   </PropertyGroup>
 
   <ItemGroup>

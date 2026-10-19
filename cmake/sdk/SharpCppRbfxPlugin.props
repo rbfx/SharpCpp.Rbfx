@@ -2,11 +2,10 @@
   <!-- MSBuild properties of the managed plugin project of rbfx_csharp_package_application(). The generated
        SharpCppRbfx.Plugin.props of the application imports this file. A project that the user maintains
        (the keyword CSPROJ) imports SharpCppRbfx.Plugin.props with $(SharpCppRbfxPluginProps).
-       CMake passes these MSBuild properties:
+       SharpCppRbfx.Plugin.props sets these MSBuild properties before the import:
          SharpCppRbfxIsSdk       - "true" when SharpCpp.Rbfx comes from an installed SDK, else "false".
          SharpCppRbfxManagedDir  - folder with the managed assemblies of the SDK (SDK mode only).
-         SharpCppRbfxPackageRoot - root of the SharpCpp.Rbfx source tree (source mode only).
-         RbfxPluginOutDir        - output folder of the plugin (optional). -->
+         SharpCppRbfxPackageRoot - root of the SharpCpp.Rbfx source tree (source mode only). -->
   <PropertyGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
     <!-- Source mode: SharpCpp is the sibling checkout of SharpCpp.Rbfx, as in eng/SharpCpp.Rbfx.Build.props. -->
     <SharpCppRoot Condition="'$(SharpCppRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxPackageRoot)/../SharpCpp'))</SharpCppRoot>
@@ -21,8 +20,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>12.0</LangVersion>
     <NuGetAudit>false</NuGetAudit>
-    <!-- Only this project sets OutDir. A global OutDir would also move the referenced projects, and they would build again. -->
-    <OutDir Condition="'$(RbfxPluginOutDir)' != ''">$(RbfxPluginOutDir)</OutDir>
+    <!-- A solution build removes Configuration and Platform from a reference to a project that is not in the solution.
+         The projects of SharpCpp.Rbfx keep them, so the same project would build twice with different properties into
+         the same folder. Keep them here too. -->
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
   <!-- SDK mode: reference the managed assemblies of the installed SharpCpp.Rbfx SDK. -->

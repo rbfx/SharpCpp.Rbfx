@@ -17,11 +17,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NuGetAudit>false</NuGetAudit>
-    <OutputPath>bin/$(Configuration)/</OutputPath>
-    <PublishDir>publish/$(Configuration)/</PublishDir>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-  </PropertyGroup>
+@RBFX_HEAD_PROPERTIES@  </PropertyGroup>
 
   <PropertyGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
     <!-- Source mode: SharpCpp is the sibling checkout of SharpCpp.Rbfx, as in eng/SharpCpp.Rbfx.Build.props. -->

@@ -56,6 +56,7 @@ static class UnionPackage
     // The build of a shipped assembly maps the directories of this machine to fixed names. The generated projects
     // ignore the Directory.Build.props of the repository, so each build gets the props file and the roots as arguments.
     // The roots are the output directory of the union build, the repository and the SharpCpp checkout.
+    // The output directory is the owner of the build output (eng/BuildOutput.props). MSBuild gets it as SolutionDir.
     static string[] PathMapArguments = [];
     static Layout CreateLayout(Options options)
     {
@@ -63,11 +64,19 @@ static class UnionPackage
         UseBuildRoot(layout.Output, layout.Sharp);
         return layout;
     }
-    static void UseBuildRoot(string buildRoot, string sharpRoot) => PathMapArguments =
-    [
-        "-p:RbfxPackaging=true", $"-p:CustomAfterMicrosoftCommonProps={DeterministicProps}",
-        $"-p:SharpCppBuildRoot={buildRoot}", $"-p:SharpCppRbfxRoot={Repo}", $"-p:SharpCppRoot={sharpRoot}"
-    ];
+    static void UseBuildRoot(string buildRoot, string sharpRoot)
+    {
+        // The settings file of the owner sets the output root to the owner folder, as in package.sh.
+        Directory.CreateDirectory(buildRoot);
+        File.WriteAllText(Path.Combine(buildRoot, "BuildOutput.Settings.props"),
+            "<Project>\n  <!-- Written by UnionPackage.cs. The build root is the output root. -->\n  <PropertyGroup>\n" +
+            "    <BuildOutputRoot>$(MSBuildThisFileDirectory)</BuildOutputRoot>\n  </PropertyGroup>\n</Project>\n");
+        PathMapArguments =
+        [
+            "-p:RbfxPackaging=true", $"-p:CustomAfterMicrosoftCommonProps={DeterministicProps}",
+            $"-p:SolutionDir={Path.TrimEndingDirectorySeparator(buildRoot)}/", $"-p:SharpCppRbfxRoot={Repo}", $"-p:SharpCppRoot={sharpRoot}"
+        ];
+    }
 
     // All phases use the same paths. A CI job continues from the output directory of an earlier job,
     // so the generated projects and the build outputs are the same as in one create run.

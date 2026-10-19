@@ -35,6 +35,11 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/SharpCppRbfxTargets.cmake")
 
+# The output folders of the consumer. The native files, the executables and the managed files of a configuration share
+# the folder <root>/<Config>. The consumer build folder owns its .NET build output (RbfxCSharpDotNet.cmake).
+set(SHARPCPP_NATIVE_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/bin" CACHE PATH "Root directory for native artifacts.")
+set(SHARPCPP_MANAGED_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/bin" CACHE PATH "Root directory for managed artifacts.")
+
 # The functions of RbfxCSharpDotNet.cmake run "dotnet".
 find_program(DOTNET_EXECUTABLE dotnet)
 include("${_sharpcpp_rbfx_module_dir}/RbfxCSharpDotNet.cmake")
@@ -90,10 +95,8 @@ if(@SHARPCPP_RBFX_SDK_HAS_USERCODE@)
       "${RBFX_URHO3D_TARGET}" "${RBFX_SDK_FLAGS_FILE}" "${RBFX_NATIVE_LIBRARY_TYPE}" "${RBFX_SDK_PARSE_LANGUAGE_STANDARD}")
     set_property(GLOBAL PROPERTY SHARPCPP_RBFX_SDK_FLAGS_WRITTEN TRUE)
   endif()
-  # The output folders of the consumer.
+  # The folder of the generated sources of the consumer.
   set(SHARPCPP_GENERATED_ROOT "${CMAKE_BINARY_DIR}/generated" CACHE PATH "Root directory for generated binding sources.")
-  set(SHARPCPP_NATIVE_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/bin" CACHE PATH "Root directory for native artifacts.")
-  set(SHARPCPP_MANAGED_OUTPUT_ROOT "${CMAKE_BINARY_DIR}/bin" CACHE PATH "Root directory for managed artifacts.")
 
   # The header-only marshaller support of SharpCpp.
   if(NOT TARGET SharpCpp::NativeSupport)

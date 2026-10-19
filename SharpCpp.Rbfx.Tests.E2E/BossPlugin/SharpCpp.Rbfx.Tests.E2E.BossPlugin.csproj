@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- A managed plugin for ManagedPluginLoadFailureTests. Its type derives from a type of AttributePlugin, an assembly with its own
-       generated registry. The test project copies this assembly and the AttributePlugin assembly to plugins/BossPlugin/. -->
+       generated registry. It builds into plugins/BossPlugin/. The test project copies the AttributePlugin assembly there. -->
   <PropertyGroup>
     <AssemblyName>SharpCpp.Rbfx.Tests.E2E.BossPlugin</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
+    <!-- The test host must not find the plugin next to the test assemblies. Thus the plugin has its own folder. -->
+    <BuildOutputPartition>plugins/BossPlugin</BuildOutputPartition>
   </PropertyGroup>
 
   <ItemGroup>

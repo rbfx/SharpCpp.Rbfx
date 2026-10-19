@@ -5,7 +5,9 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <DeterministicSourcePaths>true</DeterministicSourcePaths>
     <!-- GetFullPath gives each root the separators of the platform, so a root from a bash script maps on Windows too. -->
+    <!-- A project without the props of the repository (a generated project of UnionPackage.cs) uses the owner folder, SolutionDir. -->
     <RbfxFullBuildRoot Condition="'$(SharpCppBuildRoot)' != ''">$([System.IO.Path]::GetFullPath('$(SharpCppBuildRoot)'))</RbfxFullBuildRoot>
+    <RbfxFullBuildRoot Condition="'$(SharpCppBuildRoot)' == '' and '$(SolutionDir)' != ''">$([System.IO.Path]::GetFullPath('$(SolutionDir)'))</RbfxFullBuildRoot>
     <RbfxFullRbfxRoot Condition="'$(SharpCppRbfxRoot)' != ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)'))</RbfxFullRbfxRoot>
     <RbfxFullSharpCppRoot Condition="'$(SharpCppRoot)' != ''">$([System.IO.Path]::GetFullPath('$(SharpCppRoot)'))</RbfxFullSharpCppRoot>
     <!-- The git root of each project maps to /_/ by itself. These entries cover the directories outside of it. -->

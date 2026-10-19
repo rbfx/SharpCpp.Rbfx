@@ -18,7 +18,8 @@
 #               That plugin registers the managed plugins of the folder ManagedPlugins next to the executable. The editor
 #               registers it again each time that the engine creates a new PluginManager (a project opens).
 #               The runtime config is SharpCpp.Rbfx.EditorHost.runtimeconfig.json in the folder of the executable.
-#               The folder of the executable is <build folder>/<name>.bin, unless CMAKE_RUNTIME_OUTPUT_DIRECTORY is set.
+#               The folder of the executable is ${SHARPCPP_MANAGED_OUTPUT_ROOT}/<configuration>
+#               (${CMAKE_BINARY_DIR}/bin/<configuration>), as for rbfx_csharp_add_launcher.
 # PLUGINS       Targets of the native engine plugins that the editor links. See rbfx_csharp_add_launcher.
 # LINK_LIBRARIES Other libraries that the editor links with (PRIVATE). EditorLibrary is always linked.
 # CONSOLE       Windows only. Build a console program.
@@ -31,7 +32,7 @@
 #   EditorData=<path to the SDK>/bin/EditorData
 # The function does not write this file.
 #
-# The function builds SharpCpp.Rbfx.EditorHost.dll and its runtimeconfig.json with dotnet, into the folder of the
+# The function builds SharpCpp.Rbfx.EditorHost.dll and its runtimeconfig.json with dotnet into the folder of the
 # executable, before the executable links (the target <name>.Plugin).
 #
 # The function defines SHARPCPP_RBFX_EDITOR_NAME (the string <name>) and SHARPCPP_RBFX_EDITOR_HOST_NAME (the name of
@@ -91,11 +92,6 @@ function(rbfx_csharp_add_editor name)
   if(arg_CONSOLE)
     list(APPEND launcher_options CONSOLE)
   endif()
-  # The bootstrap plugin builds into the folder of the executable, with the managed assemblies that it references. So the
-  # folder of the executable is its own folder, and not the folder of the build.
-  if(NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${name}.bin")
-  endif()
   rbfx_csharp_add_launcher(${name}
     SOURCES ${arg_SOURCES}
     PLUGINS ${arg_PLUGINS}
@@ -112,24 +108,15 @@ endfunction()
 
 # Internal. Gives the executable target <name> the .NET hosting of the editor: the compile definitions, the include
 # folder of RbfxCSharpEditorHost.h, the bootstrap plugin SharpCpp.Rbfx.EditorHost in the folder of the executable, and the
-# copies of the native libraries. The target links SharpCpp::RbfxHost (rbfx_csharp_add_launcher does it already).
+# copies of the native libraries of an installed SDK. The target links SharpCpp::RbfxHost (rbfx_csharp_add_launcher does it already).
 function(_rbfx_csharp_editor_host_setup name)
   target_compile_definitions(${name} PRIVATE SHARPCPP_RBFX_EDITOR_NAME="${name}" SHARPCPP_RBFX_EDITOR_HOST_NAME="SharpCpp.Rbfx.EditorHost")
   target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/launcher")
   target_link_libraries(${name} PRIVATE SharpCpp::RbfxHost)
 
-  # The bootstrap plugin builds into the folder of the executable. The folder must be known at configure time. For a
-  # target that rbfx_csharp_add_launcher made, this is already so. For another target, use the property, else the binary
-  # folder of the target. A multi-config generator adds a folder for each configuration, so the folder has the
-  # configuration in it, as in rbfx_csharp_add_launcher.
-  get_target_property(output_dir ${name} RUNTIME_OUTPUT_DIRECTORY)
-  if(NOT output_dir)
-    get_target_property(output_dir ${name} BINARY_DIR)
-  endif()
-  get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-  if(is_multi_config AND NOT output_dir MATCHES "\\$<")
-    set(output_dir "${output_dir}/$<CONFIG>")
-  endif()
+  # The dotnet build writes the bootstrap plugin into the shared output folder, so the executable goes there too
+  # (as in rbfx_csharp_add_launcher).
+  set(output_dir "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>")
   set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Urho3D must be a startup dependency of the executable (see rbfx_csharp_add_launcher).
@@ -151,7 +138,6 @@ function(_rbfx_csharp_editor_host_setup name)
     rbfx_csharp_add_plugin(SharpCpp.Rbfx.EditorHost CSHARP_DIR "${host_sources}")
   endif()
   get_target_property(host_project SharpCpp.Rbfx.EditorHost SHARPCPP_RBFX_PLUGIN_PROJECT)
-  get_target_property(host_properties SharpCpp.Rbfx.EditorHost SHARPCPP_RBFX_PLUGIN_MSBUILD_PROPERTIES)
   set(host_dependencies)
   if(TARGET sharpcpp-rbfx-runtime)
     list(APPEND host_dependencies sharpcpp-rbfx-runtime)
@@ -159,13 +145,11 @@ function(_rbfx_csharp_editor_host_setup name)
   rbfx_csharp_add_dotnet_project(
     ${name}.Plugin
     PROJECT "${host_project}"
-    OUTPUT_DIRECTORY "${output_dir}"
     BYPRODUCTS
       "${output_dir}/SharpCpp.Rbfx.EditorHost.dll"
       "${output_dir}/SharpCpp.Rbfx.EditorHost.runtimeconfig.json"
-    DEPENDS ${host_dependencies}
-    PROPERTIES ${host_properties})
-  # All editors build the same generated project, with the same obj folder. Two dotnet builds of it must not run together,
+    DEPENDS ${host_dependencies})
+  # All editors build the same generated project into the same folders. Two dotnet builds of it must not run together,
   # so each build waits for the build of the previous editor.
   get_property(previous_plugin_build GLOBAL PROPERTY SHARPCPP_RBFX_EDITOR_LAST_PLUGIN_BUILD)
   if(previous_plugin_build)
@@ -174,18 +158,23 @@ function(_rbfx_csharp_editor_host_setup name)
   set_property(GLOBAL PROPERTY SHARPCPP_RBFX_EDITOR_LAST_PLUGIN_BUILD ${name}.Plugin)
   add_dependencies(${name} ${name}.Plugin)
 
-  # The C# bindings load the native bindings from the folder of the executable.
+  # The C# bindings load the native bindings from the folder of the executable. A built library is in that folder
+  # already. The command copies the library of an installed SDK.
   if(TARGET SharpCpp::RbfxNative)
     add_dependencies(${name} SharpCpp::RbfxNative)
-    add_custom_command(
-      TARGET ${name} POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SharpCpp::RbfxNative>" "$<TARGET_FILE_DIR:${name}>"
-      VERBATIM)
+    get_target_property(native_is_imported SharpCpp::RbfxNative IMPORTED)
+    if(native_is_imported)
+      add_custom_command(
+        TARGET ${name} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SharpCpp::RbfxNative>" "$<TARGET_FILE_DIR:${name}>"
+        VERBATIM)
+    endif()
   endif()
   if(WIN32)
     # The loader looks for the DLLs in the folder of the executable.
     get_target_property(host_type SharpCpp::RbfxHost TYPE)
-    if(host_type STREQUAL "SHARED_LIBRARY")
+    get_target_property(host_is_imported SharpCpp::RbfxHost IMPORTED)
+    if(host_type STREQUAL "SHARED_LIBRARY" AND host_is_imported)
       add_custom_command(
         TARGET ${name} POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SharpCpp::RbfxHost>" "$<TARGET_FILE_DIR:${name}>"
@@ -205,17 +194,17 @@ endfunction()
 # the folder cmake/launcher to the include folders of the target. The sources of the editor include
 # "RbfxCSharpEditorHost.h" and use the class Urho3D::RbfxEditorDotNetHost (see that header): Start before
 # EditorApplication::Start, OnEditorStarted after it, and Stop after EditorApplication::Stop. As in
-# rbfx_csharp_add_editor, the function builds SharpCpp.Rbfx.EditorHost.dll and its runtimeconfig.json into the folder of
-# the executable (RUNTIME_OUTPUT_DIRECTORY of the target, else the binary folder, with the configuration folder for a
-# multi-config generator) before the executable links, and copies SharpCpp::RbfxNative (and on Windows the host library
-# and nethost.dll) next to the executable. All editors share the target SharpCpp.Rbfx.EditorHost.
+# rbfx_csharp_add_editor, the function sets the folder of the executable to ${SHARPCPP_MANAGED_OUTPUT_ROOT}/<configuration>
+# and builds SharpCpp.Rbfx.EditorHost.dll and its runtimeconfig.json there before the executable links. With an installed
+# SDK it copies SharpCpp::RbfxNative (and on Windows the host library and nethost.dll) next to the executable. All editors
+# share the target SharpCpp.Rbfx.EditorHost.
 # LAUNCHER <launcher> registers the managed plugin of the launcher (rbfx_csharp_package_application) in the editor.
 # The editor then shows the C# components and the other types of that plugin. The editor only registers the plugin, and
 # the project loads it. The function defines SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN (the name of the plugin), which makes
 # RbfxEditorDotNetHost register <executable folder>/<plugin>.dll. The editor target then depends on <launcher>.Plugin, and
 # the build of its bootstrap plugin runs after it. The conditions are:
 #   - The launcher is defined before the call (add its folder before the folder of the editor).
-#   - The launcher uses the hostfxr host mode, and the editor and the launcher have the same output folder.
+#   - The launcher uses the hostfxr host mode.
 #   - The plugins are shared libraries. A static plugin build has no shared App.Main library for the DllImport of the
 #     bindings, so the editor cannot use the C# plugin then.
 # Without LAUNCHER, the editor registers no plugin of the project.
@@ -253,13 +242,7 @@ function(rbfx_csharp_host_editor name)
   endif()
   _rbfx_csharp_editor_host_setup(${name})
   if(arg_LAUNCHER)
-    # The editor and the launcher must share one output folder, because the editor looks for the plugin next to its own
-    # executable. Use the same rule as _rbfx_csharp_editor_host_setup for the folder of the editor.
-    get_target_property(editor_directory ${name} RUNTIME_OUTPUT_DIRECTORY)
-    get_target_property(launcher_directory ${arg_LAUNCHER} RUNTIME_OUTPUT_DIRECTORY)
-    if(editor_directory AND launcher_directory AND NOT editor_directory STREQUAL launcher_directory)
-      message(FATAL_ERROR "rbfx_csharp_host_editor(${name}): the output folder of the editor '${editor_directory}' is not the output folder of the launcher '${launcher_directory}'.")
-    endif()
+    # The editor looks for the plugin next to its own executable. The editor and the launcher share the output folder.
     target_compile_definitions(${name} PRIVATE SHARPCPP_RBFX_EDITOR_MANAGED_PLUGIN="${launcher_plugin_name}")
     # The editor needs the managed plugin of the launcher. Two dotnet builds must not run together, so the build of the
     # bootstrap plugin of the editor waits for the build of the plugin of the launcher.

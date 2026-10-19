@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- A managed plugin without the source generator, so its assembly has no managed type registry. It tests that the registry is the only
-       path: the plugin manager refuses to register it. Its RTTI members are written by hand. The test project copies only this assembly to plugins/NoRegistryPlugin/. -->
+       path: the plugin manager refuses to register it. Its RTTI members are written by hand. It builds into plugins/NoRegistryPlugin/. -->
   <PropertyGroup>
     <AssemblyName>SharpCpp.Rbfx.Tests.E2E.NoRegistryPlugin</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
+    <!-- The test host must not find the plugin next to the test assemblies. Thus the plugin has its own folder. -->
+    <BuildOutputPartition>plugins/NoRegistryPlugin</BuildOutputPartition>
     <!-- No generator on purpose: the repository rule that adds the generators and the check for a missing generator skip this project. -->
     <SharpCppRbfxSkipGeneratorCheck>true</SharpCppRbfxSkipGeneratorCheck>
   </PropertyGroup>

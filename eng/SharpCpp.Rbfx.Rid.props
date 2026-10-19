@@ -1,0 +1,16 @@
+<Project>
+  <!-- The host RID and the target RID. BuildOutput.Settings.props and SharpCpp.Rbfx.Build.props import this file.
+       The second import has a condition on RbfxRidPropsImported, because MSBuild warns about a second import (MSB4011). -->
+  <PropertyGroup>
+    <RbfxRidPropsImported>true</RbfxRidPropsImported>
+    <!-- RbfxTargetRid is the one axis of the layout. It stays unset for the host build; RbfxIsCrossRid is true only when it differs from the host RID. -->
+    <RbfxHostArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant())</RbfxHostArch>
+    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Linux`))">linux-$(RbfxHostArch)</RbfxHostRid>
+    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`OSX`))">osx-$(RbfxHostArch)</RbfxHostRid>
+    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Windows`))">win-$(RbfxHostArch)</RbfxHostRid>
+    <!-- A global RuntimeIdentifier (-p:RuntimeIdentifier=<rid>) selects the target RID when RbfxTargetRid is empty. -->
+    <RbfxTargetRid Condition="'$(RbfxTargetRid)' == '' and '$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RbfxTargetRid>
+    <RbfxIsCrossRid Condition="'$(RbfxTargetRid)' != '' and '$(RbfxTargetRid)' != '$(RbfxHostRid)'">true</RbfxIsCrossRid>
+    <RbfxIsCrossRid Condition="'$(RbfxIsCrossRid)' == ''">false</RbfxIsCrossRid>
+  </PropertyGroup>
+</Project>

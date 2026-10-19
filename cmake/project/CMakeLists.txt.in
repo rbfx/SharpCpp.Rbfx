@@ -4,10 +4,11 @@ project(@NAME@)
 # C++17 is required for this project.
 set(CMAKE_CXX_STANDARD 17)
 
-# Set the output folders.
+# Set the output folders. The native files, the executables and the managed files of a configuration share
+# bin/<configuration>. The SharpCpp.Rbfx SDK builds the managed files there too.
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
 
 # The engine SDK and the SharpCpp.Rbfx SDK must be on CMAKE_PREFIX_PATH. Configure with:
 #   -DCMAKE_PREFIX_PATH="/path/to/rbfx/sdk;/path/to/SharpCppRbfx"
@@ -16,7 +17,7 @@ find_package(Urho3D REQUIRED)
 find_package(SharpCppRbfx CONFIG REQUIRED)
 
 # The engine reads ResourceRoot.ini from the first folder above the executable that has it. The file in the
-# project folder maps Data and Cache. The build folder gets a copy (build/ResourceRoot.ini, above build/bin).
+# project folder maps Data and Cache. The build folder gets a copy (build/ResourceRoot.ini, above build/bin/<configuration>).
 # The copy has the paths of the build folder and the CoreData folder of the engine SDK.
 rbfx_csharp_find_core_data(CORE_DATA_DIR)
 if(CORE_DATA_DIR)

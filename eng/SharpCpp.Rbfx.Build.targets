@@ -71,13 +71,11 @@
        The platform items need the RbfxNativeRuntimeFile items above, so import after them. -->
   <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.NativeItems.targets" />
 
-  <!-- Copies the native runtime of an application to its output folder. Only the desktop kind needs
-       it. It applies to an application with the output type Exe or WinExe (the UWP app is WinExe). The other
-       kinds go to the platform items of SharpCpp.Rbfx.NativeItems.targets. Libraries do not copy, so the files do not flow through the project references and the application owns them.
-       Source mode: the application also gets the bindings library and the engine library. Package mode
-       (RbfxBindingsPackageVersion is set): only the user libraries are copied here. The engine natives
-       come from the runtime package. -->
-  <Target Name="RbfxCopyNativeRuntimeToOutput"
+  <!-- Checks the native runtime of a desktop application (Exe or WinExe). The native files and the application share
+       the folder bin/<Config>/ of the build root, so no copy is necessary. Source mode: the application also needs the
+       bindings library and the engine library. Package mode (RbfxBindingsPackageVersion is set): the engine natives come
+       from the runtime package. -->
+  <Target Name="RbfxCheckNativeRuntime"
           BeforeTargets="GetCopyToOutputDirectoryItems"
           Condition="('$(OutputType)' == 'Exe' or '$(OutputType)' == 'WinExe') and '@(RbfxNativeRuntimeFile->WithMetadataValue('RbfxNativeKind', 'desktop'))' != ''">
     <ItemGroup>
@@ -89,11 +87,6 @@
     </ItemGroup>
     <Error Condition="!Exists('%(_RbfxDesktopNative.FullPath)')"
            Text="The native library '%(_RbfxDesktopNative.FullPath)' is missing. Build the native code first with CMAKE_PREFIX_PATH set to an installed rbfx SDK. The native library of a RbfxUserCodeReference needs the CMake option RBFX_BUILD_USERCODE (ON by default)." />
-    <ItemGroup>
-      <AllItemsFullPathWithTargetPath Include="@(_RbfxDesktopNative->'%(FullPath)')"
-                                      TargetPath="%(Filename)%(Extension)"
-                                      CopyToOutputDirectory="PreserveNewest" />
-    </ItemGroup>
   </Target>
 
   <!-- The target RID as MSBuild properties for a referenced project. Empty for the host build. -->
@@ -198,21 +191,5 @@
            Text="Generation did not produce '$(RbfxConsumedGeneratedStamp)'." />
     <Error Condition="'$(RbfxConsumedNativeLibraryPath)' != '' and !Exists('$(RbfxConsumedNativeLibraryPath)')"
            Text="The native build did not produce '$(RbfxConsumedNativeLibraryPath)'." />
-  </Target>
-
-  <Target Name="RbfxStageNativeTestRuntime"
-          AfterTargets="Build"
-          Condition="'$(RbfxIsTestProject)' == 'true'">
-    <ItemGroup>
-      <RbfxNativeTestRuntime Include="$(SharpCppOutputDir)/*.so;$(SharpCppOutputDir)/*.so.*"
-                             Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
-      <RbfxNativeTestRuntime Include="$(SharpCppOutputDir)/*.dylib"
-                             Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
-      <RbfxNativeTestRuntime Include="$(SharpCppOutputDir)/*.dll"
-                             Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-    </ItemGroup>
-    <Copy SourceFiles="@(RbfxNativeTestRuntime)"
-          DestinationFolder="$(OutputPath)"
-          SkipUnchangedFiles="true" />
   </Target>
 </Project>

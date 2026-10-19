@@ -42,7 +42,7 @@
     <RbfxUserCodeReference Include="Example.UserCode" />
   </ItemGroup>
 
-  <!-- Each test plugin is a separate assembly. Only its dll goes to plugins/<name>/, away from the test assemblies. -->
+  <!-- Each test plugin is a separate assembly in plugins/<name>/, away from the test assemblies. -->
   <ItemGroup>
     <Compile Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**;ChiefPlugin/**" />
     <None Remove="TestPlugin/**;AttributePlugin/**;RetryPlugin/**;RegistryPlugin/**;NoRegistryPlugin/**;BossPlugin/**;ChiefPlugin/**" />
@@ -69,56 +69,13 @@
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <Target Name="CopyE2ETestPlugin" AfterTargets="Build">
-    <ItemGroup>
-      <_E2ETestPluginFile Include="@(E2ETestPluginAssembly);@(E2ETestPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_E2ETestPluginFile)"
-          Condition="Exists('%(_E2ETestPluginFile.FullPath)')"
-          DestinationFolder="$(OutDir)plugins/TestPlugin/"
-          SkipUnchangedFiles="true" />
-    <ItemGroup>
-      <_E2EAttributePluginFile Include="@(E2EAttributePluginAssembly);@(E2EAttributePluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_E2EAttributePluginFile)"
-          Condition="Exists('%(_E2EAttributePluginFile.FullPath)')"
-          DestinationFolder="$(OutDir)plugins/AttributePlugin/"
-          SkipUnchangedFiles="true" />
-    <ItemGroup>
-      <_E2ERetryPluginFile Include="@(E2ERetryPluginAssembly);@(E2ERetryPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_E2ERetryPluginFile)"
-          Condition="Exists('%(_E2ERetryPluginFile.FullPath)')"
-          DestinationFolder="$(OutDir)plugins/RetryPlugin/"
-          SkipUnchangedFiles="true" />
-    <ItemGroup>
-      <_E2ERegistryPluginFile Include="@(E2ERegistryPluginAssembly);@(E2ERegistryPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_E2ERegistryPluginFile)"
-          Condition="Exists('%(_E2ERegistryPluginFile.FullPath)')"
-          DestinationFolder="$(OutDir)plugins/RegistryPlugin/"
-          SkipUnchangedFiles="true" />
-    <ItemGroup>
-      <_E2ENoRegistryPluginFile Include="@(E2ENoRegistryPluginAssembly);@(E2ENoRegistryPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_E2ENoRegistryPluginFile)"
-          Condition="Exists('%(_E2ENoRegistryPluginFile.FullPath)')"
-          DestinationFolder="$(OutDir)plugins/NoRegistryPlugin/"
-          SkipUnchangedFiles="true" />
-    <!-- The plugin directory of BossPlugin also holds the AttributePlugin assembly that BossPlugin references. -->
-    <ItemGroup>
-      <_E2EBossPluginFile Include="@(E2EBossPluginAssembly);@(E2EBossPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb');@(E2EBossPluginAssembly->'%(RootDir)%(Directory)SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll')" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_E2EBossPluginFile)"
-          Condition="Exists('%(_E2EBossPluginFile.FullPath)')"
+  <!-- Each test plugin builds into its own partition, plugins/<name>/. A partition does not copy the assemblies of other partitions.
+       Thus this target copies the base plugin assemblies to the folders of the plugins that derive from them. -->
+  <Target Name="CopyE2ETestPluginBases" AfterTargets="Build">
+    <Copy SourceFiles="@(E2EAttributePluginAssembly)"
           DestinationFolder="$(OutDir)plugins/BossPlugin/"
           SkipUnchangedFiles="true" />
-    <!-- The plugin directory of ChiefPlugin also holds the BossPlugin and AttributePlugin assemblies. -->
-    <ItemGroup>
-      <_E2EChiefPluginFile Include="@(E2EChiefPluginAssembly);@(E2EChiefPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb');@(E2EChiefPluginAssembly->'%(RootDir)%(Directory)SharpCpp.Rbfx.Tests.E2E.BossPlugin.dll');@(E2EChiefPluginAssembly->'%(RootDir)%(Directory)SharpCpp.Rbfx.Tests.E2E.AttributePlugin.dll')" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_E2EChiefPluginFile)"
-          Condition="Exists('%(_E2EChiefPluginFile.FullPath)')"
+    <Copy SourceFiles="@(E2EAttributePluginAssembly);@(E2EBossPluginAssembly)"
           DestinationFolder="$(OutDir)plugins/ChiefPlugin/"
           SkipUnchangedFiles="true" />
   </Target>

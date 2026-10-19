@@ -96,8 +96,8 @@ set_property(GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_INPUT_VARIABLES
   RBFX_SDK_INPUT_HEADERS RBFX_NATIVE_LIBRARY_TYPE RBFX_RUNTIME_RPATH RBFX_URHO3D_TARGET
   SHARPCPP_RBFX_USERCODE_GENERATOR_DLL)
 # Optional variables. They can be undefined or empty (the installed SDK does not set them).
-# RBFX_CSHARP_MSBUILD_PROPERTIES is a list of Name=Value items. The consumer build of the source tree
-# sets it, so that all the dotnet builds write below the same managed output root.
+# RBFX_CSHARP_MSBUILD_PROPERTIES is a list of Name=Value items. The written Directory.Build.props sets them. The installed
+# SDK sets SharpCppRbfxIsSdk and SharpCppRbfxManagedDir.
 set_property(GLOBAL PROPERTY SHARPCPP_RBFX_USERCODE_OPTIONAL_VARIABLES
   RBFX_CSHARP_BINDINGS_PROJECTS RBFX_CSHARP_BINDINGS_PACKAGE_VERSION
   RBFX_CSHARP_MSBUILD_PROPS RBFX_CSHARP_MSBUILD_TARGETS RBFX_CSHARP_MSBUILD_PROPERTIES
@@ -279,10 +279,16 @@ function(rbfx_csharp_add_bindings target)
     list(JOIN references "\n" RBFX_CSHARP_MANAGED_REFERENCES)
   endif()
   # MSBuild properties that the written Directory.Build.props sets before it imports the common props.
+  # A CMake-driven build owns the build output (RbfxCSharpDotNet.cmake). The common props then use the build folder as
+  # the owner, also in a build of the project alone. The MSBuild-driven build keeps the owner of the repository.
+  set(root_properties ${RBFX_CSHARP_MSBUILD_PROPERTIES})
+  if(RBFX_CSHARP_BUILD_MANAGED)
+    list(APPEND root_properties "BuildOutputOwnerDir=${CMAKE_BINARY_DIR}/")
+  endif()
   set(RBFX_CSHARP_MSBUILD_ROOT_PROPERTIES "")
-  if(RBFX_CSHARP_MSBUILD_PROPERTIES)
+  if(root_properties)
     set(RBFX_CSHARP_MSBUILD_ROOT_PROPERTIES "  <PropertyGroup>\n")
-    foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES)
+    foreach(property IN LISTS root_properties)
       if(property MATCHES "^([^=]+)=(.*)$")
         string(APPEND RBFX_CSHARP_MSBUILD_ROOT_PROPERTIES "    <${CMAKE_MATCH_1}>${CMAKE_MATCH_2}</${CMAKE_MATCH_1}>\n")
       endif()

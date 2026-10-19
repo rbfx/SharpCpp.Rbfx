@@ -5,7 +5,9 @@
        (rbfx_csharp_add_dotnet_project in cmake/RbfxCSharpDotNet.cmake). The file does nothing in any other build: all
        targets need the property RbfxDepfile. The MSBuild-driven build (SharpCpp.Rbfx.slnx) does not set it.
 
-       Properties from CMake:
+       Properties from CMake. CMake sets them as environment variables, not as global properties. Each command of CMake
+       has different values. A global property would make a different instance of each referenced project for each
+       command, and the commands would build a shared project with different global properties into the same folder.
          RbfxDepfile              Path of the depfile to write.
          RbfxDepfileStamp         The output file of the CMake command. The depfile names it as the target of the rule.
          RbfxDepfileProject       The project that CMake builds. Only this project writes the depfile. The referenced
@@ -17,8 +19,8 @@
        Input of a project (what changes the result of its build):
          - the source items (Compile, EmbeddedResource, AdditionalFiles, Analyzer, content that is copied),
          - the reference assemblies (ReferencePath) and the native runtime files. The assemblies of the referenced projects
-           and the files below the managed output root (SharpCppManagedOutputRoot) and the plugin output folder
-           (RbfxPluginOutDir) are not inputs: they are outputs of other commands of CMake,
+           and the files below the managed output root (SharpCppManagedOutputRoot) are not inputs: they are outputs of
+           other commands of CMake,
          - the project file, the imported MSBuild files, the files of NuGet restore and the SDK of MSBuild,
          - the directories of the source files, the project folder and all directories below them. The time stamp of a
            directory changes when a file is added or deleted. A directory below BaseOutputPath, BaseIntermediateOutputPath,
@@ -117,18 +119,14 @@
     </ItemGroup>
 
     <!-- The reference assemblies. The assembly of a referenced project is an output of that project: the build of the
-         referenced project reports its inputs (see the call of MSBuild below). The managed output root and the output
-         folder of the plugin hold the outputs of the commands of CMake (BYPRODUCTS), and a file cannot be an input and an
-         output of the rules. The assemblies of the installed SDK and of NuGet stay. -->
+         referenced project reports its inputs (see the call of MSBuild below). The managed output root holds the
+         outputs of the commands of CMake (BYPRODUCTS), and a file cannot be an input and an output of the rules. The assemblies of the installed SDK and of NuGet stay. -->
     <ItemGroup>
       <_RbfxReference Include="@(ReferencePath)" />
       <_RbfxReference Remove="@(ReferencePath->WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
     </ItemGroup>
     <ItemGroup Condition="'$(SharpCppManagedOutputRoot)' != ''">
       <_RbfxOutputRoot Include="$([MSBuild]::NormalizeDirectory('$(SharpCppManagedOutputRoot)'))" />
-    </ItemGroup>
-    <ItemGroup Condition="'$(RbfxPluginOutDir)' != ''">
-      <_RbfxOutputRoot Include="$([MSBuild]::NormalizeDirectory('$(RbfxPluginOutDir)'))" />
     </ItemGroup>
     <ItemGroup>
       <_RbfxOutputRoot>

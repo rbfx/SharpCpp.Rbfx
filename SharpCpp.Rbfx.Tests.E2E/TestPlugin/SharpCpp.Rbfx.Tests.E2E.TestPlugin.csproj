@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- A managed plugin for ManagedPluginLoadingTests. The test project copies only this assembly to plugins/TestPlugin/. -->
+  <!-- A managed plugin for ManagedPluginLoadingTests. It builds into plugins/TestPlugin/. -->
   <PropertyGroup>
     <AssemblyName>SharpCpp.Rbfx.Tests.E2E.TestPlugin</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
+    <!-- The test host must not find the plugin next to the test assemblies. Thus the plugin has its own folder. -->
+    <BuildOutputPartition>plugins/TestPlugin</BuildOutputPartition>
   </PropertyGroup>
 
   <ItemGroup>

@@ -64,25 +64,19 @@ if(NOT EXISTS "${SHARPCPP_ROOT}/include/SharpCpp/Marshaller.hpp")
   message(FATAL_ERROR "SharpCpp was not found at '${SHARPCPP_ROOT}'. Set SHARPCPP_ROOT to a SharpCpp checkout.")
 endif()
 
-# The top-level developer build writes to <repo>/build/bin. A consumer tree (add_subdirectory or the
-# find_package shim) writes below its own build directory. A value from the user always wins.
-if(PROJECT_IS_TOP_LEVEL)
-  set(_rbfx_default_native_output_root "${CMAKE_CURRENT_SOURCE_DIR}/build/bin")
-  set(_rbfx_default_managed_output_root "${CMAKE_CURRENT_SOURCE_DIR}/build/bin")
-else()
-  set(_rbfx_default_native_output_root "${CMAKE_BINARY_DIR}/SharpCppRbfx/bin")
-  set(_rbfx_default_managed_output_root "${CMAKE_BINARY_DIR}/SharpCppRbfx/managed")
-endif()
+# The native files, the executables and the managed files of a configuration share one folder: <root>/<Config>.
+# A CMake-driven build owns its .NET build output, so the root is ${CMAKE_BINARY_DIR}/bin (RbfxCSharpDotNet.cmake).
+# The MSBuild-driven native tree gets the root of the repository build from MSBuild (BuildNative.cmake).
 set(
   SHARPCPP_NATIVE_OUTPUT_ROOT
-  "${_rbfx_default_native_output_root}"
+  "${CMAKE_BINARY_DIR}/bin"
   CACHE PATH
   "Root directory for native artifacts.")
 set(
   SHARPCPP_MANAGED_OUTPUT_ROOT
-  "${_rbfx_default_managed_output_root}"
+  "${CMAKE_BINARY_DIR}/bin"
   CACHE PATH
-  "Root directory containing the prebuilt managed generators.")
+  "Root directory for managed artifacts.")
 set(
   SHARPCPP_GENERATED_ROOT
   "${CMAKE_BINARY_DIR}/generated"
@@ -359,27 +353,13 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpData.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpApplication.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RbfxCSharpProject.cmake")
 
-# A consumer tree (add_subdirectory or the find_package shim) needs only CMAKE_PREFIX_PATH. This build
-# runs "dotnet build" for the generators into SHARPCPP_MANAGED_OUTPUT_ROOT. The top-level developer build
-# expects built generators (dotnet build SharpCpp.Rbfx.slnx). MSBuild sets RBFX_CSHARP_BUILD_MANAGED=OFF.
-if(PROJECT_IS_TOP_LEVEL)
-  set(_rbfx_build_generators_default OFF)
-else()
-  set(_rbfx_build_generators_default ON)
-endif()
+# A CMake-driven build runs "dotnet build" for the generators into SHARPCPP_MANAGED_OUTPUT_ROOT. A consumer tree
+# (add_subdirectory or the find_package shim) then needs only CMAKE_PREFIX_PATH. MSBuild sets RBFX_CSHARP_BUILD_MANAGED=OFF
+# and builds the generators itself.
 option(
   RBFX_CSHARP_BUILD_GENERATORS
   "Build the managed generators with dotnet from this CMake build. It needs RBFX_CSHARP_BUILD_MANAGED."
-  ${_rbfx_build_generators_default})
-# A consumer tree: every dotnet build that CMake starts or writes gets the same output root and the same
-# intermediate root, so that SHARPCPP_MANAGED_OUTPUT_ROOT holds all the managed assemblies.
-# The MSBuild-driven and the top-level developer builds keep the root of eng/SharpCpp.Rbfx.Build.props.
-if(NOT PROJECT_IS_TOP_LEVEL)
-  set(RBFX_CSHARP_MSBUILD_PROPERTIES
-    "SharpCppManagedOutputRoot=${SHARPCPP_MANAGED_OUTPUT_ROOT}"
-    "SharpCppNativeOutputRoot=${SHARPCPP_NATIVE_OUTPUT_ROOT}"
-    "SharpCppBuildRoot=${CMAKE_BINARY_DIR}/SharpCppRbfx/dotnet")
-endif()
+  ON)
 if(RBFX_CSHARP_BUILD_GENERATORS AND RBFX_CSHARP_BUILD_MANAGED)
   # The projects share the referenced projects. Run them one after the other.
   rbfx_csharp_add_dotnet_project(
@@ -558,8 +538,13 @@ if(RBFX_INSTALL_SDK)
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk"
     DESTINATION "${_rbfx_sdk_module_dir}")
   # The targets that write the depfile of a nested MSBuild run (rbfx_csharp_add_dotnet_project).
+  # The build output layout. The Directory.Build.props of a consumer build folder imports BuildOutput.props
+  # (rbfx_csharp_write_build_output_files).
   install(
-    FILES "${CMAKE_CURRENT_SOURCE_DIR}/eng/SharpCpp.Rbfx.Depfile.targets"
+    FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/eng/SharpCpp.Rbfx.Depfile.targets"
+      "${CMAKE_CURRENT_SOURCE_DIR}/eng/BuildOutput.props"
+      "${CMAKE_CURRENT_SOURCE_DIR}/eng/BuildOutput.targets"
     DESTINATION "${_rbfx_sdk_module_dir}/sdk")
   # The source of the default launcher (rbfx_csharp_add_launcher without SOURCES).
   install(

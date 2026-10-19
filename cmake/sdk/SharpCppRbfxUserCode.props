@@ -2,8 +2,11 @@
   <!-- MSBuild properties of the managed project that rbfx_csharp_add_bindings() writes in a consumer of the installed
        SharpCpp.Rbfx SDK. The written Directory.Build.props imports this file. It has no source tree, so it sets
        the compiler options and references the managed assemblies of the SDK.
-       The written Directory.Build.props sets this MSBuild property before it imports this file:
-         SharpCppRbfxManagedDir - folder with the managed assemblies of the SDK. -->
+       The written Directory.Build.props sets these MSBuild properties before it imports this file:
+         SharpCppRbfxManagedDir - folder with the managed assemblies of the SDK.
+         BuildOutputOwnerDir    - the CMake build folder, the owner of the build output (BuildOutput.props). -->
+  <Import Project="$(MSBuildThisFileDirectory)BuildOutput.props" />
+
   <PropertyGroup>
     <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -13,12 +16,6 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <NuGetAudit>false</NuGetAudit>
-
-    <OutputPath>$(MSBuildProjectDirectory)/bin/</OutputPath>
-    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/obj/</BaseIntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)/obj/</MSBuildProjectExtensionsPath>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
   <!-- The generated sources. RbfxConsumedGeneratedDir comes from <target>.props of the written project.

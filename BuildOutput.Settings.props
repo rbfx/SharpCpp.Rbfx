@@ -1,0 +1,10 @@
+<Project>
+  <!-- The build output settings of this repository. eng/BuildOutput.props imports this file.
+       A build for a target RID other than the host RID has its own root, because one root is for one platform.
+       The restore files of all RIDs stay below the host root (RbfxHostBuildRoot). -->
+  <Import Project="$(MSBuildThisFileDirectory)eng/SharpCpp.Rbfx.Rid.props" Condition="'$(RbfxRidPropsImported)' != 'true'" />
+  <PropertyGroup>
+    <RbfxHostBuildRoot>$(BuildOwnerDir)build/</RbfxHostBuildRoot>
+    <BuildOutputRoot Condition="'$(RbfxIsCrossRid)' == 'true'">$(BuildOwnerDir)build/cross/$(RbfxTargetRid)/</BuildOutputRoot>
+  </PropertyGroup>
+</Project>

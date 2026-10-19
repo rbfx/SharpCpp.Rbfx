@@ -1,3 +1,8 @@
 <Project>
+  <!-- A file that imports this file can set the owner first. CMake does this for its build folder. -->
+  <PropertyGroup Condition="'$(BuildOutputOwnerDir)' == ''">
+    <BuildOutputOwnerDir>$(MSBuildThisFileDirectory)</BuildOutputOwnerDir>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)eng/BuildOutput.props" />
   <Import Project="$(MSBuildThisFileDirectory)eng/SharpCpp.Rbfx.Build.props" />
 </Project>

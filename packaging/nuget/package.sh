@@ -9,6 +9,8 @@ PACKAGE_ROOT="$REPO_ROOT/build/package/nuget"
 # create_packages sets them from the RID.
 STAGE_DIR=""
 OUT_DIR=""
+# The build root of the RID. create_packages sets it. MSBuild gets it as SolutionDir (see use_build_root).
+BUILD_ROOT=""
 LOCAL_REPOSITORY_DIR="$PACKAGE_ROOT/local-repository"
 FETCH_SDK_SCRIPT="$REPO_ROOT/eng/fetch-rbfx-sdk.sh"
 SDK_OUTPUT_DIR="$REPO_ROOT/build/sdk"
@@ -396,44 +398,47 @@ native_build_dir() {
   dirname "${cache_files[0]}"
 }
 
-# True when a build made the editor executable. CMake makes the folder SharpCppRbfxEditor.bin, with a folder for each
-# configuration, at configure time, so the check tests the executable file.
+# Makes the build root the owner of the build output (eng/BuildOutput.props). MSBuild gets the owner as SolutionDir.
+# The settings file of the owner sets the output root to the owner folder, so the outputs go to <build root>/bin/<Config>.
+use_build_root() {
+  local build_root="$1"
+  mkdir -p "$build_root"
+  cat > "$build_root/BuildOutput.Settings.props" <<'EOF'
+<Project>
+  <!-- Written by package.sh. The build root is the output root. -->
+  <PropertyGroup>
+    <BuildOutputRoot>$(MSBuildThisFileDirectory)</BuildOutputRoot>
+  </PropertyGroup>
+</Project>
+EOF
+  BUILD_ROOT="$build_root"
+}
+
+# True when a build made the editor executable. The editor and its files are in the output folder of the configuration.
 editor_built() {
   local configuration="$1"
   local build_root="$2"
-  local native_dir editor_dir
-  native_dir="$(native_build_dir "$build_root" 2>/dev/null)" || return 1
-  for editor_dir in "$native_dir/SharpCppRbfxEditor.bin/$configuration" "$native_dir/SharpCppRbfxEditor.bin"; do
-    if [ -f "$editor_dir/SharpCppRbfxEditor" ] || [ -f "$editor_dir/SharpCppRbfxEditor.exe" ]; then
-      return 0
-    fi
-  done
-  return 1
+  local editor_dir="$build_root/bin/$configuration"
+  [ -f "$editor_dir/SharpCppRbfxEditor" ] || [ -f "$editor_dir/SharpCppRbfxEditor.exe" ]
 }
 
 # The native tree of the package build is a tree that MSBuild drives, so the editor target SharpCppRbfxEditor is in it and
-# its managed plugin target does nothing. This function builds the editor, and then builds the plugin project into the
-# folder of the editor. The folder is <native tree>/SharpCppRbfxEditor.bin[/Configuration].
+# its managed plugin target does nothing. This function builds the editor, and then builds the plugin project.
+# The editor and the plugin go to the output folder of the configuration, <build root>/bin/<Configuration>.
 # The arguments after the second are the MSBuild arguments of the binding build.
 build_editor() {
   local configuration="$1"
   local build_root="$2"
   shift 2
-  local native_dir editor_dir
+  local native_dir
   native_dir="$(native_build_dir "$build_root")"
   cmake --build "$native_dir" --config "$configuration" --target SharpCppRbfxEditor
-  editor_dir="$native_dir/SharpCppRbfxEditor.bin"
-  # A multi-config generator adds the folder of the configuration.
-  if [ -d "$editor_dir/$configuration" ]; then
-    editor_dir="$editor_dir/$configuration"
-  fi
   "$DOTNET" build "$REPO_ROOT/SharpCpp.Rbfx.EditorHost/SharpCpp.Rbfx.EditorHost.csproj" \
     --configuration "$configuration" \
     --nologo \
     "$@" \
     -p:RbfxNativeBuildDriver=cmake \
-    -p:RbfxNativeBuildDir="$native_dir" \
-    -p:OutDir="$editor_dir/"
+    -p:RbfxNativeBuildDir="$native_dir"
 }
 
 # Copies the editor folder and the native runtime files that its executable loads into the stage folder of the editor package.
@@ -443,12 +448,7 @@ stage_editor() {
   local rid="$1"
   local configuration="$2"
   local build_root="$3"
-  local native_dir editor_dir editor_stage="$STAGE_DIR/editor/$rid"
-  native_dir="$(native_build_dir "$build_root")"
-  editor_dir="$native_dir/SharpCppRbfxEditor.bin"
-  if [ -d "$editor_dir/$configuration" ]; then
-    editor_dir="$editor_dir/$configuration"
-  fi
+  local editor_dir="$build_root/bin/$configuration" editor_stage="$STAGE_DIR/editor/$rid"
   case "$rid" in
     win-*) require_file "$editor_dir/SharpCppRbfxEditor.exe" ;;
     *) require_file "$editor_dir/SharpCppRbfxEditor" ;;
@@ -459,8 +459,8 @@ stage_editor() {
   rm -rf "$editor_stage"
   mkdir -p "$editor_stage"
   cp -a "$STAGE_DIR/runtime/$rid/native/." "$editor_stage/"
-  # The native engine files are the files of the runtime package. The editor folder of the build also has the files of the
-  # generators, so the list names the files that the editor loads: the executable and the closure of the plugin
+  # The native engine files are the files of the runtime package. The output folder of the build also has the files of the
+  # generators and of the other projects, so the list names the files that the editor loads: the executable and the closure of the plugin
   # SharpCpp.Rbfx.EditorHost (its deps.json file names the assemblies).
   local editor_file
   for editor_file in SharpCppRbfxEditor SharpCppRbfxEditor.exe \
@@ -515,8 +515,7 @@ pack_project() {
     -p:SharpCppNuGetStageRoot="$STAGE_DIR" \
     -p:SharpCppRuntimeIdentifier="$rid" \
     -p:RbfxRestoreRid="$rid" \
-    -p:SharpCppIntermediateRoot="$PACKAGE_ROOT/$rid/obj" \
-    -p:SharpCppManagedOutputRoot="$PACKAGE_ROOT/$rid/bin" \
+    -p:SolutionDir="$BUILD_ROOT/" \
     -p:SharpCppPackageTargetFramework="$target_framework"
 }
 
@@ -623,6 +622,7 @@ EOF
   # Each RID builds in its own tree below the package folder. Builds of different RIDs run in parallel, and
   # the CMake cache of a package build never mixes with a build of the examples.
   : "${build_root:=$PACKAGE_ROOT/$rid/build}"
+  use_build_root "$build_root"
 
   STAGE_DIR="$PACKAGE_ROOT/$rid/stage"
   OUT_DIR="$PACKAGE_ROOT/$rid/out"
@@ -671,7 +671,7 @@ EOF
       -p:CustomAfterMicrosoftCommonProps="$deterministic_props"
       -p:RbfxTargetRid="$rid"
       -p:RbfxRestoreRid="$rid"
-      -p:SharpCppBuildRoot="$build_root"
+      -p:SolutionDir="$build_root/"
       -p:RbfxNativeConfigureArguments="$native_configure_arguments"
       -p:RbfxSdkRoot="$sdk_root")
     "$DOTNET" build "$REPO_ROOT/SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" \

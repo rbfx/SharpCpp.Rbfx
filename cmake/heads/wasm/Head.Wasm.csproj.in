@@ -19,11 +19,7 @@
     <WasmBuildNative>true</WasmBuildNative>
     <PublishTrimmed>true</PublishTrimmed>
     <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
-    <OutputPath>bin/$(Configuration)/</OutputPath>
-    <PublishDir>bin/publish/</PublishDir>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-  </PropertyGroup>
+@RBFX_HEAD_PROPERTIES@  </PropertyGroup>
 
   <PropertyGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
     <!-- Source mode: SharpCpp is the sibling checkout of SharpCpp.Rbfx, as in eng/SharpCpp.Rbfx.Build.props. -->

@@ -130,7 +130,7 @@
 # - APPLICATION_ID is the bundle identifier. The default is org.rbfx.<name in lower case>.
 # - The target <name>.CSharp builds the head with dotnet and copies the app bundle to <name>.app in the runtime output
 #   folder (CMAKE_RUNTIME_OUTPUT_DIRECTORY). The head does not sign the app, unless the MSBuild properties ask for it
-#   (EnableCodeSigning, CodesignKey and CodesignProvision in PROPERTIES or RBFX_CSHARP_MSBUILD_PROPERTIES).
+#   (EnableCodeSigning, CodesignKey and CodesignProvision in PROPERTIES).
 
 function(rbfx_csharp_package_application launcher)
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "PLUGIN;DATA;APPLICATION_ID" "RESOURCES;HEAD_SOURCES;PROPERTIES")
@@ -161,15 +161,20 @@ function(rbfx_csharp_package_application launcher)
   get_target_property(plugin_project ${arg_PLUGIN} SHARPCPP_RBFX_PLUGIN_PROJECT)
   get_target_property(plugin_references ${arg_PLUGIN} SHARPCPP_RBFX_PLUGIN_REFERENCES)
   get_target_property(plugin_properties ${arg_PLUGIN} SHARPCPP_RBFX_PLUGIN_MSBUILD_PROPERTIES)
+  get_target_property(plugin_environment ${arg_PLUGIN} SHARPCPP_RBFX_PLUGIN_ENVIRONMENT)
   if(NOT plugin_name OR NOT plugin_project)
     message(FATAL_ERROR "rbfx_csharp_package_application(${launcher}): PLUGIN target '${arg_PLUGIN}' was not made by rbfx_csharp_add_plugin.")
   endif()
-  foreach(list_name IN ITEMS plugin_references plugin_properties)
+  foreach(list_name IN ITEMS plugin_references plugin_properties plugin_environment)
     if(NOT ${list_name})
       set(${list_name})
     endif()
   endforeach()
   list(APPEND plugin_properties ${arg_PROPERTIES})
+  # The head projects set the package properties and the PROPERTIES in the project file. They are then not global
+  # properties, so the referenced projects get the same global properties as in a build of the solution.
+  rbfx_csharp_package_properties(package_properties)
+  set(head_properties ${package_properties} ${plugin_properties})
   if(arg_DATA)
     if(NOT TARGET ${arg_DATA})
       message(FATAL_ERROR "rbfx_csharp_package_application(${launcher}): DATA target '${arg_DATA}' does not exist. Call rbfx_csharp_add_data first.")
@@ -291,7 +296,7 @@ function(_rbfx_csharp_add_desktop_application name)
   endforeach()
   rbfx_csharp_add_plugin_build(
     ${name}.Plugin
-    PROJECT "${plugin_project}"
+    PLUGIN ${arg_PLUGIN}
     HOST ${name}
     DEPENDS ${arg_BINDINGS_NATIVE_TARGETS} ${plugin_generate_targets}
     PROPERTIES ${plugin_properties})
@@ -307,22 +312,19 @@ endfunction()
 
 # The target <name>.Native of a desktop application. It copies the native bindings library, the host library
 # (Windows), and the shared libraries of the bindings targets and of the native plugins to the folder of the executable.
+# A target of this build writes its file into the shared output folder itself, so the step copies only imported targets.
 # It reads the variables arg_BINDINGS_NATIVE_TARGETS, arg_PLUGINS and host_mode of the caller.
 function(_rbfx_csharp_add_desktop_native_copy name)
-  # The C# bindings load the native bindings from the folder of the executable. The folder must exist
-  # before the copy.
-  set(copy_commands
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "$<TARGET_FILE:SharpCpp::RbfxNative>" "$<TARGET_FILE_DIR:${name}>")
+  set(copy_commands)
+  set(copy_targets SharpCpp::RbfxNative)
   if(WIN32)
     # The loader looks for the DLLs in the folder of the executable.
     get_target_property(host_type SharpCpp::RbfxHost TYPE)
     if(host_type STREQUAL "SHARED_LIBRARY")
-      list(APPEND copy_commands
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-          "$<TARGET_FILE:SharpCpp::RbfxHost>" "$<TARGET_FILE_DIR:${name}>")
+      list(APPEND copy_targets SharpCpp::RbfxHost)
       # Only the hostfxr host library needs nethost. host_mode is a variable of rbfx_csharp_package_application.
-      if(NOT host_mode STREQUAL "shim")
+      get_target_property(host_imported SharpCpp::RbfxHost IMPORTED)
+      if(host_imported AND NOT host_mode STREQUAL "shim")
         list(APPEND copy_commands
           COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE_DIR:SharpCpp::RbfxHost>/nethost.dll" "$<TARGET_FILE_DIR:${name}>")
@@ -342,8 +344,9 @@ string(REPLACE "|" ";" dll_files "${dll_files}")
 file(GLOB bindings_dll_files "${bindings_directory}/*.dll")
 file(MAKE_DIRECTORY "${destination_directory}")
 foreach(dll_file IN LISTS dll_files bindings_dll_files)
-  if(EXISTS "${dll_file}")
-    get_filename_component(dll_name "${dll_file}" NAME)
+  get_filename_component(dll_name "${dll_file}" NAME)
+  get_filename_component(dll_directory "${dll_file}" DIRECTORY)
+  if(EXISTS "${dll_file}" AND NOT dll_directory PATH_EQUAL destination_directory)
     file(COPY_FILE "${dll_file}" "${destination_directory}/${dll_name}" ONLY_IF_DIFFERENT)
   endif()
 endforeach()
@@ -363,15 +366,23 @@ endforeach()
     # arg_BINDINGS_NATIVE_TARGETS has native targets: the bindings library or the (shared or module) IMPLEMENTATION target of the bindings.
     if(bindings_type STREQUAL "SHARED_LIBRARY" OR bindings_type STREQUAL "MODULE_LIBRARY")
       list(APPEND bindings_libraries ${bindings})
-      list(APPEND copy_commands
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-          "$<TARGET_FILE:${bindings}>" "$<TARGET_FILE_DIR:${name}>")
+      list(APPEND copy_targets ${bindings})
     endif()
   endforeach()
+  foreach(target IN LISTS copy_targets)
+    get_target_property(target_imported ${target} IMPORTED)
+    if(target_imported)
+      list(APPEND copy_commands
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${target}>" "$<TARGET_FILE_DIR:${name}>")
+    endif()
+  endforeach()
+  if(NOT copy_commands)
+    set(copy_commands COMMAND "${CMAKE_COMMAND}" -E true)
+  endif()
   add_custom_target(
     ${name}.Native
     ${copy_commands}
-    COMMENT "Copying the native bindings library"
+    COMMENT "Copying the native libraries of imported targets"
     VERBATIM)
   add_dependencies(${name}.Native ${name} ${bindings_libraries})
   if(NOT SharpCppRbfx_IS_SDK)
@@ -384,7 +395,7 @@ endforeach()
 endfunction()
 
 # The desktop part of rbfx_csharp_package_application in shim mode. It reads the variables arg_*, plugin_name,
-# plugin_project and plugin_properties of the caller.
+# plugin_project, head_properties and plugin_environment of the caller.
 #
 # The native launcher keeps main. The head is a NativeAOT shared library <plugin_name>.Head<suffix> next to the
 # executable. It has the plugin and the bindings in it. DotNetHost::Start (Urho3D/CSharp/DotNetHost.h) gives its path
@@ -440,35 +451,23 @@ function(_rbfx_csharp_add_desktop_shim_application name)
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
   set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
+  rbfx_csharp_msbuild_property_elements(RBFX_HEAD_PROPERTIES ${head_properties})
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Desktop.csproj.in" "${head_project}" @ONLY)
-  # Empty files stop MSBuild from importing the files of a parent folder (a build folder in a repository).
-  foreach(build_file Directory.Build.props Directory.Build.targets)
-    file(CONFIGURE OUTPUT "${head_dir}/${build_file}" CONTENT "<Project />\n" @ONLY NEWLINE_STYLE UNIX)
-  endforeach()
 
   _rbfx_csharp_add_desktop_native_copy(${name})
 
   # The head build. dotnet publish compiles the head, the plugin and the bindings into one native library. NativeAOT
   # gives it the assembly name and the suffix of the platform, without the prefix lib.
-  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
+  # The publish folder comes from BuildOutput.props.
+  rbfx_csharp_msbuild_arguments(msbuild_arguments)
   set(head_file "${plugin_name}.Head${CMAKE_SHARED_LIBRARY_SUFFIX}")
-  set(published_head "${head_dir}/publish/$<CONFIG>/${head_file}")
-  set(dotnet_arguments
-    publish "${head_project}"
-    ${configuration_arguments}
-    --nologo
-    -p:RbfxNativeBuildDriver=cmake
-    "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
-    -p:UseSharedCompilation=false
-    -nodeReuse:false)
-  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES plugin_properties)
-    list(APPEND dotnet_arguments "-p:${property}")
-  endforeach()
+  set(published_head "${CMAKE_BINARY_DIR}/publish/${name}.Head/$<CONFIG>/${head_file}")
+  set(dotnet_arguments publish "${head_project}" ${msbuild_arguments})
   if(RBFX_CSHARP_BUILD_MANAGED)
     add_custom_target(
       ${name}.Head
-      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake ${plugin_environment} "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${published_head}" "$<TARGET_FILE_DIR:${name}>/${head_file}"
       WORKING_DIRECTORY "${head_dir}"
       COMMENT "Publishing the NativeAOT desktop head of ${name} with dotnet"
@@ -500,8 +499,8 @@ function(_rbfx_csharp_add_desktop_shim_application name)
 endfunction()
 
 
-# The Android part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name and
-# plugin_properties of the caller.
+# The Android part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name,
+# head_properties and plugin_environment of the caller.
 function(_rbfx_csharp_add_android_application name)
   get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
   if(is_multi_config)
@@ -650,6 +649,13 @@ function(_rbfx_csharp_add_android_application name)
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
   set(RBFX_HEAD_ITEMS "${items}")
   set(RBFX_HEAD_JAVA_LIBRARIES "${java_libraries}")
+  if(RBFX_CSHARP_ANDROID_SDK_DIR)
+    list(APPEND head_properties "AndroidSdkDirectory=${RBFX_CSHARP_ANDROID_SDK_DIR}")
+  endif()
+  if(RBFX_CSHARP_JAVA_SDK_DIR)
+    list(APPEND head_properties "JavaSdkDirectory=${RBFX_CSHARP_JAVA_SDK_DIR}")
+  endif()
+  rbfx_csharp_msbuild_property_elements(RBFX_HEAD_PROPERTIES ${head_properties})
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Android.csproj.in" "${head_dir}/generate/Head.csproj" @ONLY)
   configure_file("${template_dir}/UrhoActivity.java.in" "${head_dir}/generate/UrhoActivity.java" @ONLY)
@@ -663,33 +669,18 @@ function(_rbfx_csharp_add_android_application name)
     set(output_dir "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
 
-  # The head build. CMake defines the configuration set (rbfx_csharp_msbuild_configuration_arguments). The workload of .NET
+  # The head build. CMake defines the configuration set (rbfx_csharp_configurations). The workload of .NET
   # for Android tests Debug and Release only, so the head project maps each other configuration to Release (Head.Android.csproj.in).
-  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
-  set(apk "${head_dir}/bin/$<CONFIG>/${application_id}-Signed.apk")
-  set(dotnet_arguments
-    build "${head_project}"
-    ${configuration_arguments}
-    --nologo
-    -p:RbfxNativeBuildDriver=cmake
-    "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
-    -p:UseSharedCompilation=false
-    -nodeReuse:false)
-  if(RBFX_CSHARP_ANDROID_SDK_DIR)
-    list(APPEND dotnet_arguments "-p:AndroidSdkDirectory=${RBFX_CSHARP_ANDROID_SDK_DIR}")
-  endif()
-  if(RBFX_CSHARP_JAVA_SDK_DIR)
-    list(APPEND dotnet_arguments "-p:JavaSdkDirectory=${RBFX_CSHARP_JAVA_SDK_DIR}")
-  endif()
-  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES plugin_properties)
-    list(APPEND dotnet_arguments "-p:${property}")
-  endforeach()
+  # The APK goes into the shared output folder (BuildOutput.props).
+  rbfx_csharp_msbuild_arguments(msbuild_arguments)
+  set(apk "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/${application_id}-Signed.apk")
+  set(dotnet_arguments build "${head_project}" ${msbuild_arguments})
   if(RBFX_CSHARP_BUILD_MANAGED)
     add_custom_target(
       ${name}.Head
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${library_dir}"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${libraries} "${library_dir}/"
-      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake ${plugin_environment} "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${apk}" "${output_dir}/${name}.apk"
       BYPRODUCTS "${output_dir}/${name}.apk"
       WORKING_DIRECTORY "${head_dir}"
@@ -719,8 +710,8 @@ function(_rbfx_csharp_add_android_application name)
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
 endfunction()
 
-# The Emscripten part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name and
-# plugin_properties of the caller.
+# The Emscripten part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name,
+# head_properties and plugin_environment of the caller.
 #
 # The entry of the application: the browser has no hostfxr, so the .NET WebAssembly runtime starts first. The managed
 # side must attach before the native code calls DotNetHost::Initialize. The engine must run on the browser thread:
@@ -758,6 +749,7 @@ function(_rbfx_csharp_add_wasm_application name)
   set(RBFX_HEAD_TEMPLATE_DIR "${template_dir}")
   set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
+  rbfx_csharp_msbuild_property_elements(RBFX_HEAD_PROPERTIES ${head_properties})
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Wasm.csproj.in" "${head_project}" @ONLY)
   configure_file("${template_dir}/index.html.in" "${head_dir}/wwwroot/index.html" @ONLY)
@@ -778,24 +770,13 @@ function(_rbfx_csharp_add_wasm_application name)
 
   # The head build. The bindings of a source build must compile for browser-wasm (RbfxTargetRid, see
   # eng/SharpCpp.Rbfx.Build.props): then their import names are the file names of the static libraries.
-  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
-  set(dotnet_arguments
-    publish "${head_project}"
-    ${configuration_arguments}
-    --nologo
-    -p:RbfxNativeBuildDriver=cmake
-    "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
-    -p:RbfxTargetRid=browser-wasm
-    -p:UseSharedCompilation=false
-    -nodeReuse:false)
-  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES plugin_properties)
-    list(APPEND dotnet_arguments "-p:${property}")
-  endforeach()
+  rbfx_csharp_msbuild_arguments(msbuild_arguments)
+  set(dotnet_arguments publish "${head_project}" ${msbuild_arguments} -p:RbfxTargetRid=browser-wasm)
   if(RBFX_CSHARP_BUILD_MANAGED)
     add_custom_target(
       ${name}.Head
-      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
-      COMMAND "${CMAKE_COMMAND}" -E copy_directory "${head_dir}/bin/publish/wwwroot" "${web_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake ${plugin_environment} "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_BINARY_DIR}/publish/${name}.Head/$<CONFIG>/wwwroot" "${web_dir}"
       COMMAND "${CMAKE_COMMAND}" "-DRESOURCE_LIST=${head_dir}/resources.txt" "-DOUTPUT_DIR=${web_dir}"
         -P "${template_dir}/CopyResources.cmake"
       BYPRODUCTS "${web_dir}/index.html" "${web_dir}/resources.json"
@@ -822,8 +803,8 @@ function(_rbfx_csharp_add_wasm_application name)
   add_custom_target(${name}.CSharp ALL DEPENDS ${name}.Head)
 endfunction()
 
-# The iOS part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name and
-# plugin_properties of the caller.
+# The iOS part of rbfx_csharp_package_application. It reads the variables arg_*, plugin_name,
+# head_properties and plugin_environment of the caller.
 #
 # The entry of the application: an iOS app has one executable, and the .NET iOS SDK links it. So the runtime starts
 # first, and Program.Main of the head attaches the managed side before the native code calls DotNetHost::Initialize.
@@ -883,6 +864,7 @@ function(_rbfx_csharp_add_ios_application name)
   set(RBFX_HEAD_PLUGIN "${plugin_project}")
   set(RBFX_HEAD_PLUGIN_NAME "${plugin_name}")
   set(RBFX_HEAD_ITEMS "${items}")
+  rbfx_csharp_msbuild_property_elements(RBFX_HEAD_PROPERTIES ${head_properties})
   set(head_project "${head_dir}/${name}.Head.csproj")
   configure_file("${template_dir}/Head.Ios.csproj.in" "${head_project}" @ONLY)
 
@@ -901,24 +883,13 @@ function(_rbfx_csharp_add_ios_application name)
 
   # The head build. The bindings of a source build must compile for ios-arm64 (RbfxTargetRid, see
   # eng/SharpCpp.Rbfx.Build.props): then their import name is __Internal. The app bundle has the assembly name.
-  rbfx_csharp_msbuild_configuration_arguments(configuration_arguments)
-  set(app_bundle "${head_dir}/bin/$<CONFIG>/${name}.Head.app")
-  set(dotnet_arguments
-    build "${head_project}"
-    ${configuration_arguments}
-    --nologo
-    -p:RbfxNativeBuildDriver=cmake
-    "-p:RbfxNativeBuildDir=${CMAKE_BINARY_DIR}"
-    "-p:RbfxTargetRid=${rid}"
-    -p:UseSharedCompilation=false
-    -nodeReuse:false)
-  foreach(property IN LISTS RBFX_CSHARP_MSBUILD_PROPERTIES plugin_properties)
-    list(APPEND dotnet_arguments "-p:${property}")
-  endforeach()
+  rbfx_csharp_msbuild_arguments(msbuild_arguments)
+  set(app_bundle "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/${name}.Head.app")
+  set(dotnet_arguments build "${head_project}" ${msbuild_arguments} "-p:RbfxTargetRid=${rid}")
   if(RBFX_CSHARP_BUILD_MANAGED)
     add_custom_target(
       ${name}.Head
-      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
+      COMMAND "${CMAKE_COMMAND}" -E env --unset=TARGETNAME RbfxNativeBuildDriver=cmake ${plugin_environment} "${DOTNET_EXECUTABLE}" ${dotnet_arguments}
       COMMAND "${CMAKE_COMMAND}" -E rm -rf "${output_dir}/${name}.app"
       COMMAND "${CMAKE_COMMAND}" -E copy_directory "${app_bundle}" "${output_dir}/${name}.app"
       BYPRODUCTS "${output_dir}/${name}.app/Info.plist"

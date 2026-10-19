@@ -12,17 +12,14 @@
     <ApplicationId>@RBFX_HEAD_APPLICATION_ID@</ApplicationId>
     <ApplicationTitle>@RBFX_HEAD_NAME@</ApplicationTitle>
     <AppBundleManifest>@RBFX_HEAD_TEMPLATE_DIR@/Info.plist</AppBundleManifest>
-    <!-- The build signs the app only on request (for example -p:EnableCodeSigning=true -p:CodesignKey=...
-         in PROPERTIES or RBFX_CSHARP_MSBUILD_PROPERTIES). A device runs a signed app only. -->
+    <!-- The build signs the app only on request (for example EnableCodeSigning=true and CodesignKey=...
+         in PROPERTIES). A device runs a signed app only. -->
     <EnableCodeSigning Condition="'$(EnableCodeSigning)' == ''">false</EnableCodeSigning>
     <EnableDefaultItems>false</EnableDefaultItems>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NuGetAudit>false</NuGetAudit>
-    <OutputPath>bin/$(Configuration)/</OutputPath>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-  </PropertyGroup>
+@RBFX_HEAD_PROPERTIES@  </PropertyGroup>
 
   <PropertyGroup Condition="'$(SharpCppRbfxIsSdk)' != 'true'">
     <!-- Source mode: SharpCpp is the sibling checkout of SharpCpp.Rbfx, as in eng/SharpCpp.Rbfx.Build.props. -->

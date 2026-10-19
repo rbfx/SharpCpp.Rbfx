@@ -11,6 +11,7 @@
 # The target depends on the platform:
 # - Desktop (Linux, Windows, macOS): the executable <name>. On Windows it is a GUI program, unless CONSOLE is set. On Linux
 #   it links with --no-as-needed, so Urho3D stays a start-up dependency. Its run-time path is the folder of the executable.
+#   The folder is ${SHARPCPP_MANAGED_OUTPUT_ROOT}/<configuration> (${CMAKE_BINARY_DIR}/bin/<configuration>).
 # - Android: the shared library <name> (lib<name>.so). The Java activity loads it last and runs SDL_main from it.
 # - Emscripten: the object library <name> from SOURCES and heads/wasm/RbfxWebMain.cpp. The definition main=rbfx_application_main
 #   renames the main of URHO3D_DEFINE_APPLICATION_MAIN, because the .NET runtime defines main. The function calls
@@ -78,17 +79,9 @@ function(rbfx_csharp_add_launcher name)
       # The engine entry macro then defines main instead of WinMain.
       target_compile_definitions(${name} PRIVATE URHO3D_WIN32_CONSOLE)
     endif()
-    # The plugin goes to the folder of the executable. Multi-config generators add a folder for each
-    # configuration, so the output folder must have the configuration in it.
-    get_target_property(output_dir ${name} RUNTIME_OUTPUT_DIRECTORY)
-    if(NOT output_dir)
-      set(output_dir "${CMAKE_CURRENT_BINARY_DIR}")
-    endif()
-    get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-    if(is_multi_config AND NOT output_dir MATCHES "\\$<")
-      set(output_dir "${output_dir}/$<CONFIG>")
-    endif()
-    set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
+    # The executable, the native libraries and the managed files share one folder for each configuration
+    # (${CMAKE_BINARY_DIR}/bin/<configuration>). The dotnet builds write the plugin there.
+    set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${SHARPCPP_MANAGED_OUTPUT_ROOT}/$<CONFIG>")
     # The installed executable finds the host library and the native bindings in its own folder.
     if(APPLE)
       set_property(TARGET ${name} APPEND PROPERTY INSTALL_RPATH "@loader_path")

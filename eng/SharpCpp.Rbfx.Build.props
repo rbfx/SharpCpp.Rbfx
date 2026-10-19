@@ -1,17 +1,9 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)SharpCpp.Rbfx.Rid.props" Condition="'$(RbfxRidPropsImported)' != 'true'" />
   <PropertyGroup>
     <SharpCppRbfxRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</SharpCppRbfxRoot>
     <!-- SharpCpp is consumed as a sibling checkout; override SharpCppRoot to use another one. -->
     <SharpCppRoot Condition="'$(SharpCppRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../SharpCpp'))</SharpCppRoot>
-    <!-- RbfxTargetRid is the one axis of the layout. It stays unset for the host build; RbfxIsCrossRid is true only when it differs from the host RID. -->
-    <RbfxHostArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant())</RbfxHostArch>
-    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Linux`))">linux-$(RbfxHostArch)</RbfxHostRid>
-    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`OSX`))">osx-$(RbfxHostArch)</RbfxHostRid>
-    <RbfxHostRid Condition="'$(RbfxHostRid)' == '' and $([MSBuild]::IsOSPlatform(`Windows`))">win-$(RbfxHostArch)</RbfxHostRid>
-    <!-- A global RuntimeIdentifier (-p:RuntimeIdentifier=<rid>) selects the target RID when RbfxTargetRid is empty. -->
-    <RbfxTargetRid Condition="'$(RbfxTargetRid)' == '' and '$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RbfxTargetRid>
-    <RbfxIsCrossRid Condition="'$(RbfxTargetRid)' != '' and '$(RbfxTargetRid)' != '$(RbfxHostRid)'">true</RbfxIsCrossRid>
-    <RbfxIsCrossRid Condition="'$(RbfxIsCrossRid)' == ''">false</RbfxIsCrossRid>
 
     <!-- SDK root chain: explicit, CMAKE_PREFIX_PATH (host only), build/sdk/<target rid>, build/sdk/<host rid> (host only), legacy ../../rbfx-sdk (host only). -->
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and '$(CMAKE_PREFIX_PATH)' != '' and Exists('$(CMAKE_PREFIX_PATH)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(CMAKE_PREFIX_PATH)</RbfxSdkRoot>
@@ -19,25 +11,21 @@
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)</RbfxSdkRoot>
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/../../rbfx-sdk')">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../../rbfx-sdk'))</RbfxSdkRoot>
 
-    <!-- Same build-root rule as SharpCpp so referenced SharpCpp projects share the tree. -->
-    <RbfxBuildRootIsExplicit Condition="'$(SharpCppBuildRoot)' != ''">true</RbfxBuildRootIsExplicit>
-    <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == '' and '$(SolutionDir)' != ''">$([System.IO.Path]::GetFullPath('$(SolutionDir)/build'))</SharpCppBuildRoot>
-    <SharpCppBuildRoot Condition="'$(SharpCppBuildRoot)' == ''">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/build'))</SharpCppBuildRoot>
-    <!-- Restore files stay under the host build root. RbfxRestoreRid adds a folder for a target RID, so builds of
-         different RIDs never write the same project.assets.json. It is an explicit global property, because
-         restore of a referenced project sees only global properties. A property set in a project file does not reach it. -->
-    <RbfxHostBuildRoot>$(SharpCppBuildRoot)</RbfxHostBuildRoot>
-    <RbfxRestoreRoot>$(RbfxHostBuildRoot)/obj/restore</RbfxRestoreRoot>
-    <RbfxRestoreRoot Condition="'$(RbfxRestoreRid)' != ''">$(RbfxHostBuildRoot)/obj/restore/$(RbfxRestoreRid)</RbfxRestoreRoot>
-    <SharpCppBuildRoot Condition="'$(RbfxIsCrossRid)' == 'true' and '$(RbfxBuildRootIsExplicit)' != 'true'">$(SharpCppRbfxRoot)/build/cross/$(RbfxTargetRid)</SharpCppBuildRoot>
+    <!-- BuildOutput.props sets the build root. All outputs of this repository go below it. -->
+    <SharpCppBuildRoot>$([System.IO.Path]::GetDirectoryName('$(BuildOutputRoot)'))</SharpCppBuildRoot>
+    <!-- The restore files stay below the host root. BuildOutput.Settings.props of this repository sets it for a cross build.
+         RbfxRestoreRid adds a folder for a target RID, so builds of different RIDs never write the same project.assets.json.
+         It is an explicit global property, because the restore of a referenced project sees only global properties. -->
+    <RbfxHostBuildRoot Condition="'$(RbfxHostBuildRoot)' == ''">$(BuildOutputRoot)</RbfxHostBuildRoot>
+    <RbfxRestoreRoot>$([MSBuild]::NormalizeDirectory('$(RbfxHostBuildRoot)', 'obj', 'restore', '$(RbfxRestoreRid)'))</RbfxRestoreRoot>
     <!-- The build system that drives this one defines the configuration set (CMake passes -p:Configurations=...). The native
          libraries use the CMake configuration name, so $(Configuration) names their folder. -->
     <Configurations Condition="'$(Configurations)' == ''">Debug;Release</Configurations>
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
-    <SharpCppManagedOutputRoot Condition="'$(SharpCppManagedOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppManagedOutputRoot>
-    <SharpCppOutputDir Condition="'$(SharpCppOutputDir)' == ''">$(SharpCppManagedOutputRoot)/$(Configuration)</SharpCppOutputDir>
-    <SharpCppNativeOutputRoot Condition="'$(SharpCppNativeOutputRoot)' == ''">$(SharpCppBuildRoot)/bin</SharpCppNativeOutputRoot>
-    <SharpCppIntermediateRoot Condition="'$(SharpCppIntermediateRoot)' == ''">$(SharpCppBuildRoot)/obj/managed/$(Configuration)</SharpCppIntermediateRoot>
+    <!-- The managed and the native files of a configuration share one folder: bin/<Config>/. -->
+    <SharpCppManagedOutputRoot>$(SharpCppBuildRoot)/bin</SharpCppManagedOutputRoot>
+    <SharpCppNativeOutputRoot>$(SharpCppBuildRoot)/bin</SharpCppNativeOutputRoot>
+    <SharpCppOutputDir>$(SharpCppManagedOutputRoot)/$(Configuration)</SharpCppOutputDir>
 
     <!-- The one map from a RID to the CMake configure preset of CMakePresets.json. The RID is the target RID, or the host RID for a host build.
          An explicit RbfxNativePreset overrides the map. A RID without an entry leaves the preset empty. -->
@@ -96,13 +84,8 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <NuGetAudit>false</NuGetAudit>
 
-    <RbfxIsTestProject Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Tests.'))">true</RbfxIsTestProject>
-    <OutputPath Condition="'$(RbfxIsTestProject)' != 'true'">$(SharpCppOutputDir)/</OutputPath>
-    <OutputPath Condition="'$(RbfxIsTestProject)' == 'true'">$(SharpCppOutputDir)/SharpCpp.Tests/$(MSBuildProjectName)/</OutputPath>
-    <BaseIntermediateOutputPath>$(SharpCppIntermediateRoot)/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>$(RbfxRestoreRoot)/$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <!-- The one exception to BuildOutput.props: the restore files of all RIDs stay below the host root (see RbfxRestoreRoot). -->
+    <MSBuildProjectExtensionsPath>$(RbfxRestoreRoot)$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(SharpCppBuildRoot)/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
   </PropertyGroup>
 

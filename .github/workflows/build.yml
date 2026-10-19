@@ -162,7 +162,8 @@ jobs:
 
       # The SDK needs the managed output of the generators in the build root of the package build.
       # Build the user-code generator now. The native tree stays as it is, because a MSBuild
-      # build of the native project would configure it again.
+      # build of the native project would configure it again. The build root is the owner of the output
+      # (SolutionDir). package.sh wrote its BuildOutput.Settings.props.
       - name: Build SDK Managed Output
         if: matrix.sdk_tag != ''
         timeout-minutes: 30
@@ -183,7 +184,7 @@ jobs:
             -p:RbfxPackaging=true \
             -p:CustomAfterMicrosoftCommonProps="$paths_props" \
             -p:RbfxTargetRid='${{ matrix.rid }}' \
-            -p:SharpCppBuildRoot="$build_root"
+            -p:SolutionDir="$build_root/"
           # The SDK has the assembly that attaches the managed side to the native host.
           dotnet build SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj \
             --configuration Release \
@@ -191,7 +192,7 @@ jobs:
             -p:RbfxPackaging=true \
             -p:CustomAfterMicrosoftCommonProps="$paths_props" \
             -p:RbfxTargetRid='${{ matrix.rid }}' \
-            -p:SharpCppBuildRoot="$build_root"
+            -p:SolutionDir="$build_root/"
 
       # The SDK host library must not contain the dotnet root of the runner.
       # The configure step keeps the other cache values of the package build.

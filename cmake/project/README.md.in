@@ -28,7 +28,7 @@ cmake --build build
 
 ## Run
 
-Start the executable `@NAME@` in the folder `build/bin`.
+Start the executable `@NAME@` in the folder `build/bin/Debug`.
 The log shows the line `C# plugin @NAME@.Net is loaded.`
 
 ## Install

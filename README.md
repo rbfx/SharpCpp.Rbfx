@@ -61,7 +61,7 @@ The integration mode needs an implementation target that uses the keyword signat
 The package file sets the inputs of the function. They are the installed metadata, generator, headers and Clang headers.
 The parse flags come from the target `Urho3D` and the compiler of the consumer. The rbfx SDK root comes from `Urho3D_DIR`.
 The generated sources go to `<build>/generated` and the native library goes to `<build>/bin/<Config>`.
-Set `SHARPCPP_GENERATED_ROOT` and `SHARPCPP_NATIVE_OUTPUT_ROOT` to change them.
+Set `SHARPCPP_GENERATED_ROOT` to change the first folder. The second folder is the shared output folder (see "Build output").
 The generator runs with `dotnet` at build time. The build needs no network and no git.
 
 ### Consume with find_package
@@ -88,11 +88,11 @@ The engine must come from an installed rbfx SDK. The two prefixes differ in how 
   the root headers and the generated headers) to `SharpCppRbfxEngineHeaders.txt` in the binary directory. It passes the file with `--engine-header-list <file>`
   (one absolute path per line). The umbrella fallback and the namespace macro pass of the generator then read only these headers. Headers in `CSharp/` are skipped.
   The first call adds the source tree. A second call (also from a sibling directory) only sets the variables below.
-  The default `SHARPCPP_NATIVE_OUTPUT_ROOT` is `<build>/SharpCppRbfx/bin` and the default `SHARPCPP_MANAGED_OUTPUT_ROOT` is
-  `<build>/SharpCppRbfx/managed`. A value from the consumer wins.
+  `SHARPCPP_NATIVE_OUTPUT_ROOT` and `SHARPCPP_MANAGED_OUTPUT_ROOT` are `<build>/bin`, the output root of the consumer build
+  (see "Build output").
   The shim build runs `dotnet build` itself for the generators (`SharpCpp.Rbfx.Generator` and `Rbfx.UserCode.Generator`), so the consumer
   needs only `CMAKE_PREFIX_PATH`. The .NET SDK (`dotnet`) must be installed. CMake stops with a message when it is not found.
-  With `RBFX_CSHARP_BUILD_GENERATORS` ON (the default for the shim), the target `sharpcpp-rbfx-build-managed` runs `dotnet build` for
+  With `RBFX_CSHARP_BUILD_GENERATORS` ON (the default), the target `sharpcpp-rbfx-build-managed` runs `dotnet build` for
   `SharpCpp.Rbfx.Bindings` after the native bindings. The managed folder then holds `SharpCpp.Rbfx.Bindings`, `SharpCpp.Std`,
   `SharpCpp.Ea` and `SharpCpp.Support`. The folder is full only when the build runs this target. The targets of `rbfx_csharp_add_dotnet_project()` and
   `rbfx_csharp_add_plugin_build()` depend on it. The targets of `rbfx_csharp_add_bindings()` do not. A consumer target that reads
@@ -231,7 +231,7 @@ cmake -DNAME=<Name> -DDESTINATION=<dir> -P <path>/RbfxCSharpNewProject.cmake
   engine SDK (`rbfx_csharp_find_core_data()`) and `Data` to the folder `Data` of the project.
   The engine uses the first `ResourceRoot.ini` above the executable.
 - Configure the project with `-DCMAKE_PREFIX_PATH="<engine SDK>;<SharpCpp.Rbfx SDK>"` and build it with `cmake --build`.
-  The executable is in `build/bin`.
+  The executable is in `build/bin/<configuration>`.
 
 ### Plugin in one call
 
@@ -244,10 +244,55 @@ rbfx_csharp_add_plugin(MyPlugin
 
 - The call makes the target `MyPlugin` (`add_custom_target`). The name of the target is the assembly name and the root namespace.
 - `CSHARP_DIR` is the folder with the C# sources. The default is `${CMAKE_CURRENT_SOURCE_DIR}/CSharp`. If the folder does not exist, CMake stops with an error.
-- `CSPROJ` is a project that you maintain. Do not use it together with `CSHARP_DIR`. The project imports `$(SharpCppRbfxPluginProps)`.
+- `CSPROJ` is a project that you maintain. Do not use it together with `CSHARP_DIR`. The project imports `$(SharpCppRbfxPluginProps)`. The builds of CMake set `SharpCppRbfxPluginProps` as an environment variable.
 - `REFERENCES` are the targets from `rbfx_csharp_add_bindings()`. The plugin references the managed project of each target.
 - The function writes the project files to `${CMAKE_CURRENT_BINARY_DIR}/csharp/MyPlugin/` (see "Application in one call").
-- Target properties: `SHARPCPP_RBFX_PLUGIN_NAME`, `SHARPCPP_RBFX_PLUGIN_PROJECT`, `SHARPCPP_RBFX_PLUGIN_REFERENCES` and `SHARPCPP_RBFX_PLUGIN_MSBUILD_PROPERTIES`.
+- Target properties: `SHARPCPP_RBFX_PLUGIN_NAME`, `SHARPCPP_RBFX_PLUGIN_PROJECT`, `SHARPCPP_RBFX_PLUGIN_REFERENCES`, `SHARPCPP_RBFX_PLUGIN_MSBUILD_PROPERTIES` (the `PROPERTIES`) and `SHARPCPP_RBFX_PLUGIN_ENVIRONMENT`.
+- The plugin builds into `${CMAKE_BINARY_DIR}/bin/<configuration>/`, also from an IDE. The executable is in the same folder, so no step copies the plugin.
+- The first call schedules `rbfx_csharp_write_solution()` for the end of the top level folder. It writes `${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.slnx`. The solution has the projects of all plugins and bindings of the project. In the source mode it also has the dependency projects (`RBFX_CSHARP_BINDINGS_PROJECTS`) in the folder `Dependencies`. The installed SDK has no dependency projects. The configurations of the solution are the configurations of the CMake tree. Open the solution after the first configure. The generated bindings sources appear after the first build.
+- A build of the solution from an IDE or with `dotnet build` needs no extra properties. The solution folder is the owner of the build output (see "Build output").
+
+### Build output
+
+All bin and obj folders of one build are below one root. The files `eng/BuildOutput.props` and `eng/BuildOutput.targets` set the folders.
+SharpCpp, this repository and the applications have copies of the two files. Keep all copies the same, byte for byte.
+
+- The owner of a build is the solution folder (`SolutionDir`). Without a solution, the owner is the folder of the file that imports
+  `BuildOutput.props` (`BuildOutputOwnerDir`). MSBuild gets the owner only as `SolutionDir`. Do not set the output folders on the command line.
+- The root is `<owner>/build`. The optional file `<owner>/BuildOutput.Settings.props` can set another root (`BuildOutputRoot`).
+- The folders are `<root>/obj/<project>/`, `<root>/bin/<configuration>/` and `<root>/publish/<project>/<configuration>/`.
+- All projects of a build share `bin/<configuration>/`. Each file has one producer, so no step copies the outputs of a project.
+  A project with one target framework writes its files directly into this folder.
+- With `BuildOutputPerTargetFramework=true` each project writes into `bin/<configuration>/<target framework>/`. Use this mode
+  for C# projects with more than one target framework.
+- A project can set `BuildOutputPartition` to a folder name. Its files then go to `bin/<configuration>/<partition>/`.
+  The other projects do not copy them. An application gets a resolver that loads the assemblies and the native libraries
+  of the other folders.
+- One root is for one platform. In this repository, a build for another RID uses `build/cross/<rid>/`. The restore files
+  of all RIDs stay below `build/obj/restore/`.
+
+A CMake build is the owner of its build output. CMake writes these files into `CMAKE_BINARY_DIR`:
+
+- `Directory.Build.props` sets the owner and imports `BuildOutput.props`. `Directory.Build.targets` is empty.
+- `BuildOutput.Settings.props` sets the root to `CMAKE_BINARY_DIR`. Thus the .NET files go to `<build>/bin/<configuration>/`.
+- `<project>.slnx` is the solution for the IDE.
+
+Each nested `dotnet build` of CMake gets only `-c <configuration>` and `-p:SolutionDir=<build>/`. A build of the solution
+gets the same `SolutionDir`, so the two builds share their outputs. The native libraries and the executables also go to
+`<build>/bin/<configuration>/`. Set `CMAKE_RUNTIME_OUTPUT_DIRECTORY` and `CMAKE_LIBRARY_OUTPUT_DIRECTORY` to
+`${CMAKE_BINARY_DIR}/bin/$<CONFIG>` for your own targets.
+
+A repository with its own C# projects copies the two files to `eng/`. Its root `Directory.Build.props` imports the copy first:
+
+```xml
+<Project>
+  <!-- A file that imports this file can set the owner first. CMake does this for its build folder. -->
+  <PropertyGroup Condition="'$(BuildOutputOwnerDir)' == ''">
+    <BuildOutputOwnerDir>$(MSBuildThisFileDirectory)</BuildOutputOwnerDir>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)eng/BuildOutput.props" />
+</Project>
+```
 
 ### Launcher in one call
 
@@ -274,7 +319,7 @@ rbfx_csharp_add_editor(MyEditor
 ```
 
 - Without `SOURCES` the function uses the default editor `cmake/launcher/RbfxCSharpEditor.cpp`. It is an `EditorApplication` that starts the .NET runtime.
-- The function builds the bootstrap plugin `SharpCpp.Rbfx.EditorHost` next to the executable. It registers each managed plugin
+- The function builds the bootstrap plugin `SharpCpp.Rbfx.EditorHost` and copies it next to the executable. It registers each managed plugin
   `ManagedPlugins/*.dll` (in the folder of the executable) for each new `PluginManager`, that is, each time a project opens.
 - `PLUGINS` and `LINK_LIBRARIES` are as in `rbfx_csharp_add_launcher()`. `EditorLibrary` is always linked. `CONSOLE` builds a console program on Windows.
 - If the SDK has no `EditorLibrary` target, the function prints a status message and does nothing. `eng/fetch-rbfx-sdk.sh` warns when the editor headers are missing.
@@ -418,7 +463,7 @@ A .NET Android head is the entry of the application. The native application runs
   address-of use stays with the managed code that gives its address to native code. ILLink and the NativeAOT compiler both read
   the attributes.
 - The target `MyApp.CSharp` builds the head with dotnet and copies the debug-signed APK to `MyApp.apk` next to `libMyApp.so`.
-  The head gets the configuration of CMake (`-c <config>`) and the list of configurations (`-p:Configurations=<list>`: CMAKE_CONFIGURATION_TYPES, else CMAKE_BUILD_TYPE).
+  The head gets the configuration of CMake (`-c <config>`). `BuildOutput.Settings.props` of the build folder has the list of configurations (CMAKE_CONFIGURATION_TYPES, else CMAKE_BUILD_TYPE).
   The workload tests only Debug and Release, so the head project gives each other configuration (for example RelWithDebInfo) the Release defaults of the workload: managed symbols, trimming and Mono AOT (the default runtime is MonoVM). ReadyToRun applies only with `UseMonoRuntime=false`.
 - The head build needs the `android` workload and a JDK 17 or 21. The cache variables `RBFX_CSHARP_ANDROID_SDK_DIR`
   and `RBFX_CSHARP_JAVA_SDK_DIR` (defaults: the environment variables `ANDROID_HOME` and `JAVA_HOME`) go to dotnet.
@@ -495,11 +540,11 @@ is static code in the executable of the app.
 - A file in `RESOURCES` becomes a file in the root folder of the app bundle (`BundleResource`). A folder becomes a folder with its name.
 - `APPLICATION_ID` is the bundle identifier. The default is `org.rbfx.<name in lower case>`.
 - The target `MyApp.CSharp` builds the head with dotnet and copies the app bundle to `MyApp.app` in `CMAKE_RUNTIME_OUTPUT_DIRECTORY`
-  (else the binary folder). The head gets the configuration of CMake (`-c <config>`) and the list of configurations
-  (`-p:Configurations=<list>`). The head project is not verified for configurations other than Debug and Release: the iOS workload is not
+  (else the binary folder). The head gets the configuration of CMake (`-c <config>`). `BuildOutput.Settings.props`
+  of the build folder has the list of configurations. The head project is not verified for configurations other than Debug and Release: the iOS workload is not
   installed in the test environment, so check the properties of the workload that test `$(Configuration)`.
 - The head does not sign the app by default. A device runs a signed app only. Give `EnableCodeSigning=true`, `CodesignKey`
-  and `CodesignProvision` in `PROPERTIES` or in `RBFX_CSHARP_MSBUILD_PROPERTIES`.
+  and `CodesignProvision` in `PROPERTIES`.
 
 Generated files of an iOS application `MyApp`:
 

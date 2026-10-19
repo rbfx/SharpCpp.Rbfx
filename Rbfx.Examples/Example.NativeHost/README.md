@@ -23,14 +23,14 @@ Build with CMake. The target `Rbfx.NativeHost.Net` runs `dotnet build` for the p
 
 ```
 export CMAKE_PREFIX_PATH=<path of the installed rbfx SDK>
-dotnet build SharpCpp.Rbfx.slnx --configuration Debug
 cmake -S . -B <build directory> -G "Ninja Multi-Config"
 cmake --build <build directory> --config Debug
-./build/bin/Debug/Rbfx.NativeHost
+<build directory>/bin/Debug/Rbfx.NativeHost
 ```
 
-- The `dotnet build` of the solution first builds the generators. CMake needs them in `build/bin/<Config>` and does not build them.
-- The nested `dotnet build` of CMake sets the MSBuild property `RbfxNativeBuildDriver=cmake`. MSBuild then does not start a native build, because CMake is already the driver.
+- CMake builds the generators with `dotnet build` before it generates the bindings (`RBFX_CSHARP_BUILD_GENERATORS`).
+- All outputs go to `<build directory>/bin/Debug`: the executable, the native libraries and the plugin. The build directory is the owner of the .NET build output (see "Build output" in the main README).
+- CMake writes `BuildOutput.Settings.props` into the build directory. It sets the MSBuild property `RbfxNativeBuildDriver=cmake`. The nested `dotnet build` then does not start a native build, because CMake is already the driver.
 - `dotnet build SharpCpp.Rbfx.slnx` alone also builds the plugin. In that case MSBuild is the driver and it configures `build/native/linux-gcc-x64-dll` with `-DRBFX_CSHARP_BUILD_MANAGED=OFF`. Use another build directory for the CMake build.
 - On Linux, set `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=32768` for a run with a window.
 

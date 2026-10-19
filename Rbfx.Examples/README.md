@@ -32,8 +32,8 @@ through a project reference.
 `Example.Android`, `Example.Ios`, `Example.Wasm` and `Example.Uwp` have a `Directory.Build.props` that sets
 the default `RbfxTargetRid` (`android-arm64`, `ios-arm64`, `browser-wasm`, `uap-x64`). The RID selects the
 SDK, the native build tree `build/cross/<rid>` and the native items of the app. `-p:RuntimeIdentifier=<rid>`
-or `-p:RbfxTargetRid=<rid>` selects another RID. Each of these apps writes its output to `bin/<Configuration>/<rid>/`
-in its own folder and does not treat warnings as errors.
+or `-p:RbfxTargetRid=<rid>` selects another RID. Each of these apps writes its output to `build/cross/<rid>/bin/<Configuration>/`
+and does not treat warnings as errors.
 
 `dotnet build Rbfx.Examples.slnx` in the repository root builds Desktop, Android and Wasm in parallel. Each RID uses its
 own build tree, so no two projects write the same file. `Rbfx.Examples.Apple.slnx` (repository root) builds the iOS app and

@@ -49,8 +49,8 @@ project (which drives the auxiliary native CMake target through MSBuild), stages
 files, and runs `dotnet pack`.
 On a desktop RID, when the SDK has the editor headers (`include/Tools/Editor/EditorApplication.h`), the script also builds
 the editor. It builds the CMake target `SharpCppRbfxEditor` in the native tree of the binding build, and then the project
-`SharpCpp.Rbfx.EditorHost` into the folder `SharpCppRbfxEditor.bin` of that tree (MSBuild drives this tree, so the plugin target of CMake does nothing).
-The script stages that folder and the native runtime files, sets the run path of the executable, and packs
+`SharpCpp.Rbfx.EditorHost` (MSBuild drives this tree, so the plugin target of CMake does nothing). The editor and the plugin
+go to the output folder `bin/<Configuration>` of the build root. The script stages the files of the editor from that folder, and the native runtime files, sets the run path of the executable, and packs
 `SharpCpp.Rbfx.Editor.runtime.<rid>` and `SharpCpp.Rbfx.Editor`. CI uploads the runtime package of each desktop RID. The union job
 copies them and packs `SharpCpp.Rbfx.Editor` with a dependency on each one (`UnionPackage.cs pack`). The editor packages need
 no other change to the union phases.
@@ -60,6 +60,8 @@ property. Use `--target-framework TFM` only when explicitly overriding it.
 Use `--sdk-root PATH` to use an SDK that exists already. Use `--skip-fetch` when
 `build/sdk/<rid>/` already exists. Use `--rbfx-tag TAG` to select an rbfx release.
 Use `--skip-build` to package an already-built tree. The tree is `build/package/nuget/<rid>/build/bin/<Configuration>`. `--build-root` selects another tree.
+The build root is the owner of the build output. The script writes `BuildOutput.Settings.props` into the build root and
+passes the build root to MSBuild as `SolutionDir` (see "Build output" in the main README).
 Package staging, package output, and the local repository remain below
 `build/package/nuget/`. Downloaded SDKs are in `build/sdk/`.
 

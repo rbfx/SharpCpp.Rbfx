@@ -11,13 +11,13 @@
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)/share/Urho3D/CMake/Urho3DConfig.cmake')">$(SharpCppRbfxRoot)/build/sdk/$(RbfxHostRid)</RbfxSdkRoot>
     <RbfxSdkRoot Condition="'$(RbfxSdkRoot)' == '' and '$(RbfxIsCrossRid)' != 'true' and Exists('$(SharpCppRbfxRoot)/../../rbfx-sdk')">$([System.IO.Path]::GetFullPath('$(SharpCppRbfxRoot)/../../rbfx-sdk'))</RbfxSdkRoot>
 
-    <!-- BuildOutput.props sets the build root. All outputs of this repository go below it. -->
-    <SharpCppBuildRoot>$([System.IO.Path]::GetDirectoryName('$(BuildOutputRoot)'))</SharpCppBuildRoot>
+    <!-- BuildOutput.props sets the build root. All outputs of this repository go below it. Projects that are not .NET SDK projects (the vcxproj files of CMake) have no build root. -->
+    <SharpCppBuildRoot Condition="'$(BuildOutputRoot)' != ''">$([System.IO.Path]::GetDirectoryName('$(BuildOutputRoot)'))</SharpCppBuildRoot>
     <!-- The restore files stay below the host root. BuildOutput.Settings.props of this repository sets it for a cross build.
          RbfxRestoreRid adds a folder for a target RID, so builds of different RIDs never write the same project.assets.json.
          It is an explicit global property, because the restore of a referenced project sees only global properties. -->
     <RbfxHostBuildRoot Condition="'$(RbfxHostBuildRoot)' == ''">$(BuildOutputRoot)</RbfxHostBuildRoot>
-    <RbfxRestoreRoot>$([MSBuild]::NormalizeDirectory('$(RbfxHostBuildRoot)', 'obj', 'restore', '$(RbfxRestoreRid)'))</RbfxRestoreRoot>
+    <RbfxRestoreRoot Condition="'$(RbfxHostBuildRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(RbfxHostBuildRoot)', 'obj', 'restore', '$(RbfxRestoreRid)'))</RbfxRestoreRoot>
     <!-- The build system that drives this one defines the configuration set (CMake passes -p:Configurations=...). The native
          libraries use the CMake configuration name, so $(Configuration) names their folder. -->
     <Configurations Condition="'$(Configurations)' == ''">Debug;Release</Configurations>
@@ -85,7 +85,7 @@
     <NuGetAudit>false</NuGetAudit>
 
     <!-- The one exception to BuildOutput.props: the restore files of all RIDs stay below the host root (see RbfxRestoreRoot). -->
-    <MSBuildProjectExtensionsPath>$(RbfxRestoreRoot)$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
+    <MSBuildProjectExtensionsPath Condition="'$(RbfxRestoreRoot)' != ''">$(RbfxRestoreRoot)$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(SharpCppBuildRoot)/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
   </PropertyGroup>
 

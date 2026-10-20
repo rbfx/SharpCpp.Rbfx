@@ -27,9 +27,11 @@ public static class RbfxFlagSetLoweringPass
 
         foreach (var function in compilation.Functions)
         {
+            var returnedFlagSet = false;
             if (TryLowerFlagSetType(compilation, function.ReturnType, out var returnType))
             {
                 function.ReturnType = returnType;
+                returnedFlagSet = true;
             }
 
             foreach (var parameter in function.Parameters)
@@ -38,6 +40,12 @@ public static class RbfxFlagSetLoweringPass
                 {
                     parameter.Type = parameterType;
                 }
+            }
+
+            if (returnedFlagSet && IsFlagEnumOperator(function))
+            {
+                // The C# [Flags] enum has these operators already.
+                function.SetSilentExclusionReason(GetFlagSetOperatorReason(function), overwriteExisting: true);
             }
         }
 
@@ -83,6 +91,40 @@ public static class RbfxFlagSetLoweringPass
         enumBinding.IsFlags = true;
         enumType = BindingType.CreateEnum(enumArgument.CppTypeName, GetQualifiedEnumManagedName(compilation, enumBinding), enumId: enumBinding.SymbolId);
         return true;
+    }
+
+    internal static string GetFlagSetOperatorReason(FunctionBinding function)
+    {
+        return $"rbfx FlagSet operator '{function.CppQualifiedName}' is lowered to the enum managed surface";
+    }
+
+    /// <summary>
+    /// Returns true for the free |, &amp;, ^ and ~ operators that URHO3D_FLAGSET declares for a flag enum.
+    /// The function must have the lowered enum in its return type and in all its parameters.
+    /// </summary>
+    private static bool IsFlagEnumOperator(FunctionBinding function)
+    {
+        if (function.Parent is RecordBinding ||
+            function.ReturnType.Kind != BindingTypeKind.Enum ||
+            function.Parameters.Count is < 1 or > 2)
+        {
+            return false;
+        }
+
+        var token = function.OperatorToken;
+        if (string.IsNullOrWhiteSpace(token) && function.NativeName.StartsWith("operator", StringComparison.Ordinal))
+        {
+            token = function.NativeName["operator".Length..];
+        }
+
+        if (token is not ("|" or "&" or "^" or "~"))
+        {
+            return false;
+        }
+
+        return function.Parameters.All(parameter =>
+            parameter.Type.Kind == BindingTypeKind.Enum &&
+            string.Equals(parameter.Type.EnumId, function.ReturnType.EnumId, StringComparison.Ordinal));
     }
 
     private static bool IsFlagSetType(BindingCompilation compilation, BindingType type)

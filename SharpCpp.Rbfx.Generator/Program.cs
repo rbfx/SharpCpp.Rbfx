@@ -189,6 +189,7 @@ internal static class Program
             var pipelineSw = Stopwatch.StartNew();
             var taggedPointerRangeCount = 0;
             var explicitManagedNameCount = 0;
+            var silentExclusionCount = 0;
             BindingCompilationBootstrapPipeline.Apply(
                 compilation,
                 marshallerConfigurationFiles,
@@ -201,13 +202,16 @@ internal static class Program
                     RbfxFlagSetLoweringPass.Apply(c);
                 },
                 // Runs before the pipeline writes the diagnostic log, so the log shows these as excluded.
-                configureAfterValidation: c => RbfxSilentExclusionPass.ApplyFlagSetTemplate(c));
+                configureAfterValidation: c =>
+                {
+                    silentExclusionCount = RbfxSilentExclusionPass.Apply(c);
+                    RbfxSilentExclusionPass.ApplyFlagSetTemplate(c);
+                });
             Logger.LogInformation("Applied {Count} explicit rbfx managed member name(s).", explicitManagedNameCount);
             Logger.LogInformation("Tagged {Count} rbfx pointer range(s).", taggedPointerRangeCount);
             Logger.LogInformation("Pipeline complete: {Retained}/{Total} records retained.", compilation.Records.Count(r => !r.IsIgnored()), compilation.Records.Count);
             Logger.LogInformation("Pipeline completed in {Duration}", FormatDuration(pipelineSw.Elapsed));
 
-            var silentExclusionCount = RbfxSilentExclusionPass.Apply(compilation);
             Logger.LogInformation("Silently excluded {Count} rbfx non-public implementation declaration(s).", silentExclusionCount);
 
             var unsupportedApiCount = RbfxUnsupportedApisPass.Apply(

@@ -23,6 +23,8 @@ public static class RbfxSilentExclusionPass
         "Core/StringUtils.h",
     };
 
+    private const string TypeHierarchyReason = "rbfx URHO3D_OBJECT type hierarchy array is an internal runtime type information detail";
+
     public static int Apply(BindingCompilation compilation)
     {
         ArgumentNullException.ThrowIfNull(compilation);
@@ -94,7 +96,14 @@ public static class RbfxSilentExclusionPass
 
         foreach (var field in compilation.Descendants<FieldBinding>())
         {
-            if (TryGetBlockedHeaderSilentExclusionReason(field, inheritFromAncestor: true, out var reason))
+            if (IsTypeHierarchyField(field))
+            {
+                if (SetSilentExclusionReasonIfChanged(field, TypeHierarchyReason))
+                {
+                    count++;
+                }
+            }
+            else if (TryGetBlockedHeaderSilentExclusionReason(field, inheritFromAncestor: true, out var reason))
             {
                 if (SetSilentExclusionReasonIfChanged(field, reason))
                 {
@@ -137,6 +146,14 @@ public static class RbfxSilentExclusionPass
         }
 
         return count;
+    }
+
+    /// <summary>The static array that each URHO3D_OBJECT class declares. The managed type information replaces it.</summary>
+    private static bool IsTypeHierarchyField(FieldBinding field)
+    {
+        return field.IsStatic &&
+            field.Type.IsFixedArray &&
+            string.Equals(field.NativeName, "TypeHierarchy", StringComparison.Ordinal);
     }
 
     private static bool SetSilentExclusionReasonIfChanged(BindingNode node, string reason)
@@ -516,7 +533,7 @@ public static class RbfxSilentExclusionPass
 
         if (TryGetFlagSetArgument(declarationText, out _))
         {
-            reason = $"rbfx FlagSet operator '{function.CppQualifiedName}' is lowered to the enum managed surface";
+            reason = RbfxFlagSetLoweringPass.GetFlagSetOperatorReason(function);
             return true;
         }
 
@@ -536,7 +553,7 @@ public static class RbfxSilentExclusionPass
             }
         }
 
-        reason = $"rbfx FlagSet operator '{function.CppQualifiedName}' is lowered to the enum managed surface";
+        reason = RbfxFlagSetLoweringPass.GetFlagSetOperatorReason(function);
         return true;
     }
 

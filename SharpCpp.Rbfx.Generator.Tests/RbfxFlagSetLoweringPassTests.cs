@@ -139,6 +139,66 @@ public sealed class RbfxFlagSetLoweringPassTests
         Assert.DoesNotContain("FlagSet", function.GetIgnoreReason());
     }
 
+    [Theory]
+    [InlineData("operator|")]
+    [InlineData("operator&")]
+    [InlineData("operator^")]
+    public void Apply_SilencesFreeFlagEnumBinaryOperators(string name)
+    {
+        var model = new FlagSetTestModel();
+        var function = model.AddFunction(model.Compilation, name, model.FlagSetType, model.EnumType, model.EnumType);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.True(function.IsSilentlyExcluded());
+        Assert.Contains("FlagSet operator", function.GetIgnoreReason());
+    }
+
+    [Fact]
+    public void Apply_SilencesFreeFlagEnumComplementOperator()
+    {
+        var model = new FlagSetTestModel();
+        var function = model.AddFunction(model.Compilation, "operator~", model.FlagSetType, model.EnumType);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.True(function.IsSilentlyExcluded());
+    }
+
+    [Fact]
+    public void Apply_KeepsOperatorThatDoesNotReturnFlagSet()
+    {
+        var model = new FlagSetTestModel();
+        var function = model.AddFunction(model.Compilation, "operator|", model.EnumType, model.EnumType, model.EnumType);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.False(function.IsIgnored());
+    }
+
+    [Fact]
+    public void Apply_KeepsFlagSetOperatorWithAnotherParameterType()
+    {
+        var model = new FlagSetTestModel();
+        var vectorType = BindingType.CreateHandle("Urho3D::Vector3", "Vector3", recordId: "record:Urho3D::Vector3");
+        var function = model.AddFunction(model.Compilation, "operator|", model.FlagSetType, model.EnumType, vectorType);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.False(function.IsIgnored());
+    }
+
+    [Fact]
+    public void Apply_KeepsFlagSetFunctionThatIsNotAnOperator()
+    {
+        var model = new FlagSetTestModel();
+        var function = model.AddFunction(model.Compilation, "Combine", model.FlagSetType, model.EnumType, model.EnumType);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.False(function.IsIgnored());
+    }
+
     private static FlagSetTestModel ValidationReadyModel(out FunctionBinding function)
     {
         var model = new FlagSetTestModel();

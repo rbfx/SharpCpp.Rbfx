@@ -81,4 +81,55 @@ public sealed class RbfxSilentExclusionPassFlagSetTests
 
         Assert.False(function.IsSilentlyExcluded());
     }
+
+    [Fact]
+    public void Apply_SilencesStaticTypeHierarchyArray()
+    {
+        var model = new FlagSetTestModel();
+        var owner = model.AddRecord("Node");
+        var field = AddTypeHierarchyField(owner, "TypeHierarchy", isStatic: true, BindingType.Void.WithFixedArray(BindingType.Void, 3));
+        field.SetIgnoreReason("static fixed-size array fields are not yet supported in this bootstrap surface");
+
+        RbfxSilentExclusionPass.Apply(model.Compilation);
+
+        Assert.True(field.IsSilentlyExcluded());
+        Assert.Contains("type hierarchy", field.GetIgnoreReason());
+    }
+
+    [Fact]
+    public void Apply_KeepsOtherStaticArrayFields()
+    {
+        var model = new FlagSetTestModel();
+        var owner = model.AddRecord("Node");
+        var field = AddTypeHierarchyField(owner, "Table", isStatic: true, BindingType.Void.WithFixedArray(BindingType.Void, 3));
+        field.SetIgnoreReason("static fixed-size array fields are not yet supported in this bootstrap surface");
+
+        RbfxSilentExclusionPass.Apply(model.Compilation);
+
+        Assert.False(field.IsSilentlyExcluded());
+    }
+
+    [Fact]
+    public void Apply_KeepsTypeHierarchyFieldThatIsNotStaticArray()
+    {
+        var model = new FlagSetTestModel();
+        var owner = model.AddRecord("Node");
+        var field = AddTypeHierarchyField(owner, "TypeHierarchy", isStatic: false, BindingType.Void.WithFixedArray(BindingType.Void, 3));
+        var scalar = AddTypeHierarchyField(model.AddRecord("Scene"), "TypeHierarchy", isStatic: true, BindingType.Void);
+
+        RbfxSilentExclusionPass.Apply(model.Compilation);
+
+        Assert.False(field.IsSilentlyExcluded());
+        Assert.False(scalar.IsSilentlyExcluded());
+    }
+
+    private static FieldBinding AddTypeHierarchyField(RecordBinding owner, string name, bool isStatic, BindingType type)
+    {
+        var field = new FieldBinding($"field:{owner.NativeName}:{name}", name, name, type, "int", owner.CppQualifiedName)
+        {
+            IsStatic = isStatic
+        };
+        owner.Members.Add(field);
+        return field;
+    }
 }

@@ -11,6 +11,7 @@
   </Folder>
   <Project Path="SharpCpp.Ea/SharpCpp.Ea.csproj" />
   <Project Path="SharpCpp.Rbfx.Generator/SharpCpp.Rbfx.Generator.csproj" />
+  <Project Path="SharpCpp.Rbfx.Generator.Tests/SharpCpp.Rbfx.Generator.Tests.csproj" />
   <Project Path="SharpCpp.Rbfx.SourceGenerator/SharpCpp.Rbfx.SourceGenerator.csproj" />
   <Project Path="SharpCpp.Rbfx.Bindings/SharpCpp.Rbfx.Bindings.csproj" />
   <Project Path="SharpCpp.Rbfx.NativeHost/SharpCpp.Rbfx.NativeHost.csproj" />

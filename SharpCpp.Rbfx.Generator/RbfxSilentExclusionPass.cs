@@ -113,6 +113,32 @@ public static class RbfxSilentExclusionPass
         return count;
     }
 
+    /// <summary>
+    /// Marks the FlagSet class template and its ignored members as silent exclusions.
+    /// <see cref="RbfxFlagSetLoweringPass"/> lowers FlagSet&lt;TEnum&gt; to the enum, so these members have no managed surface.
+    /// The pass must run before the pipeline writes the diagnostic log.
+    /// Declarations in other headers that use FlagSet keep their own reason.
+    /// </summary>
+    public static int ApplyFlagSetTemplate(BindingCompilation compilation)
+    {
+        ArgumentNullException.ThrowIfNull(compilation);
+
+        const string reason = "rbfx FlagSet<TEnum> is lowered to the enum managed surface";
+        var count = 0;
+        foreach (var record in compilation.Records.Where(static record => string.Equals(record.NativeName, "FlagSet", StringComparison.Ordinal)))
+        {
+            foreach (var node in record.DescendantsAndSelf<BindingNode>().Where(static node => node.IsIgnored()))
+            {
+                if (SetSilentExclusionReasonIfChanged(node, reason))
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
     private static bool SetSilentExclusionReasonIfChanged(BindingNode node, string reason)
     {
         if (node.IsSilentlyExcluded() && string.Equals(node.GetIgnoreReason(), reason, StringComparison.Ordinal))

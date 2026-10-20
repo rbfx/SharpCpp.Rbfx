@@ -197,7 +197,9 @@ internal static class Program
                 {
                     taggedPointerRangeCount = RbfxPointerRangesPass.Apply(c);
                     explicitManagedNameCount = RbfxManagedNamesPass.Apply(c);
-                });
+                },
+                // Runs before the pipeline writes the diagnostic log, so the log shows these as excluded.
+                configureAfterValidation: c => RbfxSilentExclusionPass.ApplyFlagSetTemplate(c));
             Logger.LogInformation("Applied {Count} explicit rbfx managed member name(s).", explicitManagedNameCount);
             Logger.LogInformation("Tagged {Count} rbfx pointer range(s).", taggedPointerRangeCount);
             Logger.LogInformation("Pipeline complete: {Retained}/{Total} records retained.", compilation.Records.Count(r => !r.IsIgnored()), compilation.Records.Count);

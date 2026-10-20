@@ -122,7 +122,8 @@ internal static class Program
             var marshallerConfigurationFiles = new List<string>
             {
                 Path.Combine(sharpCppIncludeRoot, "SharpCpp", "Marshaller.hpp"),
-                Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp")
+                Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp"),
+                Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxSignalMarshallers.hpp")
             };
 
             if (options.SdkRoot is not null)

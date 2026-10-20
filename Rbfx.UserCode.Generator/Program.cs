@@ -86,7 +86,8 @@ internal static class Program
             {
                 Path.Combine(sharpCppIncludeRoot, "SharpCpp", "Marshaller.hpp"),
                 Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxRefCountedMarshallers.hpp"),
-                Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp")
+                Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxValueTypeMarshallers.hpp"),
+                Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxSignalMarshallers.hpp")
             };
             if (sdkFlags.HasDefine("URHO3D_SYSTEMUI", "1"))
             {

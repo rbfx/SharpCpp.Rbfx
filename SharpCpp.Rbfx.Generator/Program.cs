@@ -197,6 +197,8 @@ internal static class Program
                 {
                     taggedPointerRangeCount = RbfxPointerRangesPass.Apply(c);
                     explicitManagedNameCount = RbfxManagedNamesPass.Apply(c);
+                    // Before the validation, so that it checks each FlagSet<E> declaration as a plain enum declaration.
+                    RbfxFlagSetLoweringPass.Apply(c);
                 },
                 // Runs before the pipeline writes the diagnostic log, so the log shows these as excluded.
                 configureAfterValidation: c => RbfxSilentExclusionPass.ApplyFlagSetTemplate(c));
@@ -229,7 +231,6 @@ internal static class Program
                 Logger.LogInformation("Applied Dear ImGui surface shaping to {Count} declaration(s).", imguiCount);
             }
 
-            RbfxFlagSetLoweringPass.Apply(compilation);
             ApplyPeSdkExportFilter(compilation, options.SdkLibraryPath);
             var managedProjection = RbfxManagedNamespaceProjectionPass.Apply(compilation);
             Logger.LogInformation("Managed namespace projection complete: {NamespaceCount} namespace node(s).", managedProjection.Namespaces.Count);

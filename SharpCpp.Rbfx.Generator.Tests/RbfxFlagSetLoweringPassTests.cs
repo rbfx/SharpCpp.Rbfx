@@ -1,4 +1,5 @@
 using SharpCpp.Model.Ast;
+using SharpCpp.Pipeline;
 using Xunit;
 
 namespace SharpCpp.Rbfx.Generator.Tests;
@@ -83,5 +84,68 @@ public sealed class RbfxFlagSetLoweringPassTests
         RbfxFlagSetLoweringPass.Apply(model.Compilation);
 
         Assert.Equal("MouseButton", function.ReturnType.ManagedTypeName);
+    }
+
+    [Fact]
+    public void Apply_KeepsIgnoreReasonOfLoweredDeclarations()
+    {
+        var model = new FlagSetTestModel();
+        var owner = model.AddRecord("Input");
+        var function = model.AddFunction(owner, "GetButtons", model.FlagSetType);
+        function.SetIgnoreReason("other reason");
+        var field = new FieldBinding("field:buttons", "buttons_", "Buttons", model.FlagSetType, "Urho3D::FlagSet<Urho3D::MouseButton>", "Urho3D::Input");
+        field.SetIgnoreReason("other field reason");
+        owner.Members.Add(field);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.Equal("other reason", function.GetIgnoreReason());
+        Assert.Equal("other field reason", field.GetIgnoreReason());
+    }
+
+    [Fact]
+    public void Apply_LoweredFunctionPassesSurfaceValidation()
+    {
+        var model = ValidationReadyModel(out var function);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+        DegradeUnsupportedSurfacePass.Apply(model.Compilation);
+
+        Assert.False(function.IsIgnored(), function.GetIgnoreReason());
+    }
+
+    [Fact]
+    public void SurfaceValidation_IgnoresFunctionThatKeepsFlagSet()
+    {
+        var model = ValidationReadyModel(out var function);
+
+        DegradeUnsupportedSurfacePass.Apply(model.Compilation);
+
+        Assert.True(function.IsIgnored());
+        Assert.Contains("FlagSet", function.GetIgnoreReason());
+    }
+
+    [Fact]
+    public void Apply_LoweredFunctionStaysIgnoredForAnotherUnsupportedType()
+    {
+        var model = ValidationReadyModel(out var function);
+        var missingType = BindingType.CreateHandle("Urho3D::Missing", "Missing", recordId: "record:Urho3D::Missing");
+        function.Parameters.Add(new ParameterBinding("param:Scan:1", "missing", "missing", missingType));
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+        DegradeUnsupportedSurfacePass.Apply(model.Compilation);
+
+        Assert.True(function.IsIgnored());
+        Assert.DoesNotContain("FlagSet", function.GetIgnoreReason());
+    }
+
+    private static FlagSetTestModel ValidationReadyModel(out FunctionBinding function)
+    {
+        var model = new FlagSetTestModel();
+        model.Compilation.NamespaceMappings = new Dictionary<string, string> { ["Urho3D"] = "Urho3D" };
+        model.FlagSet.SetIgnoreReason("generic record 'FlagSet' does not support operators in this slice");
+        var owner = model.AddRecord("Input");
+        function = model.AddFunction(owner, "Scan", model.FlagSetType, model.FlagSetType);
+        return model;
     }
 }

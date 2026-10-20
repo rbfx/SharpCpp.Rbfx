@@ -2,6 +2,14 @@ using SharpCpp.Model.Ast;
 
 namespace SharpCpp.Rbfx.Generator;
 
+/// <summary>
+/// Lowers FlagSet&lt;TEnum&gt; to the enum in signatures, fields and aliases.
+/// The pass runs before the pipeline validates the surface.
+/// The validation then checks each lowered declaration as a plain enum declaration.
+/// A declaration stays ignored only when another type in it is not supported.
+/// FlagSet&lt;TEnum&gt; has one member of the underlying integer type of the enum.
+/// So the enum has the same size as the FlagSet and the native glue converts it by value.
+/// </summary>
 public static class RbfxFlagSetLoweringPass
 {
     public static void Apply(BindingCompilation compilation)
@@ -19,11 +27,9 @@ public static class RbfxFlagSetLoweringPass
 
         foreach (var function in compilation.Functions)
         {
-            var loweredFunction = false;
             if (TryLowerFlagSetType(compilation, function.ReturnType, out var returnType))
             {
                 function.ReturnType = returnType;
-                loweredFunction = true;
             }
 
             foreach (var parameter in function.Parameters)
@@ -31,13 +37,7 @@ public static class RbfxFlagSetLoweringPass
                 if (TryLowerFlagSetType(compilation, parameter.Type, out var parameterType))
                 {
                     parameter.Type = parameterType;
-                    loweredFunction = true;
                 }
-            }
-
-            if (loweredFunction && CanRescueLoweredConstructor(function))
-            {
-                function.ClearIgnoreReason();
             }
         }
 
@@ -46,13 +46,6 @@ public static class RbfxFlagSetLoweringPass
             if (TryLowerFlagSetType(compilation, field.Type, out var fieldType))
             {
                 field.Type = fieldType;
-                if (!field.IsSilentlyExcluded() &&
-                    field.Parent?.IsSilentlyExcluded() != true &&
-                    (field.Parent as RecordBinding)?.IsGeneric != true &&
-                    !ContainsOpenGenericParameter(field.Type))
-                {
-                    field.ClearIgnoreReason();
-                }
             }
         }
 
@@ -108,30 +101,6 @@ public static class RbfxFlagSetLoweringPass
     {
         enumBinding = compilation.FindEnumBySymbolId(enumType.EnumId)!;
         return enumBinding is not null;
-    }
-
-    private static bool CanRescueLoweredConstructor(FunctionBinding function)
-    {
-        if (!function.IsConstructor ||
-            function.IsSilentlyExcluded() ||
-            function.Parent?.IsSilentlyExcluded() == true ||
-            ContainsOpenGenericParameter(function.ReturnType) ||
-            function.Parameters.Any(static parameter => ContainsOpenGenericParameter(parameter.Type)))
-        {
-            return false;
-        }
-
-        return function.Parent is not RecordBinding record || !record.IsEffectivelyAbstract;
-    }
-
-    private static bool ContainsOpenGenericParameter(BindingType type)
-    {
-        if (type.Kind == BindingTypeKind.GenericParameter)
-        {
-            return true;
-        }
-
-        return type.GenericArguments.Any(ContainsOpenGenericParameter);
     }
 
     private static string GetQualifiedEnumManagedName(BindingCompilation compilation, EnumBinding enumBinding)

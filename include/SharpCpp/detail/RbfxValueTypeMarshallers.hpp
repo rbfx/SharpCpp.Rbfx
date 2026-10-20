@@ -10,6 +10,7 @@
 #include <EASTL/functional.h>
 #include <EASTL/list.h>
 #include <EASTL/map.h>
+#include <EASTL/optional.h>
 #include <EASTL/shared_array.h>
 #include <EASTL/string.h>
 #include <EASTL/string_view.h>
@@ -232,6 +233,35 @@ struct Marshaller<const eastl::vector<T, TAllocator>*> : OwnedHandleConstPointer
 
 template <typename T, typename TAllocator>
 struct ReturnMarshaller<eastl::vector<T, TAllocator>> : OwnedHandleReturnMarshallerBase<eastl::vector<T, TAllocator>> {};
+
+template <typename T>
+    requires is_optional_value_abi_v<T>
+struct [[sharpcpp::managed_type(
+    public_type = "{0}?",
+    managed_marshaller = "global::SharpCpp.Support.OptionalAbiMarshaller<{0}>"
+)]]
+Marshaller<eastl::optional<T>> : OptionalValueMarshallerBase<eastl::optional<T>, T> {};
+
+template <typename T>
+    requires is_optional_value_abi_v<T>
+struct Marshaller<const eastl::optional<T>&> : OptionalValueConstReferenceMarshallerBase<eastl::optional<T>, T> {};
+
+template <typename T>
+    requires is_optional_handle_abi_v<T>
+struct [[sharpcpp::managed_type(
+    public_type = "{0}?",
+    projection = true
+)]]
+Marshaller<eastl::optional<T>> : OptionalHandleMarshallerBase<eastl::optional<T>, T> {};
+
+template <typename T>
+    requires is_optional_handle_abi_v<T>
+struct Marshaller<const eastl::optional<T>&> : OptionalHandleConstReferenceMarshallerBase<eastl::optional<T>, T> {};
+
+template <typename T>
+    requires is_optional_handle_abi_v<T>
+struct [[sharpcpp::managed_type(return_ownership = "owning")]]
+ReturnMarshaller<eastl::optional<T>> : OptionalHandleReturnMarshallerBase<eastl::optional<T>, T> {};
 
 template <typename T, eastl_size_t N>
 struct [[sharpcpp::managed_type(

@@ -206,6 +206,7 @@ internal static class Program
                 {
                     silentExclusionCount = RbfxSilentExclusionPass.Apply(c);
                     RbfxSilentExclusionPass.ApplyFlagSetTemplate(c);
+                    silentExclusionCount += RbfxSilentExclusionPass.ApplyIntentionalGaps(c);
                 });
             Logger.LogInformation("Applied {Count} explicit rbfx managed member name(s).", explicitManagedNameCount);
             Logger.LogInformation("Tagged {Count} rbfx pointer range(s).", taggedPointerRangeCount);

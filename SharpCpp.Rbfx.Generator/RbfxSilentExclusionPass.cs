@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using SharpCpp.Model.Ast;
 
 namespace SharpCpp.Rbfx.Generator;
@@ -120,6 +121,218 @@ public static class RbfxSilentExclusionPass
         PruneAliasesTargetingIgnoredTypes(compilation, headerBlockedTypes);
 
         return count;
+    }
+
+    private const string NoApiSurfaceMarker = "has no user-defined API surface";
+
+    /// <summary>The first record or namespace root that a type diagnostic blames for an external type.</summary>
+    private static readonly Regex ExternalTypeReasonRegex = new(
+        @"(?:record '(?<record>[^']+)' is ignored|declaration namespace root '(?<root>[^']+)' is outside the configured namespace mappings)",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly string[] ThirdPartyNamespaceRoots =
+    {
+        "std", "pugi", "Diligent", "embree3", "CLI", "tracy"
+    };
+
+    private static readonly Regex ThirdPartyGlobalNameRegex = new(
+        @"^(?:(?:bt|b2|rc|dt)[A-Z0-9]|_?SDL_|Im[A-Z])",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Marks declarations in the log as silent exclusions when the reason is by design.
+    /// Each rule keeps the original reason text. The generated code does not change, only the comments.
+    /// 1. A declaration in a Dear ImGui or RmlUI header that the surface pass excludes later.
+    /// 2. A record without a user-defined API surface.
+    /// 3. A callable or field that uses a third-party or standard library type that rbfx does not bind.
+    /// 4. A declaration inside a record that is a silent exclusion.
+    /// 5. The warning for a dropped base that is excluded on purpose. The base stays dropped.
+    /// The pass must run before the pipeline writes the diagnostic log.
+    /// eastl and Urho3D types are not third-party: they stay visible as gaps.
+    /// </summary>
+    public static int ApplyIntentionalGaps(BindingCompilation compilation)
+    {
+        ArgumentNullException.ThrowIfNull(compilation);
+
+        var count = 0;
+        foreach (var record in compilation.Records.Where(static record => record.IsIgnored()))
+        {
+            if (RbfxImGuiSurfacePass.IsRecordOutsideSurface(record) ||
+                RbfxRmlUiSurfacePass.IsRecordOutsideSurface(record) ||
+                (record.GetIgnoreReason() ?? string.Empty).Contains(NoApiSurfaceMarker, StringComparison.Ordinal))
+            {
+                count += MarkSilent(record);
+            }
+        }
+
+        foreach (var enumBinding in compilation.Enums.Where(static enumBinding => enumBinding.IsIgnored()))
+        {
+            if (RbfxRmlUiSurfacePass.IsEnumOutsideSurface(enumBinding))
+            {
+                count += MarkSilent(enumBinding);
+            }
+        }
+
+        foreach (var function in compilation.Functions.Where(static function => function.IsIgnored()))
+        {
+            if (RbfxImGuiSurfacePass.IsFunctionOutsideSurface(function) ||
+                RbfxRmlUiSurfacePass.IsFunctionOutsideSurface(function) ||
+                IsBlamedOnThirdPartyType(function.GetIgnoreReason()))
+            {
+                count += MarkSilent(function);
+            }
+        }
+
+        foreach (var field in compilation.Descendants<FieldBinding>().Where(static field => field.IsIgnored()))
+        {
+            if (IsBlamedOnThirdPartyType(field.GetIgnoreReason()))
+            {
+                count += MarkSilent(field);
+            }
+        }
+
+        foreach (var record in compilation.Records.Where(static record => record.IsSilentlyExcluded()))
+        {
+            foreach (var member in record.Descendants<BindingNode>().Where(static member => member.IsIgnored()))
+            {
+                count += MarkSilent(member);
+            }
+        }
+
+        RemoveIntentionalBaseDropWarnings(compilation);
+        return count;
+    }
+
+    private static readonly Regex DroppedBaseWarningRegex = new(
+        @"^dropping base '(?<base>[^']+)' from record '[^']+' because",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>
+    /// The core pipeline warns when it drops an unavailable base, before rbfx marks that base as excluded.
+    /// This removes the warning when the drop is by design. The base is dropped in both cases.
+    /// By design means: a silently excluded base, a class template instantiation,
+    /// or a nested type of a class template base that an earlier drop already removed.
+    /// </summary>
+    private static void RemoveIntentionalBaseDropWarnings(BindingCompilation compilation)
+    {
+        var recordsByName = new Dictionary<string, RecordBinding>(StringComparer.Ordinal);
+        foreach (var candidate in compilation.Records)
+        {
+            recordsByName.TryAdd(candidate.CppQualifiedName, candidate);
+        }
+
+        var templateBaseOwners = new List<RecordBinding>();
+        foreach (var record in compilation.Records)
+        {
+            if (GetDroppedBaseNames(record).Any(static name => name.Contains('<', StringComparison.Ordinal)))
+            {
+                templateBaseOwners.Add(record);
+            }
+        }
+
+        foreach (var record in compilation.Records)
+        {
+            var warnings = record.GetMetadata<List<string>>(MetadataKeys.Warnings);
+            if (warnings is null)
+            {
+                continue;
+            }
+
+            warnings.RemoveAll(warning =>
+            {
+                var match = DroppedBaseWarningRegex.Match(warning);
+                return match.Success && IsIntentionalDroppedBaseName(match.Groups["base"].Value, recordsByName, templateBaseOwners);
+            });
+            if (warnings.Count == 0)
+            {
+                record.RemoveMetadata(MetadataKeys.Warnings);
+            }
+        }
+    }
+
+    private static IEnumerable<string> GetDroppedBaseNames(RecordBinding record)
+    {
+        foreach (var warning in record.GetWarnings())
+        {
+            var match = DroppedBaseWarningRegex.Match(warning);
+            if (match.Success)
+            {
+                yield return match.Groups["base"].Value;
+            }
+        }
+    }
+
+    private static bool IsIntentionalDroppedBaseName(
+        string baseName,
+        IReadOnlyDictionary<string, RecordBinding> recordsByName,
+        IReadOnlyList<RecordBinding> templateBaseOwners)
+    {
+        if (baseName.Contains('<', StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var lookupName = baseName.StartsWith("ea::", StringComparison.Ordinal) ? "eastl::" + baseName["ea::".Length..] : baseName;
+        if (recordsByName.TryGetValue(lookupName, out var baseRecord))
+        {
+            return baseRecord.IsSilentlyExcluded() ||
+                (baseRecord.GetIgnoreReason() ?? string.Empty).Contains(NoApiSurfaceMarker, StringComparison.Ordinal);
+        }
+
+        var scopeEnd = baseName.LastIndexOf("::", StringComparison.Ordinal);
+        if (scopeEnd <= 0)
+        {
+            return false;
+        }
+
+        var qualifier = baseName[..scopeEnd];
+        return templateBaseOwners.Any(owner =>
+            string.Equals(owner.CppQualifiedName, qualifier, StringComparison.Ordinal) ||
+            owner.CppQualifiedName.EndsWith("::" + qualifier, StringComparison.Ordinal));
+    }
+
+    private static int MarkSilent(BindingNode node)
+    {
+        if (node.IsSilentlyExcluded())
+        {
+            return 0;
+        }
+
+        node.SetSilentExclusionReason(node.GetIgnoreReason()!, overwriteExisting: true);
+        return 1;
+    }
+
+    private static bool IsBlamedOnThirdPartyType(string? reason)
+    {
+        if (string.IsNullOrEmpty(reason) ||
+            !(reason.Contains("is defined outside headers owned by this compilation", StringComparison.Ordinal) ||
+                reason.Contains("is outside the configured namespace mappings", StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        var match = ExternalTypeReasonRegex.Match(reason);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var name = match.Groups["record"].Success ? match.Groups["record"].Value : match.Groups["root"].Value;
+        return IsThirdPartyTypeName(name);
+    }
+
+    internal static bool IsThirdPartyTypeName(string name)
+    {
+        var template = name.IndexOf('<', StringComparison.Ordinal);
+        var plain = template < 0 ? name : name[..template];
+        var scope = plain.IndexOf("::", StringComparison.Ordinal);
+        var root = scope < 0 ? plain : plain[..scope];
+        if (ThirdPartyNamespaceRoots.Contains(root, StringComparer.Ordinal))
+        {
+            return true;
+        }
+
+        return ThirdPartyGlobalNameRegex.IsMatch(root);
     }
 
     /// <summary>
@@ -313,7 +526,11 @@ public static class RbfxSilentExclusionPass
                     continue;
                 }
 
-                record.SetWarning($"dropping base '{baseBinding.CppQualifiedName}' from record '{record.CppQualifiedName}' because the base record is not available for a coherent managed hierarchy; the derived record will still be generated without that base");
+                if (!IsIntentionalBaseDrop(baseBinding, baseRecord))
+                {
+                    record.SetWarning($"dropping base '{baseBinding.CppQualifiedName}' from record '{record.CppQualifiedName}' because the base record is not available for a coherent managed hierarchy (base record ignored: {baseRecord.GetIgnoreReason()}); the derived record will still be generated without that base");
+                }
+
                 record.Bases.Remove(baseBinding);
 
                 if (string.Equals(record.ManagedBaseTypeName, baseBinding.ManagedName, StringComparison.Ordinal))
@@ -332,6 +549,24 @@ public static class RbfxSilentExclusionPass
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// A base that rbfx excludes on purpose or that has no concrete record is dropped without a warning.
+    /// Examples are NonCopyable, third-party bases and class template bases.
+    /// A base that is ignored for any other reason keeps the warning, because it can be a real gap.
+    /// </summary>
+    internal static bool IsIntentionalBaseDrop(RecordBaseBinding baseBinding, RecordBinding baseRecord)
+    {
+        if (baseRecord.IsSilentlyExcluded() || baseBinding.CppQualifiedName.Contains('<', StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var reason = baseRecord.GetIgnoreReason() ?? string.Empty;
+        return reason.StartsWith("generic record ", StringComparison.Ordinal) ||
+            reason.Contains(NoApiSurfaceMarker, StringComparison.Ordinal) ||
+            reason.Contains("cannot be expressed as a C# generic", StringComparison.Ordinal);
     }
 
     private static string? PickRemainingManagedBaseTypeName(RecordBinding record, IReadOnlyDictionary<string, RecordBinding> recordsById)

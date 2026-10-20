@@ -57,9 +57,9 @@ public static class RbfxImGuiSurfacePass
                 record.ClearIgnoreReason();
                 changed++;
             }
-            else if (IsDearImGuiHeader(record.HeaderIncludePath))
+            else if (IsRecordOutsideSurface(record))
             {
-                record.SetSilentExclusionReason("Dear ImGui declaration is outside the conservative bootstrap surface", overwriteExisting: false);
+                record.SetSilentExclusionReason(RecordOutsideSurfaceReason, overwriteExisting: false);
             }
         }
 
@@ -82,12 +82,10 @@ public static class RbfxImGuiSurfacePass
         {
             function.ManagedNamespace = "ImGuiNet";
             function.ManagedClassName = "ImGui";
-            if (IsPublicImGuiHeader(function.HeaderIncludePath) &&
-                function.CppQualifiedName.StartsWith("ImGui::", StringComparison.Ordinal) &&
-                PublicFreeFunctionNames.Contains(function.NativeName))
+            if (!IsFunctionOutsideSurface(function))
                 function.ClearIgnoreReason();
             else
-                function.SetSilentExclusionReason("Dear ImGui callable is outside the conservative public imgui.h surface", overwriteExisting: true);
+                function.SetSilentExclusionReason(FunctionOutsideSurfaceReason, overwriteExisting: true);
             changed++;
         }
 
@@ -140,6 +138,24 @@ public static class RbfxImGuiSurfacePass
 
         return changed;
     }
+
+    internal const string RecordOutsideSurfaceReason = "Dear ImGui declaration is outside the conservative bootstrap surface";
+
+    internal const string FunctionOutsideSurfaceReason = "Dear ImGui callable is outside the conservative public imgui.h surface";
+
+    /// <summary>
+    /// True when <see cref="Apply"/> excludes the record silently.
+    /// The silent exclusion pass uses this to hide the record before the diagnostic log.
+    /// </summary>
+    internal static bool IsRecordOutsideSurface(RecordBinding record)
+        => IsDearImGuiHeader(record.HeaderIncludePath) && !PublicGlobalRecordNames.Contains(record.CppQualifiedName);
+
+    /// <summary>True when <see cref="Apply"/> excludes the function silently.</summary>
+    internal static bool IsFunctionOutsideSurface(FunctionBinding function)
+        => IsDearImGuiHeader(function.HeaderIncludePath) &&
+            !(IsPublicImGuiHeader(function.HeaderIncludePath) &&
+                function.CppQualifiedName.StartsWith("ImGui::", StringComparison.Ordinal) &&
+                PublicFreeFunctionNames.Contains(function.NativeName));
 
     private static bool IsDearImGuiGlobal(string cppQualifiedName)
         => cppQualifiedName.StartsWith("Im", StringComparison.Ordinal) && !cppQualifiedName.Contains("::", StringComparison.Ordinal);

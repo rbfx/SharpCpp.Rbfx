@@ -50,9 +50,9 @@ public static class RbfxRmlUiSurfacePass
         foreach (var record in compilation.Records.Where(static record => IsRmlHeader(record.HeaderIncludePath)))
         {
             record.ManagedNamespace = "Rml";
-            if (!PublicRecordNames.Contains(record.CppQualifiedName) || ShouldIgnoreRecord(record))
+            if (IsRecordOutsideSurface(record))
             {
-                record.SetIgnoreReason("RmlUI declaration is outside the conservative bootstrap surface", overwriteExisting: false);
+                record.SetIgnoreReason(RecordOutsideSurfaceReason, overwriteExisting: false);
                 record.SetMetadata(MetadataKeys.SilentExclusion, true);
             }
             else
@@ -69,14 +69,14 @@ public static class RbfxRmlUiSurfacePass
         foreach (var enumBinding in compilation.Enums.Where(static enumBinding => IsRmlHeader(enumBinding.HeaderIncludePath)))
         {
             enumBinding.ManagedNamespace = "Rml";
-            if (PublicEnumNames.Contains(enumBinding.CppQualifiedName))
+            if (!IsEnumOutsideSurface(enumBinding))
             {
                 enumBinding.ClearIgnoreReason();
                 enumBinding.RemoveMetadata(MetadataKeys.SilentExclusion);
             }
             else
             {
-                enumBinding.SetIgnoreReason("RmlUI enum is outside the conservative bootstrap surface", overwriteExisting: false);
+                enumBinding.SetIgnoreReason(EnumOutsideSurfaceReason, overwriteExisting: false);
                 enumBinding.SetMetadata(MetadataKeys.SilentExclusion, true);
             }
             changed++;
@@ -84,10 +84,9 @@ public static class RbfxRmlUiSurfacePass
 
         foreach (var function in compilation.Functions.Where(static function => IsRmlHeader(function.HeaderIncludePath)))
         {
-            var owner = function.Parent as RecordBinding;
-            if (owner is null || !PublicRecordNames.Contains(owner.CppQualifiedName))
+            if (IsFunctionOutsideSurface(function))
             {
-                function.SetIgnoreReason("RmlUI callable is outside the conservative bootstrap surface", overwriteExisting: false);
+                function.SetIgnoreReason(FunctionOutsideSurfaceReason, overwriteExisting: false);
                 function.SetMetadata(MetadataKeys.SilentExclusion, true);
                 changed++;
             }
@@ -131,6 +130,29 @@ public static class RbfxRmlUiSurfacePass
 
         return changed;
     }
+
+    internal const string RecordOutsideSurfaceReason = "RmlUI declaration is outside the conservative bootstrap surface";
+
+    internal const string EnumOutsideSurfaceReason = "RmlUI enum is outside the conservative bootstrap surface";
+
+    internal const string FunctionOutsideSurfaceReason = "RmlUI callable is outside the conservative bootstrap surface";
+
+    /// <summary>
+    /// True when <see cref="Apply"/> excludes the record silently.
+    /// The silent exclusion pass uses this to hide the record before the diagnostic log.
+    /// </summary>
+    internal static bool IsRecordOutsideSurface(RecordBinding record)
+        => IsRmlHeader(record.HeaderIncludePath) &&
+            (!PublicRecordNames.Contains(record.CppQualifiedName) || ShouldIgnoreRecord(record));
+
+    /// <summary>True when <see cref="Apply"/> excludes the enum silently.</summary>
+    internal static bool IsEnumOutsideSurface(EnumBinding enumBinding)
+        => IsRmlHeader(enumBinding.HeaderIncludePath) && !PublicEnumNames.Contains(enumBinding.CppQualifiedName);
+
+    /// <summary>True when <see cref="Apply"/> excludes the function silently.</summary>
+    internal static bool IsFunctionOutsideSurface(FunctionBinding function)
+        => IsRmlHeader(function.HeaderIncludePath) &&
+            (function.Parent is not RecordBinding owner || !PublicRecordNames.Contains(owner.CppQualifiedName));
 
     private static bool IsRmlHeader(string? headerIncludePath)
     {

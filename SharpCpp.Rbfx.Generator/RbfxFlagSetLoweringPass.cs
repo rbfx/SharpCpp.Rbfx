@@ -132,25 +132,25 @@ public static class RbfxFlagSetLoweringPass
     /// <summary>
     /// The parser has no managed default for a FlagSet parameter, so it marks the default as unexpressible.
     /// This method sets the managed default for the enum when the native default is convertible.
-    /// Otherwise it removes the default, so the parameter is required and the C# default order stays legal.
+    /// Otherwise the parameter keeps the unexpressible mark and the native default.
+    /// The renderer then makes the parameter nullable or adds an overload without it.
     /// </summary>
     private static void LowerDefaultValue(ParameterBinding parameter, EnumBinding enumBinding, string managedTypeName)
     {
-        var hasNativeDefault = parameter.TryGetMetadata<string>(MetadataKeys.NativeDefaultValueExpression, out var nativeDefault);
-        if (!hasNativeDefault && !parameter.HasMetadata(MetadataKeys.UnexpressibleDefault))
+        if (!parameter.TryGetMetadata<string>(MetadataKeys.NativeDefaultValueExpression, out var nativeDefault))
         {
             return;
         }
 
-        parameter.RemoveMetadata(MetadataKeys.UnexpressibleDefault);
-        if (hasNativeDefault && TryConvertEnumDefault(nativeDefault, enumBinding, managedTypeName, out var managedDefault))
+        if (TryConvertEnumDefault(nativeDefault, enumBinding, managedTypeName, out var managedDefault))
         {
             parameter.ManagedDefaultValueExpression = managedDefault;
+            parameter.RemoveMetadata(MetadataKeys.UnexpressibleDefault);
             return;
         }
 
         parameter.ManagedDefaultValueExpression = null;
-        parameter.RemoveMetadata(MetadataKeys.NativeDefaultValueExpression);
+        parameter.SetMetadata(MetadataKeys.UnexpressibleDefault, true);
     }
 
     /// <summary>

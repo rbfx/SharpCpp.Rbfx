@@ -287,7 +287,7 @@ public sealed class RbfxFlagSetLoweringPassTests
     [InlineData("MouseButton::Missing")]
     [InlineData("static_cast<MouseButton>(3)")]
     [InlineData("7")]
-    public void Apply_DropsDefaultThatCannotBeConverted(string nativeDefault)
+    public void Apply_KeepsUnexpressibleDefaultThatCannotBeConverted(string nativeDefault)
     {
         var model = new FlagSetTestModel();
         var function = AddFunctionWithDefault(model, nativeDefault);
@@ -296,8 +296,8 @@ public sealed class RbfxFlagSetLoweringPassTests
 
         var parameter = function.Parameters[1];
         Assert.Null(parameter.ManagedDefaultValueExpression);
-        Assert.False(parameter.HasMetadata(MetadataKeys.UnexpressibleDefault));
-        Assert.False(parameter.HasMetadata(MetadataKeys.NativeDefaultValueExpression));
+        Assert.True(parameter.HasMetadata(MetadataKeys.UnexpressibleDefault));
+        Assert.Equal(nativeDefault, parameter.GetMetadata<string>(MetadataKeys.NativeDefaultValueExpression));
     }
 
     [Fact]

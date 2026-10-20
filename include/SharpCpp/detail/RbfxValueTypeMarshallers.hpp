@@ -12,6 +12,7 @@
 #include <EASTL/map.h>
 #include <EASTL/optional.h>
 #include <EASTL/shared_array.h>
+#include <EASTL/span.h>
 #include <EASTL/string.h>
 #include <EASTL/string_view.h>
 #include <EASTL/unordered_map.h>
@@ -262,6 +263,59 @@ template <typename T>
     requires is_optional_handle_abi_v<T>
 struct [[sharpcpp::managed_type(return_ownership = "owning")]]
 ReturnMarshaller<eastl::optional<T>> : OptionalHandleReturnMarshallerBase<eastl::optional<T>, T> {};
+
+// eastl::span uses eastl::dynamic_extent as its dynamic-extent value.
+template <typename T, size_t Extent>
+inline constexpr std::size_t span_dynamic_extent_v<eastl::span<T, Extent>> = eastl::dynamic_extent;
+
+// eastl::span crosses the ABI with no copy, the same as std::span. See SpanMarshallerBase.
+template <typename T, size_t Extent>
+    requires(!std::is_const_v<T> && is_span_element_abi_v<T>)
+struct [[sharpcpp::managed_type(
+    public_type = "global::System.Span<{0}>",
+    managed_marshaller = "global::SharpCpp.Support.SpanAbiMarshaller<>",
+    undefaultable = true
+)]]
+Marshaller<eastl::span<T, Extent>> : SpanMarshallerBase<eastl::span<T, Extent>> {};
+
+template <typename T, size_t Extent>
+    requires is_span_element_abi_v<T>
+struct [[sharpcpp::managed_type(
+    public_type = "global::System.ReadOnlySpan<{0}>",
+    managed_marshaller = "global::SharpCpp.Support.ReadOnlySpanAbiMarshaller<>",
+    undefaultable = true
+)]]
+Marshaller<eastl::span<const T, Extent>> : ConstSpanMarshallerBase<eastl::span<const T, Extent>> {};
+
+template <typename T, size_t Extent>
+    requires(!is_span_element_abi_v<T>)
+struct Marshaller<eastl::span<T, Extent>> : UnsupportedSpanMarshallerBase<eastl::span<T, Extent>> {};
+
+template <typename T, size_t Extent>
+    requires(!std::is_const_v<T> && is_span_element_abi_v<T>)
+struct Marshaller<const eastl::span<T, Extent>&>
+    : SpanConstReferenceMarshallerBase<eastl::span<T, Extent>, Marshaller<eastl::span<T, Extent>>> {};
+
+template <typename T, size_t Extent>
+    requires is_span_element_abi_v<T>
+struct Marshaller<const eastl::span<const T, Extent>&>
+    : SpanConstReferenceMarshallerBase<eastl::span<const T, Extent>, Marshaller<eastl::span<const T, Extent>>> {};
+
+template <typename T, size_t Extent>
+    requires(!std::is_const_v<T> && is_span_element_abi_v<T>)
+struct [[sharpcpp::managed_type(
+    public_type = "global::System.Span<{0}>",
+    managed_marshaller = "global::SharpCpp.Support.SpanAbiReturnMarshaller<>"
+)]]
+ReturnMarshaller<eastl::span<T, Extent>> : Marshaller<eastl::span<T, Extent>> {};
+
+template <typename T, size_t Extent>
+    requires is_span_element_abi_v<T>
+struct [[sharpcpp::managed_type(
+    public_type = "global::System.ReadOnlySpan<{0}>",
+    managed_marshaller = "global::SharpCpp.Support.ReadOnlySpanAbiReturnMarshaller<>"
+)]]
+ReturnMarshaller<eastl::span<const T, Extent>> : Marshaller<eastl::span<const T, Extent>> {};
 
 template <typename T, eastl_size_t N>
 struct [[sharpcpp::managed_type(

@@ -190,6 +190,7 @@ internal static class Program
             var taggedPointerRangeCount = 0;
             var explicitManagedNameCount = 0;
             var silentExclusionCount = 0;
+            var spanOverloadCount = 0;
             BindingCompilationBootstrapPipeline.Apply(
                 compilation,
                 marshallerConfigurationFiles,
@@ -200,6 +201,8 @@ internal static class Program
                     explicitManagedNameCount = RbfxManagedNamesPass.Apply(c);
                     // Before the validation, so that it checks each FlagSet<E> declaration as a plain enum declaration.
                     RbfxFlagSetLoweringPass.Apply(c);
+                    // Before the validation, so that its duplicate signature check keeps the overload that this pass keeps.
+                    spanOverloadCount = RbfxSpanOverloadCollisionPass.Apply(c);
                 },
                 // Runs before the pipeline writes the diagnostic log, so the log shows these as excluded.
                 configureAfterValidation: c =>
@@ -214,6 +217,7 @@ internal static class Program
             Logger.LogInformation("Pipeline completed in {Duration}", FormatDuration(pipelineSw.Elapsed));
 
             Logger.LogInformation("Silently excluded {Count} rbfx non-public implementation declaration(s).", silentExclusionCount);
+            Logger.LogInformation("Silently excluded {Count} rbfx overload(s) that a span overload replaces or collides with.", spanOverloadCount);
 
             var unsupportedApiCount = RbfxUnsupportedApisPass.Apply(
                 compilation, targetTriple?.Contains("emscripten", StringComparison.OrdinalIgnoreCase) == true);

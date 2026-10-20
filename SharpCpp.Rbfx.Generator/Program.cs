@@ -564,7 +564,7 @@ internal static class Program
         }
 
         foreach (var cppQualifiedName in compilation.Records.Select(static record => record.CppQualifiedName)
-                     .Concat(compilation.Enums.Select(static @enum => @enum.CppQualifiedName)))
+                     .Concat(compilation.Enums.Select(static @enum => @enum.ScopeCppQualifiedName)))
         {
             var lastSeparator = cppQualifiedName.LastIndexOf("::", StringComparison.Ordinal);
             if (lastSeparator < 0)

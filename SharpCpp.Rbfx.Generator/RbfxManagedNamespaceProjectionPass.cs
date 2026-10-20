@@ -17,7 +17,9 @@ public static class RbfxManagedNamespaceProjectionPass
 
         foreach (var enumBinding in compilation.Enums)
         {
-            projection.AddDeclaration(ResolveManagedNamespace(enumBinding.CppQualifiedName, enumBinding.HeaderIncludePath, enumBinding.ManagedNamespace ?? compilation.ManagedNamespace), enumBinding);
+            // An external enum that an owned alias names has the namespace of the alias.
+            var enumScopeName = enumBinding.ScopeCppQualifiedName;
+            projection.AddDeclaration(ResolveManagedNamespace(enumScopeName, enumBinding.HeaderIncludePath, enumBinding.ManagedNamespace ?? compilation.ManagedNamespace), enumBinding);
         }
 
         compilation.SetMetadata(MetadataKeys.ManagedBindingProjection, projection);

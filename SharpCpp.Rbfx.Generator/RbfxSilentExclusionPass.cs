@@ -61,8 +61,10 @@ public static class RbfxSilentExclusionPass
 
         foreach (var enumBinding in compilation.Enums)
         {
+            // An external enum that an owned alias names has the namespace of the alias.
+            var enumScopeName = enumBinding.ScopeCppQualifiedName;
             if (TryGetBlockedHeaderSilentExclusionReason(enumBinding, inheritFromAncestor: false, out var reason) ||
-                TryGetSilentExclusionReason(enumBinding.CppQualifiedName, out reason))
+                TryGetSilentExclusionReason(enumScopeName, out reason))
             {
                 if (SetSilentExclusionReasonIfChanged(enumBinding, reason))
                 {

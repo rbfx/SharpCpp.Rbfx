@@ -14,6 +14,9 @@ internal sealed class FlagSetTestModel
         Compilation = new BindingCompilation("Test", "Urho3D", "TestBindings", "TestNative", Array.Empty<string>());
 
         Enum = new EnumBinding(EnumId, "MouseButton", "MouseButton", cppQualifiedName: "Urho3D::MouseButton");
+        Enum.Values.Add(new EnumValueBinding("None", "None", "0"));
+        Enum.Values.Add(new EnumValueBinding("Left", "Left", "1"));
+        Enum.Values.Add(new EnumValueBinding("Right", "Right", "2"));
         Compilation.Members.Add(Enum);
 
         FlagSet = new RecordBinding(FlagSetId, "FlagSet", "FlagSet", "Urho3D::FlagSet");

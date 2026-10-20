@@ -148,12 +148,18 @@ public static class RbfxSilentExclusionPass
         return count;
     }
 
-    /// <summary>The static array that each URHO3D_OBJECT class declares. The managed type information replaces it.</summary>
+    /// <summary>
+    /// The static array that each URHO3D_OBJECT class declares. The managed type information replaces it.
+    /// The owner record must also have the static GetTypeInfoStatic function that the same macro declares.
+    /// </summary>
     private static bool IsTypeHierarchyField(FieldBinding field)
     {
         return field.IsStatic &&
             field.Type.IsFixedArray &&
-            string.Equals(field.NativeName, "TypeHierarchy", StringComparison.Ordinal);
+            string.Equals(field.NativeName, "TypeHierarchy", StringComparison.Ordinal) &&
+            field.Parent is RecordBinding owner &&
+            owner.Members.OfType<FunctionBinding>().Any(static function =>
+                function.IsStatic && string.Equals(function.NativeName, "GetTypeInfoStatic", StringComparison.Ordinal));
     }
 
     private static bool SetSilentExclusionReasonIfChanged(BindingNode node, string reason)

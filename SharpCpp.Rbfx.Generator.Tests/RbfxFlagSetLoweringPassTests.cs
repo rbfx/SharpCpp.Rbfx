@@ -199,6 +199,166 @@ public sealed class RbfxFlagSetLoweringPassTests
         Assert.False(function.IsIgnored());
     }
 
+    [Fact]
+    public void Apply_LowersConstReferenceParameter()
+    {
+        var model = new FlagSetTestModel();
+        var function = model.AddFunction(model.Compilation, "Use", BindingType.Void, model.FlagSetType);
+        var parameter = function.Parameters[0];
+        parameter.CppTypeName = "const Urho3D::FlagSet<Urho3D::MouseButton> &";
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.Equal(BindingTypeKind.Enum, parameter.Type.Kind);
+    }
+
+    [Theory]
+    [InlineData("const Urho3D::FlagSet<Urho3D::MouseButton> *", BindingParameterDirection.In)]
+    [InlineData("Urho3D::FlagSet<Urho3D::MouseButton> *", BindingParameterDirection.Out)]
+    [InlineData("Urho3D::FlagSet<Urho3D::MouseButton> &", BindingParameterDirection.Ref)]
+    [InlineData("Urho3D::FlagSet<Urho3D::MouseButton> &&", BindingParameterDirection.In)]
+    public void Apply_KeepsPointerAndNonConstReferenceParameters(string spelling, BindingParameterDirection direction)
+    {
+        var model = new FlagSetTestModel();
+        var function = model.AddFunction(model.Compilation, "Use", BindingType.Void, model.FlagSetType);
+        var parameter = function.Parameters[0];
+        parameter.CppTypeName = spelling;
+        parameter.Direction = direction;
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.Equal(BindingTypeKind.Handle, parameter.Type.Kind);
+    }
+
+    [Theory]
+    [InlineData("Urho3D::FlagSet<Urho3D::MouseButton> *")]
+    [InlineData("const Urho3D::FlagSet<Urho3D::MouseButton> &")]
+    public void Apply_KeepsPointerAndReferenceReturnAndField(string spelling)
+    {
+        var model = new FlagSetTestModel();
+        var owner = model.AddRecord("Input");
+        var function = model.AddFunction(owner, "Get", model.FlagSetType);
+        function.CppReturnTypeName = spelling;
+        var field = new FieldBinding("field:buttons", "buttons_", "Buttons", model.FlagSetType, spelling, "Urho3D::Input");
+        owner.Members.Add(field);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.Equal(BindingTypeKind.Handle, function.ReturnType.Kind);
+        Assert.Equal(BindingTypeKind.Handle, field.Type.Kind);
+    }
+
+    [Fact]
+    public void Apply_KeepsPointerParameterIgnoredByValidation()
+    {
+        var model = ValidationReadyModel(out var function);
+        function.Parameters[0].CppTypeName = "Urho3D::FlagSet<Urho3D::MouseButton> *";
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+        DegradeUnsupportedSurfacePass.Apply(model.Compilation);
+
+        Assert.True(function.IsIgnored());
+        Assert.Contains("FlagSet", function.GetIgnoreReason());
+    }
+
+    [Theory]
+    [InlineData("{}", "default")]
+    [InlineData("0", "default")]
+    [InlineData("Urho3D::MouseButton::Left", "global::Urho3D.MouseButton.Left")]
+    [InlineData("MouseButton::None", "global::Urho3D.MouseButton.None")]
+    [InlineData("Left", "global::Urho3D.MouseButton.Left")]
+    [InlineData("MouseButton::Left | MouseButton::Right", "global::Urho3D.MouseButton.Left | global::Urho3D.MouseButton.Right")]
+    [InlineData("(MouseButton::Left) | (MouseButton::Right)", "global::Urho3D.MouseButton.Left | global::Urho3D.MouseButton.Right")]
+    [InlineData("{MouseButton::Left}", "global::Urho3D.MouseButton.Left")]
+    public void Apply_ConvertsNativeDefaultToManagedEnumDefault(string nativeDefault, string expected)
+    {
+        var model = new FlagSetTestModel();
+        var function = AddFunctionWithDefault(model, nativeDefault);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        var parameter = function.Parameters[1];
+        Assert.Equal(expected, parameter.ManagedDefaultValueExpression);
+        Assert.False(parameter.HasMetadata(MetadataKeys.UnexpressibleDefault));
+    }
+
+    [Theory]
+    [InlineData("DRAWABLE_ANY")]
+    [InlineData("MouseButton::Missing")]
+    [InlineData("static_cast<MouseButton>(3)")]
+    [InlineData("7")]
+    public void Apply_DropsDefaultThatCannotBeConverted(string nativeDefault)
+    {
+        var model = new FlagSetTestModel();
+        var function = AddFunctionWithDefault(model, nativeDefault);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        var parameter = function.Parameters[1];
+        Assert.Null(parameter.ManagedDefaultValueExpression);
+        Assert.False(parameter.HasMetadata(MetadataKeys.UnexpressibleDefault));
+        Assert.False(parameter.HasMetadata(MetadataKeys.NativeDefaultValueExpression));
+    }
+
+    [Fact]
+    public void Apply_LowersFlagSetOfSixtyFourBitEnum()
+    {
+        var model = new FlagSetTestModel();
+        var bigEnum = new EnumBinding("enum:Urho3D::Big", "Big", "Big", "ulong", "Urho3D::Big", BindingPrimitiveKind.UInt64);
+        model.Compilation.Members.Add(bigEnum);
+        var bigEnumType = BindingType.CreateEnum("Urho3D::Big", "Big", enumId: bigEnum.SymbolId);
+        var bigFlagSet = BindingType.CreateHandle(
+            "Urho3D::FlagSet<Urho3D::Big>",
+            "FlagSet<Big>",
+            recordId: FlagSetTestModel.FlagSetId,
+            genericArguments: new[] { bigEnumType });
+        var function = model.AddFunction(model.Compilation, "UseBig", bigFlagSet, bigFlagSet);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        Assert.Equal(BindingTypeKind.Enum, function.ReturnType.Kind);
+        Assert.Equal("global::Urho3D.Big", function.Parameters[0].Type.ManagedTypeName);
+        Assert.True(bigEnum.IsFlags);
+        Assert.Equal("ulong", bigEnum.UnderlyingTypeName);
+    }
+
+    [Fact]
+    public void Apply_KeepsCallbackAndNestedGenericWithFlagSetIgnored()
+    {
+        var model = ValidationReadyModel(out var function);
+        var callbackType = BindingType.CreateCallback(
+            "ea::function<void(Urho3D::FlagSet<Urho3D::MouseButton>)>",
+            "global::System.Action<{0}>",
+            null,
+            BindingType.Void,
+            new[] { model.FlagSetType });
+        var vectorType = BindingType.CreateHandle(
+            "ea::vector<Urho3D::FlagSet<Urho3D::MouseButton>>",
+            "Vector<FlagSet<MouseButton>>",
+            recordId: "record:ea::vector",
+            genericArguments: new[] { model.FlagSetType });
+        function.Parameters.Clear();
+        function.Parameters.Add(new ParameterBinding("param:callback", "callback", "callback", callbackType));
+        var vectorFunction = model.AddFunction(model.Compilation, "UseVector", BindingType.Void, vectorType);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+        DegradeUnsupportedSurfacePass.Apply(model.Compilation);
+
+        Assert.Equal(BindingTypeKind.Handle, callbackType.CallbackParameterTypes[0].Kind);
+        Assert.Equal(BindingTypeKind.Handle, vectorType.GenericArguments[0].Kind);
+        Assert.True(function.IsIgnored());
+        Assert.True(vectorFunction.IsIgnored());
+    }
+
+    private static FunctionBinding AddFunctionWithDefault(FlagSetTestModel model, string nativeDefault)
+    {
+        var function = model.AddFunction(model.Compilation, "Use", BindingType.Void, model.EnumType, model.FlagSetType);
+        var parameter = function.Parameters[1];
+        parameter.SetMetadata(MetadataKeys.NativeDefaultValueExpression, nativeDefault);
+        parameter.SetMetadata(MetadataKeys.UnexpressibleDefault, true);
+        return function;
+    }
+
     private static FlagSetTestModel ValidationReadyModel(out FunctionBinding function)
     {
         var model = new FlagSetTestModel();

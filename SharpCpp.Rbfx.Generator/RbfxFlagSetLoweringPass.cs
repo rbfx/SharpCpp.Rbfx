@@ -9,6 +9,8 @@ namespace SharpCpp.Rbfx.Generator;
 /// A declaration stays ignored only when another type in it is not supported.
 /// FlagSet&lt;TEnum&gt; has one member of the underlying integer type of the enum.
 /// So the enum has the same size as the FlagSet and the native glue converts it by value.
+/// The pass lowers only a by-value FlagSet, a const reference parameter and a by-value return.
+/// A pointer or a non-const reference to a FlagSet keeps the FlagSet type, so the validation reports it.
 /// </summary>
 public static class RbfxFlagSetLoweringPass
 {
@@ -19,7 +21,7 @@ public static class RbfxFlagSetLoweringPass
         for (var i = 0; i < compilation.TypeAliases.Count; i++)
         {
             var alias = compilation.TypeAliases[i];
-            if (TryLowerFlagSetType(compilation, alias.TargetType, out var enumType))
+            if (TryLowerFlagSetType(compilation, alias.TargetType, out var enumType, out _))
             {
                 compilation.TypeAliases[i] = alias with { TargetType = enumType };
             }
@@ -28,7 +30,8 @@ public static class RbfxFlagSetLoweringPass
         foreach (var function in compilation.Functions)
         {
             var returnedFlagSet = false;
-            if (TryLowerFlagSetType(compilation, function.ReturnType, out var returnType))
+            if (IsLowerableSpelling(function.CppReturnTypeName, allowConstReference: false) &&
+                TryLowerFlagSetType(compilation, function.ReturnType, out var returnType, out _))
             {
                 function.ReturnType = returnType;
                 returnedFlagSet = true;
@@ -36,9 +39,13 @@ public static class RbfxFlagSetLoweringPass
 
             foreach (var parameter in function.Parameters)
             {
-                if (TryLowerFlagSetType(compilation, parameter.Type, out var parameterType))
+                if (parameter.Direction == BindingParameterDirection.In &&
+                    parameter.AbiKind == BindingParameterAbiKind.Value &&
+                    IsLowerableSpelling(parameter.CppTypeName, allowConstReference: true) &&
+                    TryLowerFlagSetType(compilation, parameter.Type, out var parameterType, out var parameterEnum))
                 {
                     parameter.Type = parameterType;
+                    LowerDefaultValue(parameter, parameterEnum, parameterType.ManagedTypeName);
                 }
             }
 
@@ -51,7 +58,8 @@ public static class RbfxFlagSetLoweringPass
 
         foreach (var field in compilation.Records.SelectMany(static record => record.Members.OfType<FieldBinding>()))
         {
-            if (TryLowerFlagSetType(compilation, field.Type, out var fieldType))
+            if (IsLowerableSpelling(field.CppTypeName, allowConstReference: false) &&
+                TryLowerFlagSetType(compilation, field.Type, out var fieldType, out _))
             {
                 field.Type = fieldType;
             }
@@ -74,16 +82,17 @@ public static class RbfxFlagSetLoweringPass
         compilation.InvalidateCaches();
     }
 
-    private static bool TryLowerFlagSetType(BindingCompilation compilation, BindingType type, out BindingType enumType)
+    private static bool TryLowerFlagSetType(BindingCompilation compilation, BindingType type, out BindingType enumType, out EnumBinding enumBinding)
     {
         enumType = BindingType.Void;
+        enumBinding = null!;
         if (!IsFlagSetType(compilation, type) || type.GenericArguments.Count != 1)
         {
             return false;
         }
 
         var enumArgument = type.GenericArguments[0];
-        if (enumArgument.Kind != BindingTypeKind.Enum || !TryFindEnum(compilation, enumArgument, out var enumBinding))
+        if (enumArgument.Kind != BindingTypeKind.Enum || !TryFindEnum(compilation, enumArgument, out enumBinding))
         {
             return false;
         }
@@ -91,6 +100,159 @@ public static class RbfxFlagSetLoweringPass
         enumBinding.IsFlags = true;
         enumType = BindingType.CreateEnum(enumArgument.CppTypeName, GetQualifiedEnumManagedName(compilation, enumBinding), enumId: enumBinding.SymbolId);
         return true;
+    }
+
+    /// <summary>
+    /// Checks the C++ spelling after the template arguments.
+    /// A pointer and an rvalue reference are not lowered. A reference is lowered only when it is const.
+    /// </summary>
+    internal static bool IsLowerableSpelling(string? cppTypeName, bool allowConstReference)
+    {
+        if (string.IsNullOrWhiteSpace(cppTypeName))
+        {
+            return true;
+        }
+
+        var tail = cppTypeName[(cppTypeName.LastIndexOf('>') + 1)..];
+        if (tail.Contains('*') || tail.Contains("&&", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!tail.Contains('&'))
+        {
+            return true;
+        }
+
+        return allowConstReference &&
+            (tail.Contains("const", StringComparison.Ordinal) ||
+             cppTypeName.TrimStart().StartsWith("const ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The parser has no managed default for a FlagSet parameter, so it marks the default as unexpressible.
+    /// This method sets the managed default for the enum when the native default is convertible.
+    /// Otherwise it removes the default, so the parameter is required and the C# default order stays legal.
+    /// </summary>
+    private static void LowerDefaultValue(ParameterBinding parameter, EnumBinding enumBinding, string managedTypeName)
+    {
+        var hasNativeDefault = parameter.TryGetMetadata<string>(MetadataKeys.NativeDefaultValueExpression, out var nativeDefault);
+        if (!hasNativeDefault && !parameter.HasMetadata(MetadataKeys.UnexpressibleDefault))
+        {
+            return;
+        }
+
+        parameter.RemoveMetadata(MetadataKeys.UnexpressibleDefault);
+        if (hasNativeDefault && TryConvertEnumDefault(nativeDefault, enumBinding, managedTypeName, out var managedDefault))
+        {
+            parameter.ManagedDefaultValueExpression = managedDefault;
+            return;
+        }
+
+        parameter.ManagedDefaultValueExpression = null;
+        parameter.RemoveMetadata(MetadataKeys.NativeDefaultValueExpression);
+    }
+
+    /// <summary>
+    /// Converts the native default of a FlagSet parameter to a C# constant of the enum.
+    /// It accepts an empty brace list, 0, an enum constant and a bitwise or of these.
+    /// </summary>
+    internal static bool TryConvertEnumDefault(string? nativeDefault, EnumBinding enumBinding, string managedTypeName, out string managedDefault)
+    {
+        managedDefault = string.Empty;
+        var expression = StripOuterGrouping(nativeDefault);
+        if (expression.Length == 0)
+        {
+            managedDefault = "default";
+            return true;
+        }
+
+        var terms = new List<string>();
+        foreach (var rawTerm in SplitTopLevelOr(expression))
+        {
+            var term = StripOuterGrouping(rawTerm);
+            if (term.TrimEnd('u', 'U') == "0")
+            {
+                continue;
+            }
+
+            var separator = term.LastIndexOf("::", StringComparison.Ordinal);
+            var name = (separator >= 0 ? term[(separator + 2)..] : term).Trim();
+            if (name.Length == 0 || !name.All(static c => char.IsLetterOrDigit(c) || c == '_'))
+            {
+                return false;
+            }
+
+            var value = enumBinding.Values.FirstOrDefault(candidate => string.Equals(candidate.NativeName, name, StringComparison.Ordinal));
+            if (value is null)
+            {
+                return false;
+            }
+
+            terms.Add($"{managedTypeName}.{value.ManagedName}");
+        }
+
+        managedDefault = terms.Count == 0 ? "default" : string.Join(" | ", terms);
+        return true;
+    }
+
+    private static IEnumerable<string> SplitTopLevelOr(string expression)
+    {
+        var depth = 0;
+        var start = 0;
+        for (var i = 0; i < expression.Length; i++)
+        {
+            switch (expression[i])
+            {
+                case '(' or '{':
+                    depth++;
+                    break;
+                case ')' or '}':
+                    depth--;
+                    break;
+                case '|' when depth == 0:
+                    yield return expression[start..i];
+                    start = i + 1;
+                    break;
+            }
+        }
+
+        yield return expression[start..];
+    }
+
+    private static string StripOuterGrouping(string? expression)
+    {
+        var result = (expression ?? string.Empty).Trim();
+        while (result.Length >= 2 &&
+            ((result[0] == '(' && result[^1] == ')') || (result[0] == '{' && result[^1] == '}')) &&
+            EncloseWholeExpression(result))
+        {
+            result = result[1..^1].Trim();
+        }
+
+        return result;
+    }
+
+    private static bool EncloseWholeExpression(string expression)
+    {
+        var depth = 0;
+        for (var i = 0; i < expression.Length; i++)
+        {
+            if (expression[i] is '(' or '{')
+            {
+                depth++;
+            }
+            else if (expression[i] is ')' or '}')
+            {
+                depth--;
+                if (depth == 0 && i < expression.Length - 1)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return depth == 0;
     }
 
     internal static string GetFlagSetOperatorReason(FunctionBinding function)

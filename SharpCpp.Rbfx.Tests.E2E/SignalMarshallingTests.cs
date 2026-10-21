@@ -9,6 +9,12 @@ namespace SharpCpp.Rbfx.Tests.E2E;
 /// An Urho3D::Signal field is a borrowed handle to a flattened wrapper class. The wrapper can
 /// subscribe managed handlers, unsubscribe a receiver and invoke the signal.
 /// The handlers do not capture the receiver wrapper. The signal keeps the receiver only as a weak reference.
+///
+/// Coverage gap for PrioritySignal: the only engine PrioritySignal is Input::OnRawInput. Its argument type
+/// SDL_Event is not bound, so the wrapper has no Subscribe, SubscribeWithSender or Invoke.
+/// The E2E project has no native test helper that could add a signal with bound arguments.
+/// The test PrioritySignalHasSubscriptionsUnsubscribe covers only HasSubscriptions and Unsubscribe.
+/// The core fixture covers the full PrioritySignal wrapper.
 /// </summary>
 public sealed class SignalMarshallingTests
 {
@@ -90,6 +96,46 @@ public sealed class SignalMarshallingTests
         Assert.Equal(2, otherCalls);
 
         signal.Unsubscribe(other);
+        Assert.False(signal.HasSubscriptions());
+    }
+
+    [Fact]
+    public void DisposedReceiverIsNotCalled()
+    {
+        using var context = new global::Urho3D.Core.Context();
+        using var pipeline = new RenderPipeline(context);
+        var receiver = new Node(context);
+        var calls = 0;
+
+        var signal = pipeline.OnParametersChanged;
+        signal.Subscribe(receiver, () => ++calls);
+        signal.Invoke(null!);
+        Assert.Equal(1, calls);
+
+        // The signal holds the receiver as a weak reference, so the engine destroys the receiver here.
+        receiver.Dispose();
+
+        signal.Invoke(null!);
+        signal.Invoke(null!);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public void PrioritySignalHasSubscriptionsUnsubscribe()
+    {
+        using var context = new global::Urho3D.Core.Context();
+        using var input = new global::Urho3D.Input.Input(context);
+        using var receiver = new Node(context);
+
+        // The constructor of Input subscribes the input object to OnRawInput.
+        var signal = input.OnRawInput;
+        Assert.True(signal.HasSubscriptions());
+
+        // An unknown receiver changes nothing.
+        signal.Unsubscribe(receiver);
+        Assert.True(signal.HasSubscriptions());
+
+        signal.Unsubscribe(input);
         Assert.False(signal.HasSubscriptions());
     }
 

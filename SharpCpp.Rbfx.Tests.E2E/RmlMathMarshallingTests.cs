@@ -37,6 +37,32 @@ public sealed class RmlMathMarshallingTests
     [InlineData(0, 0)]
     [InlineData(1920, -1080)]
     [InlineData(int.MaxValue, int.MinValue)]
+    public void Vector2i_returns_from_native_helper(int x, int y)
+    {
+        var input = new IntVector2(x, y);
+
+        IntVector2 rml = RmlUiBindings.ToRmlUi(input);
+
+        Assert.Equal(input, rml);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1920, -1080)]
+    [InlineData(int.MaxValue, int.MinValue)]
+    public void Vector2i_converts_from_rml_value_in_native_helper(int x, int y)
+    {
+        var rmlValue = new IntVector2(x, y);
+
+        IntVector2 converted = RmlUiBindings.ToIntVector2(rmlValue);
+
+        Assert.Equal(rmlValue, converted);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1920, -1080)]
+    [InlineData(int.MaxValue, int.MinValue)]
     public void Vector2i_roundtrips_through_native_helpers(int x, int y)
     {
         var input = new IntVector2(x, y);

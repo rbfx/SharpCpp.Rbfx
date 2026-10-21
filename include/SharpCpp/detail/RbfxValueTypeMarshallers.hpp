@@ -482,6 +482,11 @@ ReturnMarshaller<Urho3D::ResourceRef> : OwnedHandleReturnMarshallerBase<Urho3D::
 //   which would double-indirect if Marshaller<T>::abi_type is also a pointer.
 //   Keeping Marshaller<T>::abi_type = T (value) avoids this.
 // Return ABI: ABI struct via ReturnMarshaller<T> specialization.
+// Every Urho math type of size 1, 2, 4 or 8 bytes must return through a trivial ABI struct.
+// MSVC returns a class with a base class or user constructors through a hidden pointer.
+// .NET expects an 8-byte struct in RAX.
+// The by-value parameter of Vector2 and IntVector2 keeps abi_type = T. A field setter passes a T*
+// to MarshallerInvoker::set_field, which needs arg_t<T> to be T. Change both together.
 // ═════════════════════════════════════════════════════════════════════
 
 template <>
@@ -607,6 +612,16 @@ struct Marshaller<const Urho3D::IntVector2&>
     using abi_type = const Urho3D::IntVector2*;
     abi_type ConvertToAbi(cpp_type v) noexcept { return &v; }
     cpp_type ConvertToCpp(abi_type v) noexcept { return *v; }
+};
+
+// Same rule as ReturnMarshaller<Urho3D::Vector2>: an 8-byte math type returns as a trivial ABI struct.
+template <>
+struct ReturnMarshaller<Urho3D::IntVector2>
+{
+    using cpp_type = Urho3D::IntVector2;
+    using abi_type = IntVector2Abi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbi(v); }
+    cpp_type ConvertToCpp(const abi_type& v) noexcept { return ToCpp(v); }
 };
 
 // ═════════════════════════════════════════════════════════════════════

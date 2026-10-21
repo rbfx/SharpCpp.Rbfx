@@ -93,6 +93,10 @@ internal static class Program
             {
                 marshallerHeaderPaths.Add(Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxImGuiValueMarshallers.hpp"));
             }
+            if (sdkFlags.HasDefine("URHO3D_RMLUI", "1"))
+            {
+                marshallerHeaderPaths.Add(Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxRmlMathMarshallers.hpp"));
+            }
 
             var marshallerConfigurationFiles = marshallerHeaderPaths.Select(Path.GetFullPath).ToArray();
 

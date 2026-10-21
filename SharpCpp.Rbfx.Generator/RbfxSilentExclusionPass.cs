@@ -147,7 +147,8 @@ public static class RbfxSilentExclusionPass
     /// 1. A declaration in a Dear ImGui or RmlUI header that the surface pass excludes later.
     /// 2. A record without a user-defined API surface.
     /// 3. A callable or field that uses a third-party or standard library type that rbfx does not bind.
-    /// 4. A declaration inside a record that is a silent exclusion.
+    /// 4. A declaration inside a record that is a silent exclusion or has suppress_emission.
+    ///    A declaration inside a mapped Rml math template, for example Rml::Vector2, is also silent.
     /// 5. The warning for a dropped base that is excluded on purpose. The base stays dropped.
     /// The pass must run before the pipeline writes the diagnostic log.
     /// eastl and Urho3D types are not third-party: they stay visible as gaps.
@@ -194,6 +195,20 @@ public static class RbfxSilentExclusionPass
         }
 
         foreach (var record in compilation.Records.Where(static record => record.IsSilentlyExcluded()))
+        {
+            foreach (var member in record.Descendants<BindingNode>().Where(static member => member.IsIgnored()))
+            {
+                count += MarkSilent(member);
+            }
+        }
+
+        // A configured managed type replaces a record with suppress_emission, for example ImVec2.
+        // The record has no wrapper class, so its members have no managed surface.
+        // The marshallers of the Rml math templates are specializations of concrete instantiations.
+        // Thus the generic template record has no suppress_emission, but it also has no wrapper class.
+        foreach (var record in compilation.Records.Where(static record =>
+                     record.GetMetadata<bool>(MetadataKeys.SuppressEmission) ||
+                     RbfxRmlUiSurfacePass.MappedMathTemplateNames.Contains(record.CppQualifiedName)))
         {
             foreach (var member in record.Descendants<BindingNode>().Where(static member => member.IsIgnored()))
             {

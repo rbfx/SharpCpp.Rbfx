@@ -144,6 +144,11 @@ internal static class Program
                 marshallerConfigurationFiles.Add(Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxImGuiValueMarshallers.hpp"));
             }
 
+            if (submodules.HasRmlUi)
+            {
+                marshallerConfigurationFiles.Add(Path.Combine(rbfxIncludeRoot, "SharpCpp", "detail", "RbfxRmlMathMarshallers.hpp"));
+            }
+
             Logger.LogInformation("RmlUI bindings: {State}", submodules.HasRmlUi ? "enabled" : "disabled");
             Logger.LogInformation("Dear ImGui bindings: {State}", submodules.HasSystemUi ? "enabled" : "disabled");
 

@@ -33,7 +33,24 @@ public static class RbfxRmlUiSurfacePass
         "Rml::DataSetFunc",
         "Rml::String",
         "Rml::ModalFlag",
-        "Rml::FocusFlag"
+        "Rml::FocusFlag",
+        // RbfxRmlMathMarshallers.hpp maps these math instantiations to Urho3D math types.
+        // Only these exact spellings are allowed. Other instantiations, such as
+        // Rml::Vector2<double> or Rml::Vector3i, stay outside the surface.
+        "Rml::Vector2f",
+        "Rml::Vector2i",
+        "Rml::Vector3f",
+        "Rml::Vector4f",
+        "Rml::Colourf",
+        "Rml::Colourb",
+        "Rml::Vector2<float>",
+        "Rml::Vector2<int>",
+        "Rml::Vector3<float>",
+        "Rml::Vector4<float>",
+        "Rml::Colour<float, 1>",
+        "Rml::Colour<unsigned char, 255>",
+        "Rml::Colour<Rml::byte, 255>",
+        "Rml::Colour<byte, 255>"
     ];
 
     private static readonly HashSet<string> PublicEnumNames = new(StringComparer.Ordinal)
@@ -107,6 +124,8 @@ public static class RbfxRmlUiSurfacePass
             }
         }
 
+        changed += ExcludeRmlMathOverloadCollisions(compilation);
+
         foreach (var field in compilation.Records.SelectMany(static record => record.Members.OfType<FieldBinding>()).Where(static field => !field.IsIgnored()))
         {
             if (TypeUsesUnsupportedRmlType(field.Type, field.CppTypeName, recordsBySymbolId, enumsBySymbolId))
@@ -136,6 +155,159 @@ public static class RbfxRmlUiSurfacePass
     internal const string EnumOutsideSurfaceReason = "RmlUI enum is outside the conservative bootstrap surface";
 
     internal const string FunctionOutsideSurfaceReason = "RmlUI callable is outside the conservative bootstrap surface";
+
+    public const string RmlMathOverloadCollisionReason =
+        "this overload takes an Rml math type and has the same managed signature as a sibling overload, which stays";
+
+    private static readonly string[] ColourbTypeNames = ["Colourb", "Colour<unsignedchar,255>", "Colour<byte,255>"];
+
+    // The managed type of each mapped Rml math type, by the normalized C++ spelling.
+    private static readonly (string[] Names, string ManagedType)[] RmlMathManagedTypes =
+    [
+        (["Vector2f", "Vector2<float>"], "Vector2"),
+        (["Vector2i", "Vector2<int>"], "IntVector2"),
+        (["Vector3f", "Vector3<float>"], "Vector3"),
+        (["Vector4f", "Vector4<float>"], "Vector4"),
+        (["Colourf", "Colour<float,1>"], "Color"),
+        (ColourbTypeNames, "Color"),
+    ];
+
+    /// <summary>
+    /// The Rml class templates that RbfxRmlMathMarshallers.hpp maps to Urho3D math types.
+    /// The templates have no managed wrapper class.
+    /// </summary>
+    public static readonly IReadOnlySet<string> MappedMathTemplateNames =
+        new HashSet<string>(["Rml::Vector2", "Rml::Vector3", "Rml::Vector4", "Rml::Colour"], StringComparer.Ordinal);
+
+    /// <summary>
+    /// The Rml math types map to Urho3D math types, and C# cannot hold two overloads with one signature.
+    /// Examples are Urho3D::ToVector2(const Rml::Vector2f&amp;) and Urho3D::ToVector2(const ImVec2&amp;),
+    /// and Urho3D::ToColor(const Rml::Colourb&amp;) and Urho3D::ToColor(const Rml::Colourf&amp;).
+    /// The pass keeps the overload with the lowest rank and excludes the other overloads.
+    /// Rank 0 has no Rml math type. Rank 1 has an Rml math type. Rank 2 has Rml::Colourb.
+    /// Thus a Colourf overload stays, because it keeps the float channels without the byte rounding.
+    /// </summary>
+    private static int ExcludeRmlMathOverloadCollisions(BindingCompilation compilation)
+    {
+        var changed = 0;
+        var groups = compilation.Functions
+            .Where(static function => !function.IsIgnored())
+            .GroupBy(static function => OverloadSetKey(function), StringComparer.Ordinal);
+        foreach (var group in groups)
+        {
+            var overloads = group.ToList();
+            if (overloads.Count < 2)
+            {
+                continue;
+            }
+
+            foreach (var candidate in overloads.Where(static function => RmlMathRank(function) > 0))
+            {
+                var rank = RmlMathRank(candidate);
+                var collides = overloads.Any(other =>
+                    !ReferenceEquals(other, candidate) &&
+                    !other.IsIgnored() &&
+                    RmlMathRank(other) < rank &&
+                    HaveSameManagedSignature(candidate, other));
+                if (!collides)
+                {
+                    continue;
+                }
+
+                candidate.SetSilentExclusionReason(RmlMathOverloadCollisionReason, overwriteExisting: true);
+                changed++;
+            }
+        }
+
+        return changed;
+    }
+
+    // Free functions of one namespace go to one managed Bindings class, also from different headers.
+    // Members of one record come from one header. Thus the key does not contain the header.
+    private static string OverloadSetKey(FunctionBinding function)
+    {
+        var qualifiedName = function.CppQualifiedName ?? function.NativeName;
+        var separator = qualifiedName.LastIndexOf("::", StringComparison.Ordinal);
+        var scope = separator < 0 ? string.Empty : qualifiedName[..separator];
+        return $"{scope}|{function.IsConstructor}|{function.ManagedName}";
+    }
+
+    private static int RmlMathRank(FunctionBinding function)
+    {
+        if (function.Parameters.Any(static parameter => IsColourbParameter(parameter)))
+        {
+            return 2;
+        }
+
+        return function.Parameters.Any(static parameter => RmlMathManagedType(parameter) is not null) ? 1 : 0;
+    }
+
+    private static bool HaveSameManagedSignature(FunctionBinding left, FunctionBinding right) =>
+        left.Parameters.Count == right.Parameters.Count &&
+        left.Parameters.Zip(right.Parameters).All(static pair =>
+            pair.First.Direction == pair.Second.Direction &&
+            string.Equals(ManagedParameterKey(pair.First), ManagedParameterKey(pair.Second), StringComparison.Ordinal));
+
+    // An Rml math type gives the name of its Urho3D math type. Other types give the managed type name
+    // without the 'global::' and 'Urho3D.Math.' prefixes, because the renderer writes both spellings.
+    private static string ManagedParameterKey(ParameterBinding parameter)
+    {
+        if (RmlMathManagedType(parameter) is { } mathType)
+        {
+            return mathType;
+        }
+
+        var managedType = parameter.Type.ManagedTypeName ?? string.Empty;
+        if (managedType.StartsWith("global::", StringComparison.Ordinal))
+        {
+            managedType = managedType["global::".Length..];
+        }
+
+        return managedType.StartsWith("Urho3D.Math.", StringComparison.Ordinal)
+            ? managedType["Urho3D.Math.".Length..]
+            : managedType;
+    }
+
+    private static string? RmlMathManagedType(ParameterBinding parameter)
+    {
+        foreach (var (names, managedType) in RmlMathManagedTypes)
+        {
+            if (IsRmlColourType(parameter.CppTypeName, names) || IsRmlColourType(parameter.Type.CppTypeName, names))
+            {
+                return managedType;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsColourbParameter(ParameterBinding parameter) =>
+        IsRmlColourType(parameter.CppTypeName, ColourbTypeNames) || IsRmlColourType(parameter.Type.CppTypeName, ColourbTypeNames);
+
+    // Compares the type without const, references, white space and Rml:: qualifiers.
+    // Thus 'const Rml::Colour<Rml::byte, 255> &' and 'Colourb' both match.
+    public static bool IsRmlColourType(string? cppTypeName, IReadOnlyList<string> names)
+    {
+        if (string.IsNullOrWhiteSpace(cppTypeName))
+        {
+            return false;
+        }
+
+        var normalized = cppTypeName.Trim();
+        if (normalized.StartsWith("const ", StringComparison.Ordinal))
+        {
+            normalized = normalized["const ".Length..];
+        }
+
+        normalized = string.Concat(normalized.Where(static value => !char.IsWhiteSpace(value) && value != '&'))
+            .Replace("Rml::", string.Empty, StringComparison.Ordinal);
+        if (normalized.EndsWith("const", StringComparison.Ordinal))
+        {
+            normalized = normalized[..^"const".Length];
+        }
+
+        return names.Contains(normalized, StringComparer.Ordinal);
+    }
 
     /// <summary>
     /// True when <see cref="Apply"/> excludes the record silently.
@@ -416,12 +588,15 @@ public static class RbfxRmlUiSurfacePass
                 return false;
             }
 
-            if (!AllowedTypeNames.Any(allowed => StartsWithTypeName(cppTypeName, rmlIndex, allowed)))
+            var allowedName = AllowedTypeNames.FirstOrDefault(allowed => StartsWithTypeName(cppTypeName, rmlIndex, allowed));
+            if (allowedName is null)
             {
                 return true;
             }
 
-            searchIndex = rmlIndex + "Rml::".Length;
+            // An allowed name is a complete type spelling, so the scan continues after it.
+            // Thus 'Rml::byte' in 'Rml::Colour<Rml::byte, 255>' is not checked again.
+            searchIndex = rmlIndex + allowedName.Length;
         }
     }
 

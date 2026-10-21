@@ -5,6 +5,8 @@
 
 #include <RmlUi/Core/Types.h>
 
+#include <type_traits>
+
 // The RmlUi math types cross the ABI as the Urho3D math types.
 // The managed code uses Urho3D.Math structs. No Rml math wrapper class is emitted.
 // The marshallers name the canonical template instantiations, not the Rml aliases.
@@ -83,8 +85,11 @@ inline Rml::Colour<Rml::byte, 255> ToCppRmlColourb(const ColorAbi& v)
 }
 
 // ═════════════════════════════════════════════════════════════════════
-// Same layout as the Urho3D type: the parameter ABI is the Rml value or a pointer to it.
-// The return ABI is the trivial ABI struct, as for ImVec2.
+// Same layout as the Urho3D type.
+// The by-value ABI is the trivial ABI struct, as for ImVec2. Rml::Vector2 and the other Rml math types
+// have user-provided constructors. Some compilers (MSVC) pass such a type in another way than a
+// trivial struct of the same size. A managed caller passes the plain struct.
+// The reference ABI is a pointer to the Rml value.
 // ═════════════════════════════════════════════════════════════════════
 
 static_assert(sizeof(Rml::Vector2<float>) == sizeof(Vector2Abi), "Rml::Vector2f layout differs from Vector2Abi");
@@ -92,6 +97,12 @@ static_assert(sizeof(Rml::Vector2<int>) == sizeof(IntVector2Abi), "Rml::Vector2i
 static_assert(sizeof(Rml::Vector3<float>) == sizeof(Vector3Abi), "Rml::Vector3f layout differs from Vector3Abi");
 static_assert(sizeof(Rml::Vector4<float>) == sizeof(Vector4Abi), "Rml::Vector4f layout differs from Vector4Abi");
 static_assert(sizeof(Rml::Colour<float, 1>) == sizeof(ColorAbi), "Rml::Colourf layout differs from ColorAbi");
+
+static_assert(std::is_trivially_copyable_v<Vector2Abi>, "Vector2Abi must be trivially copyable");
+static_assert(std::is_trivially_copyable_v<IntVector2Abi>, "IntVector2Abi must be trivially copyable");
+static_assert(std::is_trivially_copyable_v<Vector3Abi>, "Vector3Abi must be trivially copyable");
+static_assert(std::is_trivially_copyable_v<Vector4Abi>, "Vector4Abi must be trivially copyable");
+static_assert(std::is_trivially_copyable_v<ColorAbi>, "ColorAbi must be trivially copyable");
 
 template <>
 struct [[sharpcpp::managed_type(
@@ -102,9 +113,9 @@ struct [[sharpcpp::managed_type(
 Marshaller<Rml::Vector2<float>>
 {
     using cpp_type = Rml::Vector2<float>;
-    using abi_type = Rml::Vector2<float>;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    using abi_type = Vector2Abi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbiRmlVector2f(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCppRmlVector2f(v); }
 };
 
 template <>
@@ -134,9 +145,9 @@ struct [[sharpcpp::managed_type(
 Marshaller<Rml::Vector2<int>>
 {
     using cpp_type = Rml::Vector2<int>;
-    using abi_type = Rml::Vector2<int>;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    using abi_type = IntVector2Abi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbiRmlVector2i(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCppRmlVector2i(v); }
 };
 
 template <>
@@ -166,9 +177,9 @@ struct [[sharpcpp::managed_type(
 Marshaller<Rml::Vector3<float>>
 {
     using cpp_type = Rml::Vector3<float>;
-    using abi_type = Rml::Vector3<float>;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    using abi_type = Vector3Abi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbiRmlVector3f(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCppRmlVector3f(v); }
 };
 
 template <>
@@ -198,9 +209,9 @@ struct [[sharpcpp::managed_type(
 Marshaller<Rml::Vector4<float>>
 {
     using cpp_type = Rml::Vector4<float>;
-    using abi_type = Rml::Vector4<float>;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    using abi_type = Vector4Abi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbiRmlVector4f(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCppRmlVector4f(v); }
 };
 
 template <>
@@ -230,9 +241,9 @@ struct [[sharpcpp::managed_type(
 Marshaller<Rml::Colour<float, 1>>
 {
     using cpp_type = Rml::Colour<float, 1>;
-    using abi_type = Rml::Colour<float, 1>;
-    abi_type ConvertToAbi(const cpp_type& v) noexcept { return v; }
-    cpp_type ConvertToCpp(abi_type v) noexcept { return v; }
+    using abi_type = ColorAbi;
+    abi_type ConvertToAbi(const cpp_type& v) noexcept { return ToAbiRmlColourf(v); }
+    cpp_type ConvertToCpp(abi_type v) noexcept { return ToCppRmlColourf(v); }
 };
 
 template <>

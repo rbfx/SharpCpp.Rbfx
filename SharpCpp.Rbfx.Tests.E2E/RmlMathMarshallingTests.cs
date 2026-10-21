@@ -11,6 +11,7 @@ namespace SharpCpp.Rbfx.Tests.E2E;
 /// No bound API uses Rml::Colourb, thus the static_asserts in the header test the byte conversion.
 /// Urho3D::ToVector2(Rml::Vector2f) and Urho3D::ToVector4(Rml::Vector4f) collide with the ImGui overloads.
 /// The generator excludes them, thus the Vector2f and Vector4f tests use only the return direction.
+/// No other bound API takes Rml::Vector2f or Rml::Vector4f by value, thus no test covers that parameter direction.
 /// </summary>
 public sealed class RmlMathMarshallingTests
 {

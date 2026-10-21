@@ -111,4 +111,30 @@ public sealed class RmlMathMarshallingTests
         Assert.Equal(input, rml);
         Assert.Equal(input, output);
     }
+
+    [Theory]
+    [MemberData(nameof(Vector2Values))]
+    public void Vector2_field_setter_and_getter_roundtrip(float x, float y)
+    {
+        using var billboard = new global::Urho3D.Graphics.Billboard();
+        var value = new Vector2(x, y);
+
+        billboard.Size = value;
+
+        Assert.Equal(value, billboard.Size);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1920, -1080)]
+    [InlineData(int.MaxValue, int.MinValue)]
+    public void IntVector2_field_setter_and_getter_roundtrip(int x, int y)
+    {
+        using var touch = new global::Urho3D.Input.TouchState();
+        var value = new IntVector2(x, y);
+
+        touch.Position = value;
+
+        Assert.Equal(value, touch.Position);
+    }
 }

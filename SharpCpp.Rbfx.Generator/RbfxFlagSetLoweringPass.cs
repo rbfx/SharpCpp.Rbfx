@@ -47,6 +47,10 @@ public static class RbfxFlagSetLoweringPass
                     parameter.Type = parameterType;
                     LowerDefaultValue(parameter, parameterEnum, parameterType.ManagedTypeName);
                 }
+                else if (parameter.Type.IsCallback)
+                {
+                    parameter.Type = LowerCallbackSignature(compilation, parameter.Type);
+                }
             }
 
             if (returnedFlagSet && IsFlagEnumOperator(function))
@@ -80,6 +84,48 @@ public static class RbfxFlagSetLoweringPass
         }
 
         compilation.InvalidateCaches();
+    }
+
+    /// <summary>
+    /// Lowers a by-value FlagSet in the signature of a callback type, for example a Signal handler.
+    /// The native callback gives the value through the FlagSet marshaller, which has the ABI of the enum.
+    /// A reference to a FlagSet in a callback keeps the FlagSet type, so the validation reports it.
+    /// </summary>
+    private static BindingType LowerCallbackSignature(BindingCompilation compilation, BindingType callbackType)
+    {
+        var changed = false;
+        var parameterTypes = new List<BindingType>(callbackType.CallbackParameterTypes.Count);
+        foreach (var parameterType in callbackType.CallbackParameterTypes)
+        {
+            if (TryLowerCallbackValue(compilation, parameterType, out var loweredParameter))
+            {
+                parameterTypes.Add(loweredParameter);
+                changed = true;
+            }
+            else
+            {
+                parameterTypes.Add(parameterType);
+            }
+        }
+
+        var returnType = callbackType.CallbackReturnType ?? BindingType.Void;
+        if (TryLowerCallbackValue(compilation, returnType, out var loweredReturn))
+        {
+            returnType = loweredReturn;
+            changed = true;
+        }
+
+        return changed ? callbackType.WithCallbackSignature(returnType, parameterTypes) : callbackType;
+    }
+
+    private static bool TryLowerCallbackValue(BindingCompilation compilation, BindingType type, out BindingType enumType)
+    {
+        enumType = BindingType.Void;
+        // The parser spells a record type in a callback signature as a handle pointer, so the
+        // spelling does not show a by-value record. The CppIsRecordValue fact shows it.
+        return type.Marshaller.CppIsRecordValue &&
+            !type.Marshaller.CppIsReference &&
+            TryLowerFlagSetType(compilation, type, out enumType, out _);
     }
 
     private static bool TryLowerFlagSetType(BindingCompilation compilation, BindingType type, out BindingType enumType, out EnumBinding enumBinding)

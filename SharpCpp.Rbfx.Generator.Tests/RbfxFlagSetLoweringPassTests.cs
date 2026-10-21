@@ -24,6 +24,31 @@ public sealed class RbfxFlagSetLoweringPassTests
     }
 
     [Fact]
+    public void Apply_LowersByValueFlagSetInCallbackSignature()
+    {
+        var model = new FlagSetTestModel();
+        var owner = model.AddRecord("Signal");
+        var flagSetValue = model.FlagSetType.WithCppIsRecordValue(true);
+        var flagSetReference = flagSetValue.WithCppIsReference(true);
+        var callbackType = BindingType.CreateCallback(
+            "std::function<void (Urho3D::FlagSet<Urho3D::MouseButton>, Urho3D::FlagSet<Urho3D::MouseButton>&)>",
+            "global::System.Action<{0}>",
+            managedMarshaller: null,
+            BindingType.Void,
+            [flagSetValue, flagSetReference]);
+        var function = model.AddFunction(owner, "Subscribe", BindingType.Void, callbackType);
+
+        RbfxFlagSetLoweringPass.Apply(model.Compilation);
+
+        var loweredCallback = function.Parameters[0].Type;
+        Assert.True(loweredCallback.IsCallback);
+        Assert.Equal(BindingTypeKind.Enum, loweredCallback.CallbackParameterTypes[0].Kind);
+        Assert.Equal(FlagSetTestModel.LoweredEnumName, loweredCallback.CallbackParameterTypes[0].ManagedTypeName);
+        // A reference to a FlagSet keeps the FlagSet type.
+        Assert.Same(flagSetReference, loweredCallback.CallbackParameterTypes[1]);
+    }
+
+    [Fact]
     public void Apply_LowersFieldTypeToEnum()
     {
         var model = new FlagSetTestModel();
@@ -323,7 +348,7 @@ public sealed class RbfxFlagSetLoweringPassTests
     }
 
     [Fact]
-    public void Apply_KeepsCallbackAndNestedGenericWithFlagSetIgnored()
+    public void Apply_LowersCallbackAndKeepsNestedGenericWithFlagSetIgnored()
     {
         var model = ValidationReadyModel(out var function);
         var callbackType = BindingType.CreateCallback(
@@ -331,7 +356,7 @@ public sealed class RbfxFlagSetLoweringPassTests
             "global::System.Action<{0}>",
             null,
             BindingType.Void,
-            new[] { model.FlagSetType });
+            new[] { model.FlagSetType.WithCppIsRecordValue(true) });
         var vectorType = BindingType.CreateHandle(
             "ea::vector<Urho3D::FlagSet<Urho3D::MouseButton>>",
             "Vector<FlagSet<MouseButton>>",
@@ -344,9 +369,10 @@ public sealed class RbfxFlagSetLoweringPassTests
         RbfxFlagSetLoweringPass.Apply(model.Compilation);
         DegradeUnsupportedSurfacePass.Apply(model.Compilation);
 
-        Assert.Equal(BindingTypeKind.Handle, callbackType.CallbackParameterTypes[0].Kind);
+        // A by-value FlagSet in a callback becomes the enum. A FlagSet in a generic argument stays.
+        Assert.Equal(BindingTypeKind.Enum, function.Parameters[0].Type.CallbackParameterTypes[0].Kind);
         Assert.Equal(BindingTypeKind.Handle, vectorType.GenericArguments[0].Kind);
-        Assert.True(function.IsIgnored());
+        Assert.False(function.IsIgnored(), function.GetIgnoreReason());
         Assert.True(vectorFunction.IsIgnored());
     }
 
